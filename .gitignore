@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Nuitka & Build
+dist/
+*.build/
+*.onefile-build/
+*.dist/
+scons-report.txt
+
+# OS & IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Project specific
+results.json
+nuitka-crash-report.xml

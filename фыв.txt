@@ -1,0 +1,24 @@
+ Инструкции для завершения:
+
+  1. Для Linux (Alt Linux / Arch / и др.):
+  Вы можете прямо сейчас установить клиент студента в систему:
+
+   1 sudo bash build/install.sh
+  После этого программа "EduTest Pro - Студент" появится в главном меню.
+
+  2. Для Windows:
+  Так как я нахожусь в Linux-окружении, я не могу собрать нативный Windows EXE (Nuitka
+  требует наличия Windows SDK и компилятора MSVC/MinGW).
+
+  Шаги для сборки под Windows:
+   1. Перенесите папку проекта на компьютер с Windows.
+   2. Установите зависимости: pip install Nuitka PySide6.
+   3. Запустите тот же скрипт сборки:
+   1    python build_all.py
+   4. После завершения в папке dist/student/ появится edutest-student.exe.
+   5. Установите Inno Setup (https://jrsoftware.org/isdl.php) и скомпилируйте
+      инсталлятор, открыв файл build/student_setup.iss.
+
+  Результат: У вас будет один файл EduTestStudent_Setup.exe, который можно раздавать
+  студентам без исходников.
+
