@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from PySide6.QtCore import Qt, QObject, Signal, Slot, QByteArray, QTimer
-from PySide6.QtNetwork import QTcpSocket, QAbstractSocket
+from PySide6.QtNetwork import QTcpSocket, QAbstractSocket, QNetworkProxy
 from PySide6.QtWidgets import QApplication
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -88,6 +88,7 @@ class StudentClient(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._socket = QTcpSocket(self)
+        self._socket.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
         self._socket.connected.connect(self._on_socket_connected)
         self._socket.readyRead.connect(self._on_data_ready)
         self._socket.errorOccurred.connect(self._on_socket_error)
@@ -102,6 +103,7 @@ class StudentClient(QObject):
     def check_active_group(self, host: str, port: int):
         """Запрашивает с сервера активные группы без входа."""
         self._temp_sock = QTcpSocket(self)
+        self._temp_sock.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
         self._temp_buf = QByteArray()
         
         def on_connected():
