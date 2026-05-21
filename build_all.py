@@ -6,8 +6,8 @@ import shutil
 # Конфигурация
 PROJECT_NAME = "EduTest Pro"
 APPS = {
-    "server": {"main": "server/main.py", "output": "edutest-server"},
-    "student": {"main": "client/main.py", "output": "edutest-student"}
+    "server": {"main": "server/main.py", "output": "TTGTiSO-Test-server"},
+    "student": {"main": "client/main.py", "output": "TTGTiSO-Test-student"}
 }
 
 def run_command(cmd):

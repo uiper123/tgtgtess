@@ -36,7 +36,7 @@ def pack_message(data: dict) -> bytes:
 
 class ConnectedStudent:
     """Данные о подключённом студенте."""
-    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers')
+    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions')
 
     def __init__(self, socket: QTcpSocket, name: str, group: str):
         self.socket = socket
@@ -47,6 +47,7 @@ class ConnectedStudent:
         self.score: Optional[str] = None
         self.active = True
         self.answers: Dict[int, List[str]] = {}
+        self.questions: List[Dict[str, Any]] = []
 
 
 class ExamServer(QObject):
@@ -117,7 +118,7 @@ class ExamServer(QObject):
         self.log_message.emit(f"Загружен тест: {os.path.basename(filepath)} ({count} вопросов)")
         return count
 
-    def start_exam(self, group: str, duration: int, questions: list, title: str, section: str, test_name: str, port: int = None, partial_multiple: bool = True, random_order: bool = False, max_attempts: int = 1):
+    def start_exam(self, group: str, duration: int, questions: list, title: str, section: str, test_name: str, port: int = None, partial_multiple: bool = True, random_order: bool = False, max_attempts: int = 1, questions_limit: int = None):
         """Запускает экзамен для конкретной группы: открывает TCP-порт и добавляет в список активных."""
         if not questions:
             self.server_error.emit("Сначала загрузите или выберите файл теста!")
@@ -136,6 +137,7 @@ class ExamServer(QObject):
             'random_order': random_order,
             'max_attempts': max(1, int(max_attempts)),
             'attempts': {},
+            'questions_limit': questions_limit,
         }
 
         self._allowed_group = group.strip()
@@ -348,8 +350,13 @@ class ExamServer(QObject):
         self._monitor_data[(name, group)] = student
 
         questions_for_student = list(exam['questions'])
-        if exam.get('random_order'):
+        limit = exam.get('questions_limit')
+        if limit and limit < len(questions_for_student):
+            questions_for_student = random.sample(questions_for_student, limit)
+        elif exam.get('random_order'):
             questions_for_student = random.sample(questions_for_student, len(questions_for_student))
+
+        student.questions = questions_for_student
 
         # Отправляем тест
         response = {
@@ -382,7 +389,14 @@ class ExamServer(QObject):
 
         # Точный подсчёт очков по ключам правильных ответов для конкретного теста
         group_key = group.lower()
-        if group_key in self._active_exams:
+        if student and getattr(student, 'questions', None):
+            questions_to_use = student.questions
+            if group_key in self._active_exams:
+                exam = self._active_exams[group_key]
+                partial_multiple = exam.get('partial_multiple', True)
+            else:
+                partial_multiple = True
+        elif group_key in self._active_exams:
             exam = self._active_exams[group_key]
             questions_to_use = exam['questions']
             partial_multiple = exam.get('partial_multiple', True)

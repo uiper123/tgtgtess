@@ -35,8 +35,8 @@ jobs:
         with:
           name: windows-binaries
           path: |
-            dist/server/edutest-server.exe
-            dist/student/edutest-student.exe
+            dist/server/TTGTiSO-Test-server.exe
+            dist/student/TTGTiSO-Test-student.exe
             dist/EduTestStudent_Setup.exe
 
   build-linux:
@@ -64,5 +64,5 @@ jobs:
         with:
           name: linux-binaries
           path: |
-            dist/server/edutest-server
-            dist/student/edutest-student
+            dist/server/TTGTiSO-Test-server
+            dist/student/TTGTiSO-Test-student

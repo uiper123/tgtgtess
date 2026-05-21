@@ -154,6 +154,7 @@ QRadioButton, QCheckBox {
     border: 2px solid #e2e8f0;
     border-radius: 10px;
     background-color: #ffffff;
+    margin-left: 52px;
 }
 QRadioButton:hover, QCheckBox:hover {
     background-color: #eff6ff;
@@ -857,7 +858,6 @@ class StudentWindow(QMainWindow):
             for ans_text in answers:
                 cb = QCheckBox(ans_text)
                 cb.setCursor(Qt.PointingHandCursor)
-                cb.setStyleSheet("margin-left: 52px;")
                 if ans_text in previous_answers:
                     cb.setChecked(True)
                 card_layout.addWidget(cb)
@@ -868,7 +868,6 @@ class StudentWindow(QMainWindow):
             for i, ans_text in enumerate(answers):
                 rb = QRadioButton(ans_text)
                 rb.setCursor(Qt.PointingHandCursor)
-                rb.setStyleSheet("margin-left: 52px;")
                 if ans_text in previous_answers:
                     rb.setChecked(True)
                 self._radio_group.addButton(rb, i)

@@ -7,16 +7,16 @@ server/ui_server.py — Графический интерфейс препода
 import os
 import sys
 from datetime import datetime
-from PySide6.QtCore import Qt, Signal, Slot, QSize, QTimer
+from PySide6.QtCore import Qt, Signal, Slot, QSize, QTimer, QSettings
 from PySide6.QtGui import QFont, QDragEnterEvent, QDropEvent, QColor
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QStackedWidget, QFileDialog, QMessageBox,
     QSizePolicy, QFrame, QTextEdit, QDialog, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox
+    QScrollArea, QCheckBox, QComboBox, QGridLayout
 )
-from shared.parser import get_grade_details, questions_to_network_payload
+from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
 
 # ---------------------------------------------------------------------------
 # QSS-стили под макет (Без графических иконок, аккуратные шрифты и рамки)
@@ -279,7 +279,7 @@ QHeaderView::section {
     background-color: #ffffff;
     border: 2px dashed #cbd5e1;
     border-radius: 16px;
-    min-height: 180px;
+    min-height: 140px;
 }
 #dropZone:hover {
     border-color: #3b82f6;
@@ -310,7 +310,36 @@ QLabel.sectionSub {
 
 /* --- Dialogs & QMessageBox --- */
 QDialog {
-    background-color: #f8fafc;
+    background-color: #ffffff;
+}
+QDialog QLabel {
+    color: #1e293b;
+    font-size: 13px;
+    background: transparent;
+}
+QDialog QLineEdit {
+    background-color: #f9fafb;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #1e293b;
+    font-size: 13px;
+}
+QDialog QLineEdit:focus {
+    border-color: #3b82f6;
+}
+QDialog QPushButton {
+    background-color: #3b82f6;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 13px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 8px;
+    min-width: 80px;
+}
+QDialog QPushButton:hover {
+    background-color: #2563eb;
 }
 QMessageBox {
     background-color: #ffffff;
@@ -430,7 +459,7 @@ class EditQuestionDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Редактирование вопроса" if question else "Создание вопроса")
         self.resize(650, 600)
-        self.setStyleSheet("QDialog { background-color: #f8fafc; }")
+        self.setStyleSheet(GLOBAL_QSS)
         
         self.question = question if question else {
             "number": 1,
@@ -620,7 +649,7 @@ class EditQuestionDialog(QDialog):
         self._create_answer_row()
 
     def _select_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Выберите изображение", "", "Изображения (*.png *.jpg *.jpeg *.gif)")
+        path, _ = self._get_open_file_name("Выберите изображение", "", "Изображения (*.png *.jpg *.jpeg *.gif)")
         if path:
             import base64
             try:
@@ -740,11 +769,13 @@ class MonitoringDialog(QDialog):
         if row < len(students):
             student = students[row]
             
-            # Находим правильные вопросы для этого студента (по его группе)
-            group_key = student.group.lower()
-            questions = self.exam_server.questions
-            if group_key in self.exam_server._active_exams:
-                questions = self.exam_server._active_exams[group_key]['questions']
+            # Находим правильные вопросы для этого студента
+            questions = getattr(student, 'questions', None)
+            if not questions:
+                group_key = student.group.lower()
+                questions = self.exam_server.questions
+                if group_key in self.exam_server._active_exams:
+                    questions = self.exam_server._active_exams[group_key]['questions']
 
             dlg = StudentAnswersDialog(student, questions, self)
             dlg.exec()
@@ -825,7 +856,8 @@ class DropZoneWidget(QFrame):
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
+        layout.setContentsMargins(16, 16, 16, 16)
 
         self.label = QLabel("Перетащите файл теста формата .txt сюда")
         self.label.setAlignment(Qt.AlignCenter)
@@ -849,7 +881,7 @@ class DropZoneWidget(QFrame):
         layout.addWidget(self._status_label)
 
     def _browse(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Выберите файл теста", "", "Текстовые файлы (*.txt)")
+        path, _ = self._get_open_file_name("Выберите файл теста", "", "Текстовые файлы (*.txt)")
         if path:
             self.set_file(path)
 
@@ -875,7 +907,7 @@ class SelectTestFromRepoDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Выбрать тест из репозитория")
         self.resize(500, 400)
-        self.setStyleSheet("QDialog { background-color: #f8fafc; }")
+        self.setStyleSheet(GLOBAL_QSS)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -941,9 +973,10 @@ class ServerWindow(QMainWindow):
     def __init__(self, exam_server, parent=None):
         super().__init__(parent)
         self.exam_server = exam_server
+        self._settings = QSettings("EduTest", "Server")
         self.setWindowTitle("TTGTiSO-Test — Панель преподавателя")
-        self.setMinimumSize(1100, 700)
-        self.resize(1200, 800)
+        self.setMinimumSize(1200, 750)
+        self.resize(1300, 850)
         self.setStyleSheet(GLOBAL_QSS)
 
         self._current_test_group = "Новый тест"
@@ -956,6 +989,24 @@ class ServerWindow(QMainWindow):
         self.exam_server.server_started.connect(self._on_server_started)
 
         self._build_ui()
+
+    def _get_disable_delete_confirm(self) -> bool:
+        val = self._settings.value("disable_delete_confirm", False)
+        if isinstance(val, str):
+            return val.lower() == 'true'
+        return bool(val)
+
+    def _get_open_file_name(self, title: str, directory: str, filter_str: str) -> tuple:
+        self.setStyleSheet("")
+        res = QFileDialog.getOpenFileName(self, title, directory, filter_str)
+        self.setStyleSheet(GLOBAL_QSS)
+        return res
+
+    def _get_save_file_name(self, title: str, directory: str, filter_str: str) -> tuple:
+        self.setStyleSheet("")
+        res = QFileDialog.getSaveFileName(self, title, directory, filter_str)
+        self.setStyleSheet(GLOBAL_QSS)
+        return res
 
     def _build_ui(self):
         central = QWidget()
@@ -1195,7 +1246,7 @@ class ServerWindow(QMainWindow):
             QMessageBox.information(self, "Успешно", f"Создан новый тест для группы '{name}'. Добавьте вопросы в открывшемся окне редактора!")
 
     def _import_test_txt_flow(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Импортировать тест", "", "Текстовые файлы (*.txt)")
+        path, _ = self._get_open_file_name("Импортировать тест", "", "Текстовые файлы (*.txt)")
         if path:
             try:
                 count = self.exam_server.load_test(path)
@@ -1236,12 +1287,16 @@ class ServerWindow(QMainWindow):
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите тест из таблицы!")
             return
         group = self.tests_table.item(selected, 0).text()
-        reply = QMessageBox.question(
-            self, "Удаление теста", 
-            f"Вы уверены, что хотите безвозвратно удалить тест для группы '{group}'?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
+        disable_confirm = self._get_disable_delete_confirm()
+        if not disable_confirm:
+            reply = QMessageBox.question(
+                self, "Удаление теста", 
+                f"Вы уверены, что хотите безвозвратно удалить тест для группы '{group}'?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+        if True:
             path = os.path.join("tests", f"{group}.json")
             if os.path.exists(path):
                 try:
@@ -1429,6 +1484,22 @@ class ServerWindow(QMainWindow):
 
         btn_layout.addStretch()
 
+        self.import_q_from_file_btn = QPushButton("Импорт вопросов (.txt)")
+        self.import_q_from_file_btn.setStyleSheet(
+            "QPushButton { background-color: #f59e0b; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #d97706; }"
+        )
+        self.import_q_from_file_btn.clicked.connect(self.import_questions)
+        btn_layout.addWidget(self.import_q_from_file_btn)
+
+        self.import_q_from_repo_btn = QPushButton("Импорт из другого теста")
+        self.import_q_from_repo_btn.setStyleSheet(
+            "QPushButton { background-color: #6366f1; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #4f46e5; }"
+        )
+        self.import_q_from_repo_btn.clicked.connect(self._import_questions_from_repo)
+        btn_layout.addWidget(self.import_q_from_repo_btn)
+
         self.export_test_btn = QPushButton("Экспортировать тест (.txt)")
         self.export_test_btn.setStyleSheet(
             "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
@@ -1511,27 +1582,31 @@ class ServerWindow(QMainWindow):
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите вопрос для удаления!")
             return
         
-        reply = QMessageBox.question(
-            self, "Удаление вопроса", 
-            f"Вы уверены, что хотите удалить вопрос №{row + 1}?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if reply == QMessageBox.Yes:
-            self.exam_server.questions.pop(row)
-            for idx, q in enumerate(self.exam_server.questions):
-                q["number"] = idx + 1
-            self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
-            self._update_questions_table()
-            self._save_active_test_to_repo()
-            self._update_dashboard_stats()
-            self._update_exams_page_test_view()
+        disable_confirm = self._get_disable_delete_confirm()
+        if not disable_confirm:
+            reply = QMessageBox.question(
+                self, "Удаление вопроса", 
+                f"Вы уверены, что хотите удалить вопрос №{row + 1}?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        self.exam_server.questions.pop(row)
+        for idx, q in enumerate(self.exam_server.questions):
+            q["number"] = idx + 1
+        self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
+        self._update_questions_table()
+        self._save_active_test_to_repo()
+        self._update_dashboard_stats()
+        self._update_exams_page_test_view()
 
     def export_test(self):
         if not self.exam_server.questions:
             QMessageBox.warning(self, "Предупреждение", "Список вопросов пуст!")
             return
         
-        path, _ = QFileDialog.getSaveFileName(self, "Экспортировать тест", "test_edited.txt", "Текстовые файлы (*.txt)")
+        path, _ = self._get_save_file_name("Экспортировать тест", "test_edited.txt", "Текстовые файлы (*.txt)")
         if path:
             try:
                 lines = []
@@ -1540,7 +1615,10 @@ class ServerWindow(QMainWindow):
                 lines.append("")
                 
                 for q in self.exam_server.questions:
-                    lines.append(f"? {q.get('text', '')}")
+                    prefix_q = "?"
+                    if q.get('multiple'):
+                        prefix_q += " (С множественным выбором)"
+                    lines.append(f"{prefix_q} {q.get('text', '')}")
                     if q.get('image_data'):
                         lines.append(f"@image_base64: {q.get('image_data')}")
                     for ans in q.get('answers', []):
@@ -1554,6 +1632,55 @@ class ServerWindow(QMainWindow):
                 QMessageBox.information(self, "Успешно", f"Тест успешно сохранен в файл:\n{path}")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить тест: {e}")
+
+    def import_questions(self):
+        path, _ = self._get_open_file_name("Импортировать вопросы", "", "Текстовые файлы (*.txt)")
+        if path:
+            try:
+                new_questions = parse_test_file(path)
+                start_idx = len(self.exam_server.questions)
+                for i, q in enumerate(new_questions):
+                    q["number"] = start_idx + i + 1
+                    self.exam_server.questions.append(q)
+                self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
+                self._update_questions_table()
+                self._save_active_test_to_repo()
+                self._update_dashboard_stats()
+                self._update_exams_page_test_view()
+                QMessageBox.information(self, "Успешно", f"Успешно импортировано {len(new_questions)} вопросов.")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать вопросы: {e}")
+
+    def _import_questions_from_repo(self):
+        tests = self._get_saved_tests()
+        # Exclude current test
+        tests = [t for t in tests if t["group"] != self._current_test_group]
+        if not tests:
+            QMessageBox.information(self, "Информация", "Нет других сохранённых тестов для импорта.")
+            return
+        dlg = SelectTestFromRepoDialog(tests, self)
+        dlg.setWindowTitle("Импортировать вопросы из другого теста")
+        if dlg.exec():
+            group = dlg.selected_group
+            if group:
+                import json
+                path = os.path.join("tests", f"{group}.json")
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    new_questions = data.get("questions", [])
+                    start_idx = len(self.exam_server.questions)
+                    for i, q in enumerate(new_questions):
+                        q["number"] = start_idx + i + 1
+                        self.exam_server.questions.append(q)
+                    self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
+                    self._update_questions_table()
+                    self._save_active_test_to_repo()
+                    self._update_dashboard_stats()
+                    self._update_exams_page_test_view()
+                    QMessageBox.information(self, "Успешно", f"Импортировано {len(new_questions)} вопросов из теста '{group}'.")
+                except Exception as e:
+                    QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать вопросы: {e}")
 
     # ========================== 3. АКТИВНЫЕ ЭКЗАМЕНЫ (ГЛАВНАЯ) ==========================
     def _build_exams_page(self):
@@ -1573,9 +1700,13 @@ class ServerWindow(QMainWindow):
         # Карточка настроек
         settings_card = QFrame()
         settings_card.setProperty("class", "card")
-        sc_layout = QHBoxLayout(settings_card)
-        sc_layout.setContentsMargins(20, 16, 20, 16)
+        sc_layout = QVBoxLayout(settings_card)
+        sc_layout.setContentsMargins(24, 20, 24, 20)
         sc_layout.setSpacing(16)
+
+        # Row 0: Inputs
+        inputs_layout = QHBoxLayout()
+        inputs_layout.setSpacing(16)
 
         grp_col = QVBoxLayout()
         grp_label = QLabel("Академическая группа / Класс")
@@ -1584,7 +1715,7 @@ class ServerWindow(QMainWindow):
         self._group_input = QLineEdit()
         self._group_input.setPlaceholderText("Например: CS-101")
         grp_col.addWidget(self._group_input)
-        sc_layout.addLayout(grp_col, 2)
+        inputs_layout.addLayout(grp_col, 4)
 
         dur_col = QVBoxLayout()
         dur_label = QLabel("Лимит времени (минуты)")
@@ -1595,7 +1726,7 @@ class ServerWindow(QMainWindow):
         self._duration_spin.setValue(60)
         self._duration_spin.setButtonSymbols(QSpinBox.NoButtons)
         dur_col.addWidget(self._duration_spin)
-        sc_layout.addLayout(dur_col, 1)
+        inputs_layout.addLayout(dur_col, 1)
 
         # Выбор количества вопросов
         limit_col = QVBoxLayout()
@@ -1607,7 +1738,7 @@ class ServerWindow(QMainWindow):
         self._questions_limit_spin.setValue(10)
         self._questions_limit_spin.setButtonSymbols(QSpinBox.NoButtons)
         limit_col.addWidget(self._questions_limit_spin)
-        sc_layout.addLayout(limit_col, 1)
+        inputs_layout.addLayout(limit_col, 1)
 
         # Количество попыток для одного ФИО
         attempts_col = QVBoxLayout()
@@ -1619,9 +1750,14 @@ class ServerWindow(QMainWindow):
         self._attempts_limit_spin.setValue(1)
         self._attempts_limit_spin.setButtonSymbols(QSpinBox.NoButtons)
         attempts_col.addWidget(self._attempts_limit_spin)
-        sc_layout.addLayout(attempts_col, 1)
+        inputs_layout.addLayout(attempts_col, 1)
 
-        # Рандомизация порядка вопросов
+        sc_layout.addLayout(inputs_layout)
+
+        # Row 1: Checkboxes and Action Button
+        options_layout = QHBoxLayout()
+        options_layout.setSpacing(16)
+
         rnd_col = QVBoxLayout()
         rnd_label = QLabel("Случайный порядок")
         rnd_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
@@ -1630,7 +1766,7 @@ class ServerWindow(QMainWindow):
         self._random_order_cb.setObjectName("randomOrderCheck")
         self._random_order_cb.setCursor(Qt.PointingHandCursor)
         rnd_col.addWidget(self._random_order_cb)
-        sc_layout.addLayout(rnd_col, 1)
+        options_layout.addLayout(rnd_col, 1)
 
         # Частичный зачёт множественных вопросов
         partial_col = QVBoxLayout()
@@ -1642,13 +1778,21 @@ class ServerWindow(QMainWindow):
         self._partial_multiple_cb.setChecked(True)
         self._partial_multiple_cb.setCursor(Qt.PointingHandCursor)
         partial_col.addWidget(self._partial_multiple_cb)
-        sc_layout.addLayout(partial_col, 1)
+        options_layout.addLayout(partial_col, 1)
 
+        btn_col = QVBoxLayout()
+        btn_label = QLabel("")  # Spacer label to align button vertically
+        btn_label.setStyleSheet("font-size: 12px;")
+        btn_col.addWidget(btn_label)
         self._start_btn = QPushButton("Запустить экзамен")
         self._start_btn.setProperty("class", "successBtn")
         self._start_btn.setCursor(Qt.PointingHandCursor)
+        self._start_btn.setMinimumHeight(44)
         self._start_btn.clicked.connect(self._toggle_exam)
-        sc_layout.addWidget(self._start_btn)
+        btn_col.addWidget(self._start_btn)
+        options_layout.addLayout(btn_col, 2)
+
+        sc_layout.addLayout(options_layout)
 
         layout.addWidget(settings_card)
 
@@ -1811,9 +1955,6 @@ class ServerWindow(QMainWindow):
         # Запускаем экзамен на сервере
         questions = list(self.exam_server.questions)
         limit = self._questions_limit_spin.value()
-        
-        if limit < len(questions):
-            questions = questions[:limit]
 
         self.exam_server.start_exam(
             group=group,
@@ -1825,6 +1966,7 @@ class ServerWindow(QMainWindow):
             partial_multiple=self._partial_multiple_cb.isChecked(),
             random_order=self._random_order_cb.isChecked(),
             max_attempts=self._attempts_limit_spin.value(),
+            questions_limit=limit,
         )
 
         # Обновляем надпись статуса сервера
@@ -2067,7 +2209,7 @@ class ServerWindow(QMainWindow):
             QMessageBox.warning(self, "Предупреждение", "Нет результатов для экспорта!")
             return
         
-        path, _ = QFileDialog.getSaveFileName(self, "Экспортировать отфильтрованные результаты", "results_filtered.csv", "CSV-файлы (*.csv)")
+        path, _ = self._get_save_file_name("Экспортировать отфильтрованные результаты", "results_filtered.csv", "CSV-файлы (*.csv)")
         if path:
             import csv
             try:
@@ -2108,8 +2250,16 @@ class ServerWindow(QMainWindow):
 
         self.port_spin = QSpinBox()
         self.port_spin.setRange(1024, 65535)
-        self.port_spin.setValue(9876)
+        self.port_spin.setValue(self._settings.value("tcp_port", 9876, type=int))
+        self.port_spin.setMaximumWidth(180)
         form_layout.addWidget(self.port_spin)
+        
+        self.disable_delete_confirm_cb = QCheckBox("Отключить подтверждение удаления для вопросов и теста")
+        self.disable_delete_confirm_cb.setObjectName("randomOrderCheck")
+        self.disable_delete_confirm_cb.setCursor(Qt.PointingHandCursor)
+        self.disable_delete_confirm_cb.setMaximumWidth(500)
+        self.disable_delete_confirm_cb.setChecked(self._get_disable_delete_confirm())
+        form_layout.addWidget(self.disable_delete_confirm_cb)
 
         save_btn = QPushButton("Применить настройки")
         save_btn.setProperty("class", "primaryBtn")
@@ -2122,8 +2272,12 @@ class ServerWindow(QMainWindow):
 
     def _save_settings(self):
         new_port = self.port_spin.value()
+        disable_confirm = self.disable_delete_confirm_cb.isChecked()
         self.exam_server.DEFAULT_PORT = new_port
-        QMessageBox.information(self, "Настройки", f"Порт TCP-сервера по умолчанию изменен на {new_port}")
+        self._settings.setValue("tcp_port", new_port)
+        self._settings.setValue("disable_delete_confirm", disable_confirm)
+        self._settings.sync()
+        QMessageBox.information(self, "Настройки", f"Настройки успешно сохранены.\nПорт TCP-сервера: {new_port}")
 
     # ========================== СИГНАЛЫ И ХЕЛПЕРЫ ==========================
 

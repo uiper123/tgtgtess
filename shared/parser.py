@@ -38,12 +38,6 @@ class TestQuestionsList(list):
 _TITLE_RE = re.compile(r'^@title:\s*(.+)\s*$', re.IGNORECASE)
 _SECTION_RE = re.compile(r'^@section:\s*(.+)\s*$', re.IGNORECASE)
 
-# Регулярное выражение для строки начала вопроса: ?N или ?N (С множественным выбором)
-_QUESTION_RE = re.compile(
-    r'^\?(\d+)\s*(\(С множественным выбором\))?\s*$',
-    re.IGNORECASE
-)
-
 # Регулярное выражение для маркера изображения: @image:имя_файла
 _IMAGE_RE = re.compile(r'^@image:\s*(.+)\s*$', re.IGNORECASE)
 
@@ -76,6 +70,12 @@ def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
     # Объединяем строки текста вопроса (могут быть многострочные)
     question['text'] = '\n'.join(question.get('_text_lines', [])).strip()
     question.pop('_text_lines', None)
+    
+    # Если в вопросе несколько правильных ответов, то по умолчанию выставляем множественный выбор
+    correct_count = sum(1 for a in question.get('answers', []) if a.get('correct', False))
+    if correct_count > 1:
+        question['multiple'] = True
+        
     return question
 
 
@@ -131,21 +131,36 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 continue
 
         # Проверяем, начинается ли новый вопрос
-        match_q = _QUESTION_RE.match(stripped)
-        if match_q:
+        if stripped.startswith('?'):
             # Финализируем предыдущий вопрос, если он был
             if current is not None:
                 questions.append(_finalize_question(current))
 
-            q_number = int(match_q.group(1))
-            is_multiple = match_q.group(2) is not None
+            rest = stripped[1:].strip()
+            
+            # Проверяем старый формат: "?N" или "?N (С множественным выбором)"
+            old_match = re.match(r'^(\d+)\s*(\(С множественным выбором\))?$', rest, re.IGNORECASE)
+            if old_match:
+                q_number = int(old_match.group(1))
+                is_multiple = old_match.group(2) is not None
+                text_part = ""
+            else:
+                # Новый формат
+                is_multiple = False
+                mult_marker = "(С множественным выбором)"
+                if rest.lower().startswith(mult_marker.lower()):
+                    is_multiple = True
+                    text_part = rest[len(mult_marker):].strip()
+                else:
+                    text_part = rest
+                q_number = len(questions) + 1
 
             current = {
                 'number': q_number,
                 'multiple': is_multiple,
                 'image_data': None,
                 'answers': [],
-                '_text_lines': [],  # временный накопитель строк текста
+                '_text_lines': [text_part] if text_part else [],
             }
             continue
 
