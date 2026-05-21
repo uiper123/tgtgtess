@@ -75,6 +75,8 @@ jobs:
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
@@ -92,10 +94,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist-windows/TTGTiSO-Test-server.exe
-            dist-windows/TTGTiSO-Test-student.exe
-            dist-windows/EduTestStudent_Setup.exe
-            dist-linux/TTGTiSO-Test-server
-            dist-linux/TTGTiSO-Test-student
+            dist-windows/**/*.exe
+            dist-linux/**/TTGTiSO-Test-server
+            dist-linux/**/TTGTiSO-Test-student
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
