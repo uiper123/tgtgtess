@@ -143,6 +143,7 @@ class StudentClient(QObject):
         self._group = group.strip()
         self._pending_connect = True
         self._buffer.clear()
+        self._socket.abort()  # Сброс предыдущего состояния подключения
         self._socket.connectToHost(host.strip(), port)
 
     @Slot()
@@ -240,6 +241,9 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("TTGTiSO-Test — Студент")
     app.setOrganizationName("EduTest")
+
+    # Глобально отключаем системный прокси для всех сокетов
+    QNetworkProxy.setApplicationProxy(QNetworkProxy(QNetworkProxy.NoProxy))
 
     client = StudentClient()
 
