@@ -2420,7 +2420,7 @@ class ServerWindow(QMainWindow):
         self._settings.sync()
         QMessageBox.information(self, "Настройки", f"Настройки успешно сохранены.\nПорт TCP-сервера: {new_port}")
 
-    # ========================== СИГНАЛЫ И ХЕЛПЕРЫ ==========================ы
+    # ========================== СИГНАЛЫ И ХЕЛПЕРЫ ==========================
 
     @Slot(str, str)
     def _on_student_connected(self, name, group):
