@@ -446,7 +446,12 @@ class StudentAnswersDialog(QDialog):
                 student_ans = student.answers.get(q_num, [])
                 correct_answers = [ans['text'] for ans in q.get('answers', []) if ans.get('correct')]
                 
-                is_correct = set(student_ans) == set(correct_answers)
+                if q.get('written'):
+                    student_text = student_ans[0] if student_ans else ""
+                    from shared.parser import compare_written_answer
+                    is_correct = any(compare_written_answer(student_text, ans_text) for ans_text in correct_answers)
+                else:
+                    is_correct = set(student_ans) == set(correct_answers)
 
                 # Card for each question
                 q_card = QFrame()
@@ -472,13 +477,19 @@ class StudentAnswersDialog(QDialog):
                 card_lay.addLayout(header)
 
                 # Student selected
-                sel_lbl = QLabel(f"Выбрано студентом: {', '.join(student_ans) if student_ans else '[Нет ответа]'}")
+                if q.get('written'):
+                    sel_lbl = QLabel(f"Ответ студента: {student_ans[0] if student_ans else '[Нет ответа]'}")
+                else:
+                    sel_lbl = QLabel(f"Выбрано студентом: {', '.join(student_ans) if student_ans else '[Нет ответа]'}")
                 sel_lbl.setWordWrap(True)
                 sel_lbl.setStyleSheet("font-size: 12px; color: #475569; border: none;")
                 card_lay.addWidget(sel_lbl)
 
                 # Correct answers
-                cor_lbl = QLabel(f"Правильный ответ: {', '.join(correct_answers)}")
+                if q.get('written'):
+                    cor_lbl = QLabel(f"Правильные варианты ответа: {', '.join(correct_answers)}")
+                else:
+                    cor_lbl = QLabel(f"Правильный ответ: {', '.join(correct_answers)}")
                 cor_lbl.setWordWrap(True)
                 cor_lbl.setStyleSheet("font-size: 12px; color: #059669; font-weight: 500; border: none;")
                 card_lay.addWidget(cor_lbl)
@@ -508,6 +519,7 @@ class EditQuestionDialog(QDialog):
             "number": 1,
             "text": "",
             "multiple": False,
+            "written": False,
             "answers": [],
             "image_data": None
         }
@@ -531,32 +543,30 @@ class EditQuestionDialog(QDialog):
         )
         layout.addWidget(self.q_text_input)
 
-        # Multiple choice checkbox
-        self.multiple_cb = QCheckBox("Множественный выбор (несколько правильных ответов)")
-        self.multiple_cb.setChecked(self.question.get("multiple", False))
-        self.multiple_cb.setCursor(Qt.PointingHandCursor)
-        self.multiple_cb.setStyleSheet(
-            "QCheckBox {"
-            "  color: #1e293b;"
-            "  font-size: 13px;"
-            "  font-weight: 600;"
-            "  spacing: 10px;"
-            "  background-color: #f1f5f9;"
-            "  border: 1px solid #cbd5e1;"
-            "  border-radius: 8px;"
-            "  padding: 10px 14px;"
-            "}"
-            "QCheckBox:hover {"
-            "  background-color: #e2e8f0;"
-            "  border-color: #94a3b8;"
-            "}"
-            "QCheckBox:checked {"
-            "  background-color: #eff6ff;"
-            "  border-color: #3b82f6;"
-            "  color: #1e3a8a;"
-            "}"
-        )
-        layout.addWidget(self.multiple_cb)
+        # Question Type
+        type_lay = QHBoxLayout()
+        type_lbl = QLabel("Тип вопроса:")
+        type_lbl.setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        type_lay.addWidget(type_lbl)
+
+        self.q_type_combo = QComboBox()
+        self.q_type_combo.addItems([
+            "Одиночный выбор",
+            "Множественный выбор",
+            "Письменный ответ"
+        ])
+        
+        # Determine initial selection
+        if self.question.get("written", False):
+            self.q_type_combo.setCurrentIndex(2)
+        elif self.question.get("multiple", False):
+            self.q_type_combo.setCurrentIndex(1)
+        else:
+            self.q_type_combo.setCurrentIndex(0)
+            
+        type_lay.addWidget(self.q_type_combo)
+        type_lay.addStretch()
+        layout.addLayout(type_lay)
 
         # Image selection
         img_layout = QHBoxLayout()
@@ -585,9 +595,9 @@ class EditQuestionDialog(QDialog):
         layout.addLayout(img_layout)
 
         # Answer Options List
-        lbl2 = QLabel("Варианты ответов:")
-        lbl2.setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none; background: transparent;")
-        layout.addWidget(lbl2)
+        self.ans_title_lbl = QLabel("Варианты ответов:")
+        self.ans_title_lbl.setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        layout.addWidget(self.ans_title_lbl)
         
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -637,11 +647,29 @@ class EditQuestionDialog(QDialog):
         layout.addLayout(btn_lay)
 
         self.answer_rows = []
+        self.q_type_combo.currentIndexChanged.connect(self._on_type_changed)
         self._load_answers()
+
+    def _on_type_changed(self, index):
+        is_written = (index == 2)
+        if is_written:
+            self.ans_title_lbl.setText("Правильные варианты ответа (студент должен ввести любой из них):")
+            self.add_ans_btn.setText("Добавить правильный вариант")
+        else:
+            self.ans_title_lbl.setText("Варианты ответов:")
+            self.add_ans_btn.setText("Добавить вариант ответа")
+
+        for row in self.answer_rows:
+            if is_written:
+                row["cb"].setChecked(True)
+                row["cb"].hide()
+            else:
+                row["cb"].show()
 
     def _load_answers(self):
         for ans in self.question.get("answers", []):
             self._create_answer_row(ans.get("text", ""), ans.get("correct", False))
+        self._on_type_changed(self.q_type_combo.currentIndex())
 
     def _create_answer_row(self, text="", is_correct=False):
         row_widget = QWidget()
@@ -652,7 +680,13 @@ class EditQuestionDialog(QDialog):
 
         # Checkbox for marking as correct
         correct_cb = QCheckBox()
-        correct_cb.setChecked(is_correct)
+        is_written = (self.q_type_combo.currentIndex() == 2)
+        if is_written:
+            correct_cb.setChecked(True)
+            correct_cb.hide()
+        else:
+            correct_cb.setChecked(is_correct)
+            
         correct_cb.setStyleSheet(
             "QCheckBox { background: transparent; border: none; }"
             "QCheckBox::indicator { width: 20px; height: 20px; }"
@@ -716,20 +750,31 @@ class EditQuestionDialog(QDialog):
             return
 
         answers_list = []
+        q_type_idx = self.q_type_combo.currentIndex()
+        is_written = (q_type_idx == 2)
+        is_multiple = (q_type_idx == 1)
+
         for row in self.answer_rows:
             ans_text = row["input"].text().strip()
             if ans_text:
                 answers_list.append({
                     "text": ans_text,
-                    "correct": row["cb"].isChecked()
+                    "correct": True if is_written else row["cb"].isChecked()
                 })
 
         if not answers_list:
-            QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один вариант ответа!")
+            QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один правильный вариант ответа!" if is_written else "Добавьте хотя бы один вариант ответа!")
             return
 
+        if not is_written:
+            correct_count = sum(1 for a in answers_list if a["correct"])
+            if correct_count == 0:
+                QMessageBox.warning(self, "Предупреждение", "Выберите хотя бы один правильный вариант ответа (отметьте галочкой)!")
+                return
+
         self.question["text"] = text
-        self.question["multiple"] = self.multiple_cb.isChecked()
+        self.question["multiple"] = is_multiple
+        self.question["written"] = is_written
         self.question["answers"] = answers_list
         
         self.accept()
@@ -1036,6 +1081,7 @@ class ServerWindow(QMainWindow):
         self.exam_server.server_error.connect(self._show_error)
         self.exam_server.student_connected.connect(self._on_student_connected)
         self.exam_server.student_finished.connect(self._on_student_finished)
+        self.exam_server.student_disconnected.connect(self._on_student_disconnected)
         self.exam_server.server_started.connect(self._on_server_started)
 
         self._build_ui()
@@ -1599,7 +1645,10 @@ class ServerWindow(QMainWindow):
             self.q_table.setItem(row, 0, QTableWidgetItem(str(q.get('number', row + 1))))
             self.q_table.setItem(row, 1, QTableWidgetItem(q.get('text', '')))
 
-            type_str = "Множественный" if q.get('multiple') else "Одиночный"
+            if q.get('written'):
+                type_str = "Письменный"
+            else:
+                type_str = "Множественный" if q.get('multiple') else "Одиночный"
             self.q_table.setItem(row, 2, QTableWidgetItem(type_str))
 
             ans_texts = [a.get('text', '') for a in q.get('answers', [])]
@@ -1678,7 +1727,9 @@ class ServerWindow(QMainWindow):
                 
                 for q in self.exam_server.questions:
                     prefix_q = "?"
-                    if q.get('multiple'):
+                    if q.get('written'):
+                        prefix_q += " (Письменный ответ)"
+                    elif q.get('multiple'):
                         prefix_q += " (С множественным выбором)"
                     lines.append(f"{prefix_q} {q.get('text', '')}")
                     if q.get('image_data'):
@@ -2377,6 +2428,10 @@ class ServerWindow(QMainWindow):
 
     @Slot(str, str, str)
     def _on_student_finished(self, name, group, score):
+        self._update_exam_table_view()
+
+    @Slot(str, str)
+    def _on_student_disconnected(self, name, group):
         self._update_exam_table_view()
 
     @Slot(str)

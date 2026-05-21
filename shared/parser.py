@@ -62,6 +62,30 @@ def _read_image_as_base64(image_path: str) -> Optional[str]:
         return None
 
 
+def compare_written_answer(student_ans: str, correct_ans: str) -> bool:
+    """
+    Сравнивает ответ студента с правильным ответом без учёта регистра.
+    Для числовых ответов с плавающей точкой поддерживает как точки, так и запятые.
+    """
+    s_clean = student_ans.strip().lower()
+    c_clean = correct_ans.strip().lower()
+    
+    if s_clean == c_clean:
+        return True
+        
+    s_num_str = s_clean.replace(',', '.')
+    c_num_str = c_clean.replace(',', '.')
+    
+    try:
+        s_val = float(s_num_str)
+        c_val = float(c_num_str)
+        return s_val == c_val
+    except ValueError:
+        pass
+        
+    return False
+
+
 def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
     """
     Финализирует словарь вопроса: собирает накопленные строки текста
@@ -72,9 +96,11 @@ def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
     question.pop('_text_lines', None)
     
     # Если в вопросе несколько правильных ответов, то по умолчанию выставляем множественный выбор
-    correct_count = sum(1 for a in question.get('answers', []) if a.get('correct', False))
-    if correct_count > 1:
-        question['multiple'] = True
+    # Но только если это не письменный вопрос
+    if not question.get('written', False):
+        correct_count = sum(1 for a in question.get('answers', []) if a.get('correct', False))
+        if correct_count > 1:
+            question['multiple'] = True
         
     return question
 
@@ -138,19 +164,36 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
 
             rest = stripped[1:].strip()
             
-            # Проверяем старый формат: "?N" или "?N (С множественным выбором)"
-            old_match = re.match(r'^(\d+)\s*(\(С множественным выбором\))?$', rest, re.IGNORECASE)
+            # Проверяем старый формат: "?N" или "?N (С множественным выбором)" или "?N (Письменный ответ)"
+            old_match = re.match(r'^(\d+)\s*(\(С множественным выбором\)|\(Письменный ответ\)|\(Письменно\))?$', rest, re.IGNORECASE)
             if old_match:
                 q_number = int(old_match.group(1))
-                is_multiple = old_match.group(2) is not None
+                marker = old_match.group(2)
+                is_multiple = False
+                is_written = False
+                if marker:
+                    if "множественн" in marker.lower():
+                        is_multiple = True
+                    elif "письмен" in marker.lower():
+                        is_written = True
                 text_part = ""
             else:
                 # Новый формат
                 is_multiple = False
+                is_written = False
                 mult_marker = "(С множественным выбором)"
+                written_marker = "(Письменный ответ)"
+                written_marker_alt = "(Письменно)"
+                
                 if rest.lower().startswith(mult_marker.lower()):
                     is_multiple = True
                     text_part = rest[len(mult_marker):].strip()
+                elif rest.lower().startswith(written_marker.lower()):
+                    is_written = True
+                    text_part = rest[len(written_marker):].strip()
+                elif rest.lower().startswith(written_marker_alt.lower()):
+                    is_written = True
+                    text_part = rest[len(written_marker_alt):].strip()
                 else:
                     text_part = rest
                 q_number = len(questions) + 1
@@ -158,6 +201,7 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
             current = {
                 'number': q_number,
                 'multiple': is_multiple,
+                'written': is_written,
                 'image_data': None,
                 'answers': [],
                 '_text_lines': [text_part] if text_part else [],
@@ -214,6 +258,7 @@ def questions_to_network_payload(questions: List[Dict[str, Any]]) -> List[Dict[s
     """
     Преобразует список вопросов в формат, пригодный для отправки клиенту
     по сети (без поля 'correct' в ответах — студент не должен его видеть).
+    Для письменных вопросов ответы не отправляются вовсе, чтобы предотвратить читерство.
     """
     payload = []
     for q in questions:
@@ -221,8 +266,9 @@ def questions_to_network_payload(questions: List[Dict[str, Any]]) -> List[Dict[s
             'number': q['number'],
             'text': q['text'],
             'multiple': q['multiple'],
+            'written': q.get('written', False),
             'image_data': q['image_data'],
-            'answers': [a['text'] for a in q['answers']],
+            'answers': [a['text'] for a in q['answers']] if not q.get('written', False) else [],
         })
     return payload
 
@@ -247,17 +293,32 @@ def calculate_score(
 
     for q in questions:
         q_num = q['number']
-        selected = set(student_answers.get(q_num, []))
+        selected = student_answers.get(q_num, [])
+
+        if q.get('written', False):
+            if not selected:
+                continue
+            student_text = selected[0] if isinstance(selected, list) else str(selected)
+            is_correct = False
+            for a in q['answers']:
+                if a['correct'] and compare_written_answer(student_text, a['text']):
+                    is_correct = True
+                    break
+            if is_correct:
+                score += 1.0
+            continue
+
+        selected_set = set(selected)
         correct_set = set(a['text'] for a in q['answers'] if a['correct'])
-        wrong_selected = selected - correct_set
+        wrong_selected = selected_set - correct_set
 
         if not correct_set:
             continue
         if q.get('multiple') and partial_multiple:
-            correct_selected = selected & correct_set
+            correct_selected = selected_set & correct_set
             question_score = (len(correct_selected) - len(wrong_selected)) / len(correct_set)
             score += max(0.0, min(1.0, question_score))
-        elif selected == correct_set:
+        elif selected_set == correct_set:
             score += 1.0
 
     score_str = f"{score:.2f}".rstrip('0').rstrip('.')

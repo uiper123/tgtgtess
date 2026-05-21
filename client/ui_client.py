@@ -853,7 +853,11 @@ class StudentWindow(QMainWindow):
 
         card_layout.addLayout(header_layout)
 
-        if q.get('multiple'):
+        if q.get('written'):
+            hint = QLabel("Письменный ответ — введите ваш ответ в поле ниже")
+            hint.setStyleSheet("color: #3b82f6; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
+            card_layout.addWidget(hint)
+        elif q.get('multiple'):
             hint = QLabel("Множественный выбор — выберите все правильные варианты")
             hint.setStyleSheet("color: #f59e0b; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
             card_layout.addWidget(hint)
@@ -878,7 +882,29 @@ class StudentWindow(QMainWindow):
         q_num = q.get('number', index + 1)
         previous_answers = self._answers.get(q_num, [])
 
-        if q.get('multiple'):
+        if q.get('written'):
+            ans_input = QLineEdit()
+            ans_input.setPlaceholderText("Введите ваш ответ здесь...")
+            if previous_answers:
+                ans_input.setText(previous_answers[0])
+            ans_input.setStyleSheet(
+                "QLineEdit {"
+                "  background-color: #ffffff;"
+                "  border: 2px solid #cbd5e1;"
+                "  border-radius: 10px;"
+                "  padding: 12px 16px;"
+                "  font-size: 15px;"
+                "  color: #0f172a;"
+                "  margin-left: 52px;"
+                "  min-height: 24px;"
+                "}"
+                "QLineEdit:focus {"
+                "  border-color: #3b82f6;"
+                "}"
+            )
+            card_layout.addWidget(ans_input)
+            self._answer_widgets.append(ans_input)
+        elif q.get('multiple'):
             for ans_text in answers:
                 cb = QCheckBox(ans_text)
                 cb.setCursor(Qt.PointingHandCursor)
@@ -925,9 +951,17 @@ class StudentWindow(QMainWindow):
         q = self._questions[self._current_q]
         q_num = q.get('number', self._current_q + 1)
         selected = []
-        for w in self._answer_widgets:
-            if isinstance(w, (QRadioButton, QCheckBox)) and w.isChecked():
-                selected.append(w.text())
+        
+        if q.get('written'):
+            if self._answer_widgets:
+                w = self._answer_widgets[0]
+                if isinstance(w, QLineEdit):
+                    selected.append(w.text().strip())
+        else:
+            for w in self._answer_widgets:
+                if isinstance(w, (QRadioButton, QCheckBox)) and w.isChecked():
+                    selected.append(w.text())
+                    
         self._answers[q_num] = selected
 
     def _prev_question(self):

@@ -64,6 +64,7 @@ class ExamServer(QObject):
 
     student_connected = Signal(str, str)          # name, group
     student_finished = Signal(str, str, str)       # name, group, score
+    student_disconnected = Signal(str, str)       # name, group
     server_started = Signal(str, int)              # address, port
     server_error = Signal(str)                     # message
     log_message = Signal(str)                      # message
@@ -464,6 +465,7 @@ class ExamServer(QObject):
             # Обновляем в мониторинге
             if (student.name, student.group) in self._monitor_data:
                 self._monitor_data[(student.name, student.group)].active = False
+            self.student_disconnected.emit(student.name, student.group)
         sock.deleteLater()
 
     # -- Экспорт результатов --
@@ -480,11 +482,11 @@ class ExamServer(QObject):
 
         try:
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
-                writer = csv.DictWriter(f, fieldnames=['name', 'group', 'score', 'timestamp'])
+                writer = csv.DictWriter(f, fieldnames=['name', 'group', 'score', 'timestamp'], extrasaction='ignore')
                 writer.writeheader()
                 writer.writerows(self._results)
             self.log_message.emit(f"Результаты сохранены: {filename}")
-        except IOError as exc:
+        except Exception as exc:
             self.server_error.emit(f"Ошибка сохранения CSV: {exc}")
 
     # -- Персистентная история результатов --
