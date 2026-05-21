@@ -69,14 +69,17 @@ QComboBox::down-arrow {
     width: 14px;
     height: 14px;
 }
+QComboBox QFrame {
+    border: 1px solid #cbd5e1;
+    background-color: #ffffff;
+}
 QComboBox QAbstractItemView {
     background-color: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
+    border: none;
     padding: 4px;
     selection-background-color: #eff6ff;
     selection-color: #1e293b;
-    outline: 0;
+    outline: 0px;
 }
 QComboBox QAbstractItemView::item {
     min-height: 28px;

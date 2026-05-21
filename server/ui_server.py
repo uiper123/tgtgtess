@@ -123,6 +123,49 @@ QSpinBox {
 QSpinBox:focus {
     border: 2px solid #3b82f6;
 }
+QComboBox {
+    background-color: #f9fafb;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #1e293b;
+    min-height: 20px;
+}
+QComboBox:hover {
+    border-color: #cbd5e1;
+}
+QComboBox:focus {
+    border: 2px solid #3b82f6;
+}
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 30px;
+    border-left-width: 0px;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+QComboBox::down-arrow {
+    image: none;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #64748b;
+    margin-right: 10px;
+}
+QComboBox QFrame {
+    border: 1px solid #cbd5e1;
+    background-color: #ffffff;
+}
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    border: none;
+    selection-background-color: #eff6ff;
+    selection-color: #2563eb;
+    color: #1e293b;
+    padding: 4px;
+    outline: 0px;
+}
 QCheckBox#randomOrderCheck {
     color: #1e293b;
     font-size: 13px;
@@ -2068,24 +2111,44 @@ class ServerWindow(QMainWindow):
         title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e293b; border: none;")
         layout.addWidget(title)
 
-        # Filters and Search Layout
-        filter_layout = QHBoxLayout()
-        filter_layout.setSpacing(12)
+        # Filters and Search Card Container (premium design alignment)
+        filter_card = QFrame()
+        filter_card.setObjectName("filterCard")
+        filter_card.setStyleSheet(
+            "QFrame#filterCard { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; }"
+        )
+        filter_layout = QHBoxLayout(filter_card)
+        filter_layout.setContentsMargins(12, 12, 12, 12)
+        filter_layout.setSpacing(16)
 
-        # Search box
+        # Search Box layout
+        search_lay = QVBoxLayout()
+        search_lay.setSpacing(4)
+        search_lbl = QLabel("Поиск")
+        search_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748b; border: none; background: transparent;")
         self.r_search = QLineEdit()
-        self.r_search.setPlaceholderText("🔍 Поиск по ФИО студента...")
-        self.r_search.setStyleSheet("QLineEdit { padding: 8px 12px; font-size: 13px; }")
+        self.r_search.setPlaceholderText("🔍 Введите имя для поиска...")
         self.r_search.textChanged.connect(self._update_results_table)
-        filter_layout.addWidget(self.r_search, 2)
+        search_lay.addWidget(search_lbl)
+        search_lay.addWidget(self.r_search)
+        filter_layout.addLayout(search_lay, 2)
 
-        # Group Filter
+        # Group Filter layout
+        group_lay = QVBoxLayout()
+        group_lay.setSpacing(4)
+        group_lbl = QLabel("Академическая группа")
+        group_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748b; border: none; background: transparent;")
         self.r_group_filter = QComboBox()
-        self.r_group_filter.setStyleSheet("QComboBox { padding: 8px 12px; font-size: 13px; min-width: 150px; }")
         self.r_group_filter.currentIndexChanged.connect(self._update_results_table)
-        filter_layout.addWidget(self.r_group_filter, 1)
+        group_lay.addWidget(group_lbl)
+        group_lay.addWidget(self.r_group_filter)
+        filter_layout.addLayout(group_lay, 1)
 
-        # Sort combo
+        # Sort Filter layout
+        sort_lay = QVBoxLayout()
+        sort_lay.setSpacing(4)
+        sort_lbl = QLabel("Сортировка")
+        sort_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748b; border: none; background: transparent;")
         self.r_sort_filter = QComboBox()
         self.r_sort_filter.addItems([
             "По умолчанию",
@@ -2095,11 +2158,12 @@ class ServerWindow(QMainWindow):
             "Процент (По убыванию)",
             "Процент (По возрастанию)"
         ])
-        self.r_sort_filter.setStyleSheet("QComboBox { padding: 8px 12px; font-size: 13px; min-width: 180px; }")
         self.r_sort_filter.currentIndexChanged.connect(self._update_results_table)
-        filter_layout.addWidget(self.r_sort_filter, 1)
+        sort_lay.addWidget(sort_lbl)
+        sort_lay.addWidget(self.r_sort_filter)
+        filter_layout.addLayout(sort_lay, 1)
 
-        layout.addLayout(filter_layout)
+        layout.addWidget(filter_card)
 
         # Table of Results
         self.r_table = QTableWidget(0, 5)
