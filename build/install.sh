@@ -37,7 +37,9 @@ chown -R root:root "$INSTALL_DIR"
 chmod 755 "$INSTALL_DIR/TTGTiSO-Test-student"
 
 # 4. Копирование иконки если она есть
-if [ -f "./image.ico" ]; then
+if [ -f "./image.png" ]; then
+  cp "./image.png" "$INSTALL_DIR/icon.png"
+elif [ -f "./image.ico" ]; then
   cp "./image.ico" "$INSTALL_DIR/icon.ico"
 fi
 
@@ -50,7 +52,7 @@ Type=Application
 Name=EduTest Pro Student
 Comment=Система тестирования студентов
 Exec=$INSTALL_DIR/TTGTiSO-Test-student
-Icon=$INSTALL_DIR/icon.ico
+Icon=$INSTALL_DIR/icon.png
 Terminal=false
 Categories=Education;
 StartupNotify=true

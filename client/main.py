@@ -93,6 +93,7 @@ class StudentClient(QObject):
         self._socket = QTcpSocket(self)
         self._socket.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
         self._socket.connected.connect(self._on_socket_connected)
+        self._socket.disconnected.connect(self._on_socket_disconnected)
         self._socket.readyRead.connect(self._on_data_ready)
         self._socket.errorOccurred.connect(self._on_socket_error)
 
@@ -219,6 +220,10 @@ class StudentClient(QObject):
             else:
                 self.connection_error.emit(f'Ошибка сервера: {msg}')
 
+    @Slot()
+    def _on_socket_disconnected(self):
+        self.connection_error.emit('Соединение с сервером потеряно')
+
     @Slot(QAbstractSocket.SocketError)
     def _on_socket_error(self, error):
         self.connection_error.emit(
@@ -243,6 +248,10 @@ class StudentClient(QObject):
         save_encrypted_backup(self._name, self._group, score_placeholder, answers)
         return sent
 
+    def save_backup(self, answers: dict, score: str = "N/A"):
+        """Позволяет принудительно сохранить локальную резервную копию ответов."""
+        save_encrypted_backup(self._name, self._group, score, answers)
+
     def disconnect(self):
         if self._socket.state() == QAbstractSocket.ConnectedState:
             self._socket.disconnectFromHost()
@@ -261,11 +270,20 @@ def main():
     app.setApplicationName("TTGTiSO-Test — Студент")
     app.setOrganizationName("EduTest")
 
-    # Установка иконки приложения
+    # Установка иконки приложения (поиск в разных кандидатах для переносимости)
     from PySide6.QtGui import QIcon
-    icon_path = os.path.join(os.path.dirname(__file__), "..", "image.ico")
-    if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
+    icon_candidates = [
+        os.path.join(os.path.dirname(sys.executable), "image.ico"),
+        os.path.join(os.path.dirname(sys.executable), "image.png"),
+        os.path.join(os.path.dirname(sys.executable), "icon.png"),
+        os.path.join(os.path.dirname(__file__), "..", "image.ico"),
+        os.path.join(os.path.dirname(__file__), "..", "image.png"),
+        "/opt/test_system_student/icon.png"
+    ]
+    for path in icon_candidates:
+        if os.path.exists(path):
+            app.setWindowIcon(QIcon(path))
+            break
 
     # Глобально отключаем системный прокси для всех сокетов
     QNetworkProxy.setApplicationProxy(QNetworkProxy(QNetworkProxy.NoProxy))

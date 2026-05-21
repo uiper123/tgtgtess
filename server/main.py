@@ -538,11 +538,20 @@ def main():
     app.setApplicationName("TTGTiSO-Test — Сервер")
     app.setOrganizationName("EduTest")
 
-    # Установка иконки приложения
+    # Установка иконки приложения (поиск в разных кандидатах для переносимости)
     from PySide6.QtGui import QIcon
-    icon_path = os.path.join(os.path.dirname(__file__), "..", "image.ico")
-    if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
+    icon_candidates = [
+        os.path.join(os.path.dirname(sys.executable), "image.ico"),
+        os.path.join(os.path.dirname(sys.executable), "image.png"),
+        os.path.join(os.path.dirname(sys.executable), "icon.png"),
+        os.path.join(os.path.dirname(__file__), "..", "image.ico"),
+        os.path.join(os.path.dirname(__file__), "..", "image.png"),
+        "/opt/test_system_server/icon.png"
+    ]
+    for path in icon_candidates:
+        if os.path.exists(path):
+            app.setWindowIcon(QIcon(path))
+            break
 
     # Создаём сервер экзаменов
     exam_server = ExamServer()

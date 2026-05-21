@@ -36,10 +36,13 @@ def build_app(app_name, config):
     if os.name == 'nt':
         cmd.extend([
             "--windows-disable-console",
+            "--windows-icon-from-ico=image.ico"
         ])
     else:
         # Флаги для Linux
-        pass # Можно добавить иконку если нужно
+        cmd.extend([
+            "--linux-onefile-icon=image.png"
+        ])
 
     run_command(cmd)
 
@@ -47,6 +50,22 @@ def main():
     # Переходим в корень проекта если скрипт запущен из папки dist
     root_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(root_dir)
+
+    # Создать image.png из image.ico для Linux (без GUI/X11 зависимостей)
+    if os.path.exists("image.ico") and not os.path.exists("image.png"):
+        print("Converting image.ico to image.png...")
+        try:
+            from PySide6.QtGui import QImage
+            img = QImage()
+            if img.load("image.ico"):
+                if img.save("image.png", "PNG"):
+                    print("Successfully created image.png from image.ico!")
+                else:
+                    print("Failed to save image.png")
+            else:
+                print("Failed to load image.ico")
+        except Exception as e:
+            print(f"Warning during icon conversion: {e}")
 
     # Создаем папки если нет
     if os.path.exists("dist"):

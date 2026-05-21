@@ -290,7 +290,7 @@ class StudentWindow(QMainWindow):
         bb.addStretch()
 
         # Center: Progress saving indicator
-        self._saving_status = QLabel("Сохранение прогресса...")
+        self._saving_status = QLabel("")
         self._saving_status.setStyleSheet("font-size: 12px; color: #94a3b8; border: none;")
         bb.addWidget(self._saving_status)
 
@@ -512,6 +512,12 @@ class StudentWindow(QMainWindow):
 
     @Slot(str)
     def _on_connection_error(self, msg):
+        # Если студент сейчас проходит тест (находится на странице тестирования)
+        if self._stack.currentIndex() == 1:
+            self._collect_current_answer()
+            self._update_saving_status()
+            return
+
         self._connect_btn.setEnabled(True)
         self._connect_btn.setText("Подключиться к экзамену")
         self._login_error.setText(msg)
@@ -662,6 +668,7 @@ class StudentWindow(QMainWindow):
                 "  border-color: #3b82f6;"
                 "}"
             )
+            ans_input.textChanged.connect(self._on_answer_changed)
             card_layout.addWidget(ans_input)
             self._answer_widgets.append(ans_input)
         elif q.get('multiple'):
@@ -670,6 +677,7 @@ class StudentWindow(QMainWindow):
                 cb.setCursor(Qt.PointingHandCursor)
                 if ans_text in previous_answers:
                     cb.setChecked(True)
+                cb.stateChanged.connect(self._on_answer_changed)
                 card_layout.addWidget(cb)
                 self._answer_widgets.append(cb)
         else:
@@ -680,6 +688,7 @@ class StudentWindow(QMainWindow):
                 rb.setCursor(Qt.PointingHandCursor)
                 if ans_text in previous_answers:
                     rb.setChecked(True)
+                rb.toggled.connect(self._on_answer_changed)
                 self._radio_group.addButton(rb, i)
                 card_layout.addWidget(rb)
                 self._answer_widgets.append(rb)
@@ -704,6 +713,20 @@ class StudentWindow(QMainWindow):
                 "QPushButton:hover { background-color: #2563eb; }"
             )
 
+    def _on_answer_changed(self):
+        self._collect_current_answer()
+
+    def _update_saving_status(self):
+        from datetime import datetime
+        from PySide6.QtNetwork import QAbstractSocket
+        now_str = datetime.now().strftime("%H:%M:%S")
+        if self.client._socket.state() == QAbstractSocket.ConnectedState:
+            self._saving_status.setText(f"✓ Резервная копия сохранена в {now_str}")
+            self._saving_status.setStyleSheet("font-size: 12px; color: #10b981; font-weight: bold; border: none;")
+        else:
+            self._saving_status.setText(f"⚠️ Офлайн: бэкап сохранен в {now_str}")
+            self._saving_status.setStyleSheet("font-size: 12px; color: #ef4444; font-weight: bold; border: none;")
+
     def _collect_current_answer(self):
         """Сохраняет ответ на текущий вопрос."""
         if self._current_q >= len(self._questions):
@@ -723,6 +746,10 @@ class StudentWindow(QMainWindow):
                     selected.append(w.text())
                     
         self._answers[q_num] = selected
+        
+        # Автосохранение бэкапа локально при любом сохранении ответа!
+        self.client.save_backup(self._answers)
+        self._update_saving_status()
 
     def _prev_question(self):
         self._collect_current_answer()
@@ -783,6 +810,8 @@ class StudentWindow(QMainWindow):
         if self._kiosk_active and not self._test_finished:
             event.ignore()
         else:
+            if not self._test_finished and self._stack.currentIndex() == 1:
+                self._collect_current_answer()
             event.accept()
 
     def keyPressEvent(self, event: QKeyEvent):

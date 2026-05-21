@@ -34,7 +34,7 @@ class ExamsMixin:
         title.setProperty("class", "sectionTitle")
         layout.addWidget(title)
 
-        subtitle = QLabel("Загрузите тест, настройте академическую группу и запустите сервер")
+        subtitle = QLabel("Загрузите тест")
         subtitle.setProperty("class", "sectionSub")
         layout.addWidget(subtitle)
 
@@ -50,7 +50,7 @@ class ExamsMixin:
         inputs_layout.setSpacing(16)
 
         grp_col = QVBoxLayout()
-        grp_label = QLabel("Академическая группа / Класс")
+        grp_label = QLabel("Группа")
         grp_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
         grp_col.addWidget(grp_label)
         self._group_input = QLineEdit()
