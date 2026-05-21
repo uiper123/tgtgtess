@@ -82,6 +82,7 @@ class StudentClient(QObject):
     connected_ok = Signal(list, int, str, str)         # questions, duration, title, section
     connection_error = Signal(str)           # message
     result_sent = Signal(str)                # score calculated by server
+    force_stopped = Signal()                 # force stopped by teacher
     log_message = Signal(str)
     active_group_found = Signal(list)        # active groups
 
@@ -185,6 +186,8 @@ class StudentClient(QObject):
         elif status == 'result_confirmed':
             score = packet.get('score', '0/0')
             self.result_sent.emit(score)
+        elif status == 'force_stopped':
+            self.force_stopped.emit()
         elif status == 'error':
             msg = packet.get('message', 'unknown')
             if msg == 'wrong_group':
@@ -241,6 +244,12 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("TTGTiSO-Test — Студент")
     app.setOrganizationName("EduTest")
+
+    # Установка иконки приложения
+    from PySide6.QtGui import QIcon
+    icon_path = os.path.join(os.path.dirname(__file__), "..", "image.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
 
     # Глобально отключаем системный прокси для всех сокетов
     QNetworkProxy.setApplicationProxy(QNetworkProxy(QNetworkProxy.NoProxy))

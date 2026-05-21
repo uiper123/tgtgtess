@@ -649,7 +649,7 @@ class EditQuestionDialog(QDialog):
         self._create_answer_row()
 
     def _select_image(self):
-        path, _ = self._get_open_file_name("Выберите изображение", "", "Изображения (*.png *.jpg *.jpeg *.gif)")
+        path, _ = QFileDialog.getOpenFileName(None, "Выберите изображение", "", "Изображения (*.png *.jpg *.jpeg *.gif)")
         if path:
             import base64
             try:
@@ -881,7 +881,7 @@ class DropZoneWidget(QFrame):
         layout.addWidget(self._status_label)
 
     def _browse(self):
-        path, _ = self._get_open_file_name("Выберите файл теста", "", "Текстовые файлы (*.txt)")
+        path, _ = QFileDialog.getOpenFileName(None, "Выберите файл теста", "", "Текстовые файлы (*.txt)")
         if path:
             self.set_file(path)
 
@@ -975,6 +975,13 @@ class ServerWindow(QMainWindow):
         self.exam_server = exam_server
         self._settings = QSettings("EduTest", "Server")
         self.setWindowTitle("TTGTiSO-Test — Панель преподавателя")
+        
+        # Установка иконки приложения
+        from PySide6.QtGui import QIcon
+        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "image.ico"))
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setMinimumSize(1200, 750)
         self.resize(1300, 850)
         self.setStyleSheet(GLOBAL_QSS)
@@ -992,21 +999,19 @@ class ServerWindow(QMainWindow):
 
     def _get_disable_delete_confirm(self) -> bool:
         val = self._settings.value("disable_delete_confirm", False)
+        if val is None:
+            return False
         if isinstance(val, str):
-            return val.lower() == 'true'
+            return val.lower() in ('true', '1')
+        if isinstance(val, int):
+            return val != 0
         return bool(val)
 
     def _get_open_file_name(self, title: str, directory: str, filter_str: str) -> tuple:
-        self.setStyleSheet("")
-        res = QFileDialog.getOpenFileName(self, title, directory, filter_str)
-        self.setStyleSheet(GLOBAL_QSS)
-        return res
+        return QFileDialog.getOpenFileName(None, title, directory, filter_str)
 
     def _get_save_file_name(self, title: str, directory: str, filter_str: str) -> tuple:
-        self.setStyleSheet("")
-        res = QFileDialog.getSaveFileName(self, title, directory, filter_str)
-        self.setStyleSheet(GLOBAL_QSS)
-        return res
+        return QFileDialog.getSaveFileName(None, title, directory, filter_str)
 
     def _build_ui(self):
         central = QWidget()
@@ -1454,9 +1459,13 @@ class ServerWindow(QMainWindow):
         self.q_table.doubleClicked.connect(self.edit_question)
         layout.addWidget(self.q_table)
 
-        # Action Buttons Layout
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
+        # Action Buttons Layout (2-row responsive design to prevent squishing)
+        btn_box = QVBoxLayout()
+        btn_box.setSpacing(10)
+
+        # Row 1: Question CRUD operations
+        row1_layout = QHBoxLayout()
+        row1_layout.setSpacing(12)
 
         self.add_q_btn = QPushButton("Добавить вопрос")
         self.add_q_btn.setStyleSheet(
@@ -1464,7 +1473,7 @@ class ServerWindow(QMainWindow):
             "QPushButton:hover { background-color: #7c3aed; }"
         )
         self.add_q_btn.clicked.connect(self.add_question)
-        btn_layout.addWidget(self.add_q_btn)
+        row1_layout.addWidget(self.add_q_btn)
 
         self.edit_q_btn = QPushButton("Редактировать вопрос")
         self.edit_q_btn.setStyleSheet(
@@ -1472,7 +1481,7 @@ class ServerWindow(QMainWindow):
             "QPushButton:hover { background-color: #2563eb; }"
         )
         self.edit_q_btn.clicked.connect(self.edit_question)
-        btn_layout.addWidget(self.edit_q_btn)
+        row1_layout.addWidget(self.edit_q_btn)
 
         self.del_q_btn = QPushButton("Удалить вопрос")
         self.del_q_btn.setStyleSheet(
@@ -1480,9 +1489,14 @@ class ServerWindow(QMainWindow):
             "QPushButton:hover { background-color: #dc2626; }"
         )
         self.del_q_btn.clicked.connect(self.delete_question)
-        btn_layout.addWidget(self.del_q_btn)
+        row1_layout.addWidget(self.del_q_btn)
 
-        btn_layout.addStretch()
+        row1_layout.addStretch()
+        btn_box.addLayout(row1_layout)
+
+        # Row 2: Bulk Import / Export operations
+        row2_layout = QHBoxLayout()
+        row2_layout.setSpacing(12)
 
         self.import_q_from_file_btn = QPushButton("Импорт вопросов (.txt)")
         self.import_q_from_file_btn.setStyleSheet(
@@ -1490,7 +1504,7 @@ class ServerWindow(QMainWindow):
             "QPushButton:hover { background-color: #d97706; }"
         )
         self.import_q_from_file_btn.clicked.connect(self.import_questions)
-        btn_layout.addWidget(self.import_q_from_file_btn)
+        row2_layout.addWidget(self.import_q_from_file_btn)
 
         self.import_q_from_repo_btn = QPushButton("Импорт из другого теста")
         self.import_q_from_repo_btn.setStyleSheet(
@@ -1498,7 +1512,7 @@ class ServerWindow(QMainWindow):
             "QPushButton:hover { background-color: #4f46e5; }"
         )
         self.import_q_from_repo_btn.clicked.connect(self._import_questions_from_repo)
-        btn_layout.addWidget(self.import_q_from_repo_btn)
+        row2_layout.addWidget(self.import_q_from_repo_btn)
 
         self.export_test_btn = QPushButton("Экспортировать тест (.txt)")
         self.export_test_btn.setStyleSheet(
@@ -1506,9 +1520,12 @@ class ServerWindow(QMainWindow):
             "QPushButton:hover { background-color: #059669; }"
         )
         self.export_test_btn.clicked.connect(self.export_test)
-        btn_layout.addWidget(self.export_test_btn)
+        row2_layout.addWidget(self.export_test_btn)
 
-        layout.addLayout(btn_layout)
+        row2_layout.addStretch()
+        btn_box.addLayout(row2_layout)
+
+        layout.addLayout(btn_box)
         self.stacked_widget.addWidget(self.questions_page)
 
     def _on_test_title_changed(self, text):
@@ -1608,6 +1625,8 @@ class ServerWindow(QMainWindow):
         
         path, _ = self._get_save_file_name("Экспортировать тест", "test_edited.txt", "Текстовые файлы (*.txt)")
         if path:
+            if not path.lower().endswith('.txt'):
+                path += '.txt'
             try:
                 lines = []
                 lines.append(f"@title: {self.exam_server.test_title}")
@@ -2211,6 +2230,8 @@ class ServerWindow(QMainWindow):
         
         path, _ = self._get_save_file_name("Экспортировать отфильтрованные результаты", "results_filtered.csv", "CSV-файлы (*.csv)")
         if path:
+            if not path.lower().endswith('.csv'):
+                path += '.csv'
             import csv
             try:
                 with open(path, 'w', newline='', encoding='utf-8-sig') as f:
@@ -2259,6 +2280,7 @@ class ServerWindow(QMainWindow):
         self.disable_delete_confirm_cb.setCursor(Qt.PointingHandCursor)
         self.disable_delete_confirm_cb.setMaximumWidth(500)
         self.disable_delete_confirm_cb.setChecked(self._get_disable_delete_confirm())
+        self.disable_delete_confirm_cb.toggled.connect(self._on_confirm_cb_toggled)
         form_layout.addWidget(self.disable_delete_confirm_cb)
 
         save_btn = QPushButton("Применить настройки")
@@ -2269,6 +2291,10 @@ class ServerWindow(QMainWindow):
         layout.addWidget(form)
         layout.addStretch()
         self.stacked_widget.addWidget(self.settings_page)
+
+    def _on_confirm_cb_toggled(self, checked):
+        self._settings.setValue("disable_delete_confirm", checked)
+        self._settings.sync()
 
     def _save_settings(self):
         new_port = self.port_spin.value()

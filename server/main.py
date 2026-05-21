@@ -171,6 +171,11 @@ class ExamServer(QObject):
             # Отключаем студентов только этой группы
             for sock, student in list(self._students.items()):
                 if student.group.strip().lower() == group_key:
+                    try:
+                        sock.write(pack_message({"status": "force_stopped"}))
+                        sock.flush()
+                    except Exception:
+                        pass
                     sock.disconnectFromHost()
                     self._students.pop(sock, None)
             
@@ -189,6 +194,11 @@ class ExamServer(QObject):
         self._exam_active = False
         self._active_exams.clear()
         for sock in list(self._students.keys()):
+            try:
+                sock.write(pack_message({"status": "force_stopped"}))
+                sock.flush()
+            except Exception:
+                pass
             sock.disconnectFromHost()
         self._students.clear()
         if self._tcp_server.isListening():
@@ -510,6 +520,12 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("TTGTiSO-Test — Сервер")
     app.setOrganizationName("EduTest")
+
+    # Установка иконки приложения
+    from PySide6.QtGui import QIcon
+    icon_path = os.path.join(os.path.dirname(__file__), "..", "image.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
 
     # Создаём сервер экзаменов
     exam_server = ExamServer()

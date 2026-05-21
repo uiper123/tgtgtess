@@ -271,6 +271,13 @@ class StudentWindow(QMainWindow):
         super().__init__(parent)
         self.client = client
         self.setWindowTitle("TTGTiSO-Test — Тестирование")
+        
+        # Установка иконки приложения
+        from PySide6.QtGui import QIcon
+        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "image.ico"))
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.setMinimumSize(800, 600)
         self.resize(900, 650)
         self.setStyleSheet(CLIENT_QSS)
@@ -294,6 +301,7 @@ class StudentWindow(QMainWindow):
         self.client.connection_error.connect(self._on_connection_error)
         self.client.result_sent.connect(self._on_result_sent)
         self.client.active_group_found.connect(self._on_active_group_found)
+        self.client.force_stopped.connect(self._on_force_stopped)
 
         self._ip_debounce_timer = QTimer(self)
         self._ip_debounce_timer.setSingleShot(True)
@@ -768,6 +776,19 @@ class StudentWindow(QMainWindow):
             f"font-size: 20px; font-weight: bold; color: {grade_color}; "
             f"background-color: rgba({r}, {g}, {b}, 0.12); padding: 12px 24px; border-radius: 8px; border: none;"
         )
+
+    @Slot()
+    def _on_force_stopped(self):
+        if self._test_finished:
+            return
+        self._timer.stop()
+        self._test_finished = True
+        QMessageBox.warning(
+            self, "Тестирование остановлено",
+            "Тестирование принудительно остановлено преподавателем.\nВаши текущие ответы не сохранены.",
+            QMessageBox.Ok
+        )
+        self._reset_to_login()
 
     def _activate_kiosk(self):
         """Включает режим киоска: полноэкранное окно без рамок."""
