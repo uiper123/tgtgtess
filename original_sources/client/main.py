@@ -16,8 +16,6 @@ from PySide6.QtCore import Qt, QObject, Signal, Slot, QByteArray, QTimer
 from PySide6.QtNetwork import QTcpSocket, QAbstractSocket, QNetworkProxy
 from PySide6.QtWidgets import QApplication
 
-MAX_MESSAGE_SIZE = 50 * 1024 * 1024
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
@@ -118,16 +116,12 @@ class StudentClient(QObject):
             self._temp_buf.append(self._temp_sock.readAll())
             while len(self._temp_buf) >= 4:
                 msg_len = struct.unpack('!I', self._temp_buf[:4].data())[0]
-                if msg_len > MAX_MESSAGE_SIZE:
-                    self.active_group_found.emit([])
-                    self._temp_sock.disconnectFromHost()
-                    return
                 if len(self._temp_buf) < 4 + msg_len:
                     break
-                raw = self._temp_buf[4:4 + msg_len].data()
+                raw = self._temp_buf[4:4 + msg_len].data().decode('utf-8')
                 self._temp_buf = self._temp_buf[4 + msg_len:]
                 try:
-                    res = json.loads(raw.decode('utf-8'))
+                    res = json.loads(raw)
                     if res.get('status') == 'success':
                         groups = res.get('groups')
                         if not isinstance(groups, list):
@@ -136,8 +130,8 @@ class StudentClient(QObject):
                         self.active_group_found.emit([str(g).strip() for g in groups if str(g).strip()])
                     elif res.get('message') == 'exam_not_active':
                         self.active_group_found.emit([])
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    self.active_group_found.emit([])
+                except Exception:
+                    pass
                 self._temp_sock.disconnectFromHost()
 
         self._temp_sock.connected.connect(on_connected)
@@ -171,17 +165,13 @@ class StudentClient(QObject):
 
         while len(self._buffer) >= 4:
             msg_len = struct.unpack('!I', self._buffer[:4].data())[0]
-            if msg_len > MAX_MESSAGE_SIZE:
-                self.connection_error.emit('Сервер отправил слишком большой пакет')
-                self._socket.disconnectFromHost()
-                return
             if len(self._buffer) < 4 + msg_len:
                 break
-            raw = self._buffer[4:4 + msg_len].data()
+            raw = self._buffer[4:4 + msg_len].data().decode('utf-8')
             self._buffer = self._buffer[4 + msg_len:]
             try:
-                packet = json.loads(raw.decode('utf-8'))
-            except (UnicodeDecodeError, json.JSONDecodeError):
+                packet = json.loads(raw)
+            except json.JSONDecodeError:
                 continue
             self._handle_response(packet)
 
@@ -212,10 +202,6 @@ class StudentClient(QObject):
                 self.connection_error.emit('Лимит попыток для этого теста исчерпан')
             elif msg == 'duplicate_connection':
                 self.connection_error.emit('Этот студент уже проходит тест')
-            elif msg == 'not_connected':
-                self.connection_error.emit('Результат отклонён: клиент не подключён к экзамену')
-            elif msg == 'invalid_answers':
-                self.connection_error.emit('Результат отклонён: неверный формат ответов')
             else:
                 self.connection_error.emit(f'Ошибка сервера: {msg}')
 
@@ -225,7 +211,7 @@ class StudentClient(QObject):
             f'Не удалось подключиться к серверу: {self._socket.errorString()}'
         )
 
-    def send_result(self, answers: dict) -> bool:
+    def send_result(self, answers: dict):
         """Отправляет ответы на сервер для точного расчёта."""
         packet = {
             'action': 'result',
@@ -233,15 +219,13 @@ class StudentClient(QObject):
             'group': self._group,
             'answers': answers,
         }
-        sent = False
         if self._socket.state() == QAbstractSocket.ConnectedState:
-            bytes_written = self._socket.write(pack_message(packet))
+            self._socket.write(pack_message(packet))
             self._socket.flush()
-            sent = bytes_written != -1
 
+        # Шифрованный бэкап
         score_placeholder = f"{len(answers)}"
         save_encrypted_backup(self._name, self._group, score_placeholder, answers)
-        return sent
 
     def disconnect(self):
         if self._socket.state() == QAbstractSocket.ConnectedState:

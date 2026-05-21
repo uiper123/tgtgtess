@@ -23,17 +23,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from shared.parser import parse_test_file, questions_to_network_payload, calculate_score
 
-try:
-    from .storage import project_root, results_path, safe_test_filename
-except ImportError:
-    from storage import project_root, results_path, safe_test_filename
-
 
 # ---------------------------------------------------------------------------
 # Протокол: длина пакета (4 байта, big-endian) + JSON-данные (UTF-8)
 # ---------------------------------------------------------------------------
-
-MAX_MESSAGE_SIZE = 50 * 1024 * 1024
 
 def pack_message(data: dict) -> bytes:
     """Упаковывает словарь в сетевой пакет: [4 байта длины][JSON UTF-8]."""
@@ -99,7 +92,6 @@ class ExamServer(QObject):
 
         # Подключённые студенты: socket -> ConnectedStudent
         self._students: Dict[QTcpSocket, ConnectedStudent] = {}
-        self._pending_buffers: Dict[QTcpSocket, QByteArray] = {}
 
         # Все студенты, подключившиеся за время экзамена: (name, group) -> ConnectedStudent
         self._monitor_data: Dict[tuple, ConnectedStudent] = {}
@@ -247,43 +239,45 @@ class ExamServer(QObject):
             client_socket = self._tcp_server.nextPendingConnection()
             if client_socket is None:
                 continue
-            self._pending_buffers[client_socket] = QByteArray()
+            # Временно сохраняем сокет с пустым студентом, чтобы читать данные
             client_socket.readyRead.connect(lambda s=client_socket: self._on_data_ready(s))
             client_socket.disconnected.connect(lambda s=client_socket: self._on_disconnected(s))
 
     def _on_data_ready(self, sock: QTcpSocket):
         """Читает данные из сокета и обрабатывает JSON-пакеты."""
         student = self._students.get(sock)
-        buf = student.buffer if student is not None else self._pending_buffers.setdefault(sock, QByteArray())
+
+        # Если студент ещё не зарегистрирован, создаём временный буфер
+        if student is None:
+            # Первый пакет — запрос на подключение
+            buf = QByteArray()
+        else:
+            buf = student.buffer
+
         buf.append(sock.readAll())
 
+        # Обрабатываем все полные пакеты в буфере
         while len(buf) >= 4:
             msg_len = struct.unpack('!I', buf[:4].data())[0]
-            if msg_len > MAX_MESSAGE_SIZE:
-                self.log_message.emit(f"Пакет клиента превышает допустимый размер: {msg_len} байт")
-                self._pending_buffers.pop(sock, None)
-                sock.disconnectFromHost()
-                return
             if len(buf) < 4 + msg_len:
-                break
+                break  # неполный пакет, ждём ещё данных
 
-            raw_payload = buf[4:4 + msg_len].data()
+            raw_json = buf[4:4 + msg_len].data().decode('utf-8')
             buf = buf[4 + msg_len:]
 
             try:
-                packet = json.loads(raw_payload.decode('utf-8'))
-            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                packet = json.loads(raw_json)
+            except json.JSONDecodeError as exc:
                 self.log_message.emit(f"Ошибка JSON от клиента: {exc}")
                 continue
 
             self._handle_packet(sock, packet)
 
-        current_student = self._students.get(sock)
-        if current_student is not None:
-            current_student.buffer = buf
-            self._pending_buffers.pop(sock, None)
-        else:
-            self._pending_buffers[sock] = buf
+        # Сохраняем остаток буфера
+        if student is not None:
+            student.buffer = buf
+        elif sock in self._students:
+            self._students[sock].buffer = buf
 
     def _handle_packet(self, sock: QTcpSocket, packet: dict):
         """Обрабатывает один JSON-пакет от клиента."""
@@ -392,59 +386,50 @@ class ExamServer(QObject):
     def _handle_result(self, sock: QTcpSocket, packet: dict):
         """Обрабатывает отправку результатов от студента."""
         student = self._students.get(sock)
-        if student is None:
-            sock.write(pack_message({'status': 'error', 'message': 'not_connected'}))
-            sock.flush()
-            self.log_message.emit("Отклонён результат от неподключённого клиента")
-            return
-
-        if student.finished:
-            sock.write(pack_message({'status': 'result_confirmed', 'score': student.score or '0/0'}))
-            sock.flush()
-            self.log_message.emit(f"Повторный результат проигнорирован: {student.name} ({student.group})")
-            return
-
-        name = student.name
-        group = student.group
+        name = packet.get('name', '').strip()
+        group = packet.get('group', '').strip()
         answers = packet.get('answers', {})
-        if not isinstance(answers, dict):
-            sock.write(pack_message({'status': 'error', 'message': 'invalid_answers'}))
-            sock.flush()
-            return
 
+        # Конвертируем ключи ответов в int для сопоставления
         int_answers = {}
         for k, v in answers.items():
             try:
-                int_answers[int(k)] = v if isinstance(v, list) else [str(v)]
-            except (TypeError, ValueError):
+                int_answers[int(k)] = v
+            except ValueError:
                 pass
 
+        # Точный подсчёт очков по ключам правильных ответов для конкретного теста
         group_key = group.lower()
-        if getattr(student, 'questions', None):
+        if student and getattr(student, 'questions', None):
             questions_to_use = student.questions
+            if group_key in self._active_exams:
+                exam = self._active_exams[group_key]
+                partial_multiple = exam.get('partial_multiple', True)
+            else:
+                partial_multiple = True
         elif group_key in self._active_exams:
-            questions_to_use = self._active_exams[group_key]['questions']
+            exam = self._active_exams[group_key]
+            questions_to_use = exam['questions']
+            partial_multiple = exam.get('partial_multiple', True)
         else:
-            sock.write(pack_message({'status': 'error', 'message': 'exam_not_active'}))
-            sock.flush()
-            return
-
-        if group_key in self._active_exams:
-            partial_multiple = self._active_exams[group_key].get('partial_multiple', True)
-        else:
+            questions_to_use = self._questions
             partial_multiple = True
 
         score = calculate_score(questions_to_use, int_answers, partial_multiple=partial_multiple)
-        student.finished = True
-        student.score = score
-        student.answers = int_answers
+        first_result_for_attempt = not student or not student.finished
 
+        if student:
+            student.finished = True
+            student.score = score
+            student.answers = int_answers
+
+        # Также обновляем в мониторинге
         if (name, group) in self._monitor_data:
             self._monitor_data[(name, group)].finished = True
             self._monitor_data[(name, group)].score = score
             self._monitor_data[(name, group)].answers = int_answers
 
-        if group_key in self._active_exams:
+        if group_key in self._active_exams and first_result_for_attempt:
             attempts = self._active_exams[group_key].setdefault('attempts', {})
             student_key = name.strip().casefold()
             attempts[student_key] = attempts.get(student_key, 0) + 1
@@ -460,6 +445,7 @@ class ExamServer(QObject):
         self._all_results.append(result_entry)
         self._save_all_results_to_file()
 
+        # Отправляем подтверждение и точный результат клиенту
         response = {
             'status': 'result_confirmed',
             'score': score
@@ -472,7 +458,6 @@ class ExamServer(QObject):
 
     @Slot()
     def _on_disconnected(self, sock: QTcpSocket):
-        self._pending_buffers.pop(sock, None)
         student = self._students.pop(sock, None)
         if student:
             self.log_message.emit(f"Отключён: {student.name}")
@@ -492,8 +477,8 @@ class ExamServer(QObject):
             return
 
         date_str = datetime.now().strftime('%Y-%m-%d_%H-%M')
-        group_safe = safe_test_filename(self._allowed_group).removesuffix('.json')
-        filename = project_root() / f"Результаты_{group_safe}_{date_str}.csv"
+        group_safe = self._allowed_group.replace(' ', '_').replace('/', '-')
+        filename = f"Результаты_{group_safe}_{date_str}.csv"
 
         try:
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
@@ -508,8 +493,8 @@ class ExamServer(QObject):
 
     def _load_all_results_from_file(self):
         import json
-        path = results_path()
-        if path.exists():
+        path = "results.json"
+        if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     self._all_results = json.load(f)
@@ -519,7 +504,7 @@ class ExamServer(QObject):
 
     def _save_all_results_to_file(self):
         import json
-        path = results_path()
+        path = "results.json"
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self._all_results, f, ensure_ascii=False, indent=2)
