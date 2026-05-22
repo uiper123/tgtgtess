@@ -33,18 +33,10 @@ class SettingsMixin:
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-            QScrollArea > QWidget > QWidget {
-                background-color: transparent;
-            }
-        """)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         
         scroll_content = QWidget()
-        scroll_content.setStyleSheet("background-color: transparent;")
+        scroll_content.setObjectName("scrollContent")
         layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(20)

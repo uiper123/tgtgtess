@@ -28,7 +28,19 @@ except ImportError:
 class DashboardMixin:
     def _build_dashboard_page(self):
         self.dashboard_page = QWidget()
-        layout = QVBoxLayout(self.dashboard_page)
+        main_layout = QVBoxLayout(self.dashboard_page)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Создаем QScrollArea для адаптивной прокрутки
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        scroll_content = QWidget()
+        scroll_content.setObjectName("scrollContent")
+        layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(20)
 
@@ -36,24 +48,20 @@ class DashboardMixin:
         header_lay = QHBoxLayout()
         title = QLabel("Репозиторий тестов")
         title.setProperty("class", "sectionTitle")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e293b; border: none; background: transparent;")
+        title.setStyleSheet("background: transparent; border: none;")
         header_lay.addWidget(title)
         
         header_lay.addStretch()
         
         create_new_btn = QPushButton("Создать новый тест")
-        create_new_btn.setStyleSheet(
-            "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #2563eb; }"
-        )
+        create_new_btn.setProperty("class", "primaryBtn")
+        create_new_btn.setCursor(Qt.PointingHandCursor)
         create_new_btn.clicked.connect(self._create_new_test_flow)
         header_lay.addWidget(create_new_btn)
 
         import_btn = QPushButton("Импортировать тест (.txt)")
-        import_btn.setStyleSheet(
-            "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #059669; }"
-        )
+        import_btn.setProperty("class", "successBtn")
+        import_btn.setCursor(Qt.PointingHandCursor)
         import_btn.clicked.connect(self._import_test_txt_flow)
         header_lay.addWidget(import_btn)
         
@@ -69,6 +77,7 @@ class DashboardMixin:
         self.tests_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tests_table.verticalHeader().setVisible(False)
         self.tests_table.setShowGrid(False)
+        self.tests_table.setMinimumHeight(350)
         layout.addWidget(self.tests_table)
 
         # Action panel below the table
@@ -76,32 +85,28 @@ class DashboardMixin:
         act_lay.setSpacing(12)
 
         self.start_exam_from_repo_btn = QPushButton("Запустить экзамен")
-        self.start_exam_from_repo_btn.setStyleSheet(
-            "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #059669; }"
-        )
+        self.start_exam_from_repo_btn.setProperty("class", "successBtn")
+        self.start_exam_from_repo_btn.setCursor(Qt.PointingHandCursor)
         self.start_exam_from_repo_btn.clicked.connect(self._start_exam_from_repo)
         act_lay.addWidget(self.start_exam_from_repo_btn)
 
         self.edit_test_from_repo_btn = QPushButton("Редактировать тест")
-        self.edit_test_from_repo_btn.setStyleSheet(
-            "QPushButton { background-color: #8b5cf6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #7c3aed; }"
-        )
+        self.edit_test_from_repo_btn.setProperty("class", "primaryBtn")
+        self.edit_test_from_repo_btn.setCursor(Qt.PointingHandCursor)
         self.edit_test_from_repo_btn.clicked.connect(self._edit_test_from_repo)
         act_lay.addWidget(self.edit_test_from_repo_btn)
 
         self.delete_test_from_repo_btn = QPushButton("Удалить тест")
-        self.delete_test_from_repo_btn.setStyleSheet(
-            "QPushButton { background-color: #fee2e2; color: #991b1b; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #fca5a5; }"
-        )
+        self.delete_test_from_repo_btn.setProperty("class", "dangerBtn")
+        self.delete_test_from_repo_btn.setCursor(Qt.PointingHandCursor)
         self.delete_test_from_repo_btn.clicked.connect(self._delete_test_from_repo)
         act_lay.addWidget(self.delete_test_from_repo_btn)
 
         act_lay.addStretch()
         layout.addLayout(act_lay)
 
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
         self.stacked_widget.addWidget(self.dashboard_page)
 
     def _get_saved_tests(self):

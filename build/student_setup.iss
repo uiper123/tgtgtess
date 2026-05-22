@@ -24,6 +24,8 @@ OutputBaseFilename=EduTestStudent_Setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\image.ico
+OutputDir=..\dist
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

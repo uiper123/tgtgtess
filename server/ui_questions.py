@@ -28,7 +28,19 @@ except ImportError:
 class QuestionsMixin:
     def _build_questions_page(self):
         self.questions_page = QWidget()
-        layout = QVBoxLayout(self.questions_page)
+        main_layout = QVBoxLayout(self.questions_page)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Создаем QScrollArea для предотвращения обрезки таблицы вопросов и кнопок действий
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        scroll_content = QWidget()
+        scroll_content.setObjectName("scrollContent")
+        layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
 
@@ -37,17 +49,14 @@ class QuestionsMixin:
         top_row.setSpacing(16)
 
         back_btn = QPushButton("← Назад")
-        back_btn.setStyleSheet(
-            "QPushButton { background-color: #f1f5f9; color: #475569; font-size: 12px; font-weight: bold; padding: 6px 14px; border: 1px solid #cbd5e1; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #e2e8f0; color: #1e293b; }"
-        )
+        back_btn.setProperty("class", "secondaryBtn")
         back_btn.setCursor(Qt.PointingHandCursor)
         back_btn.clicked.connect(lambda: self.switch_page("dashboard"))
         top_row.addWidget(back_btn)
 
         title = QLabel("Список загруженных вопросов")
         title.setProperty("class", "sectionTitle")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e293b; border: none; background: transparent;")
+        title.setStyleSheet("background: transparent; border: none;")
         top_row.addWidget(title)
         
         top_row.addStretch()
@@ -57,10 +66,7 @@ class QuestionsMixin:
         top_row.addWidget(self.active_test_lbl)
         
         self.rename_test_btn = QPushButton("Переименовать")
-        self.rename_test_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #3b82f6; font-size: 12px; font-weight: bold; padding: 6px 12px; border: 1px solid #3b82f6; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #eff6ff; }"
-        )
+        self.rename_test_btn.setProperty("class", "secondaryBtn")
         self.rename_test_btn.clicked.connect(self._rename_active_test)
         top_row.addWidget(self.rename_test_btn)
         
@@ -81,14 +87,14 @@ class QuestionsMixin:
         self.test_title_input.setPlaceholderText("Главный заголовок (по умолч: Итоговое тестирование)")
         self.test_title_input.setText(self.exam_server.test_title)
         self.test_title_input.textChanged.connect(self._on_test_title_changed)
-        self.test_title_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; }")
+        self.test_title_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; }")
         hc_layout.addWidget(self.test_title_input, 2)
 
         self.test_section_input = QLineEdit()
         self.test_section_input.setPlaceholderText("Подзаголовок (по умолч: Раздел: Основная часть)")
         self.test_section_input.setText(self.exam_server.test_section)
         self.test_section_input.textChanged.connect(self._on_test_section_changed)
-        self.test_section_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 4px; }")
+        self.test_section_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; }")
         hc_layout.addWidget(self.test_section_input, 2)
 
         layout.addWidget(headers_card)
@@ -101,6 +107,7 @@ class QuestionsMixin:
         self.q_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.q_table.verticalHeader().setVisible(False)
         self.q_table.setShowGrid(False)
+        self.q_table.setMinimumHeight(350)
         self.q_table.doubleClicked.connect(self.edit_question)
         layout.addWidget(self.q_table)
 
@@ -113,26 +120,17 @@ class QuestionsMixin:
         row1_layout.setSpacing(12)
 
         self.add_q_btn = QPushButton("Добавить вопрос")
-        self.add_q_btn.setStyleSheet(
-            "QPushButton { background-color: #8b5cf6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #7c3aed; }"
-        )
+        self.add_q_btn.setProperty("class", "successBtn")
         self.add_q_btn.clicked.connect(self.add_question)
         row1_layout.addWidget(self.add_q_btn)
 
         self.edit_q_btn = QPushButton("Редактировать вопрос")
-        self.edit_q_btn.setStyleSheet(
-            "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #2563eb; }"
-        )
+        self.edit_q_btn.setProperty("class", "primaryBtn")
         self.edit_q_btn.clicked.connect(self.edit_question)
         row1_layout.addWidget(self.edit_q_btn)
 
         self.del_q_btn = QPushButton("Удалить вопрос")
-        self.del_q_btn.setStyleSheet(
-            "QPushButton { background-color: #ef4444; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #dc2626; }"
-        )
+        self.del_q_btn.setProperty("class", "dangerBtn")
         self.del_q_btn.clicked.connect(self.delete_question)
         row1_layout.addWidget(self.del_q_btn)
 
@@ -144,26 +142,17 @@ class QuestionsMixin:
         row2_layout.setSpacing(12)
 
         self.import_q_from_file_btn = QPushButton("Импорт вопросов (.txt)")
-        self.import_q_from_file_btn.setStyleSheet(
-            "QPushButton { background-color: #f59e0b; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #d97706; }"
-        )
+        self.import_q_from_file_btn.setProperty("class", "primaryBtn")
         self.import_q_from_file_btn.clicked.connect(self.import_questions)
         row2_layout.addWidget(self.import_q_from_file_btn)
 
         self.import_q_from_repo_btn = QPushButton("Импорт из другого теста")
-        self.import_q_from_repo_btn.setStyleSheet(
-            "QPushButton { background-color: #6366f1; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #4f46e5; }"
-        )
+        self.import_q_from_repo_btn.setProperty("class", "primaryBtn")
         self.import_q_from_repo_btn.clicked.connect(self._import_questions_from_repo)
         row2_layout.addWidget(self.import_q_from_repo_btn)
 
         self.export_test_btn = QPushButton("Экспортировать тест (.txt)")
-        self.export_test_btn.setStyleSheet(
-            "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 18px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #059669; }"
-        )
+        self.export_test_btn.setProperty("class", "successBtn")
         self.export_test_btn.clicked.connect(self.export_test)
         row2_layout.addWidget(self.export_test_btn)
 
@@ -171,6 +160,9 @@ class QuestionsMixin:
         btn_box.addLayout(row2_layout)
 
         layout.addLayout(btn_box)
+
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
         self.stacked_widget.addWidget(self.questions_page)
 
     def _on_test_title_changed(self, text):

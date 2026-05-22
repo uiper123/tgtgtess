@@ -26,7 +26,19 @@ except ImportError:
 class ExamsMixin:
     def _build_exams_page(self):
         self.exams_page = QWidget()
-        layout = QVBoxLayout(self.exams_page)
+        main_layout = QVBoxLayout(self.exams_page)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Создаем QScrollArea для адаптивной прокрутки главной страницы управления
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        scroll_content = QWidget()
+        scroll_content.setObjectName("scrollContent")
+        layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
 
@@ -150,6 +162,7 @@ class ExamsMixin:
             "QPushButton { background-color: #8b5cf6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 20px; border: none; border-radius: 8px; }"
             "QPushButton:hover { background-color: #7c3aed; }"
         )
+        self.choose_from_repo_btn.setCursor(Qt.PointingHandCursor)
         self.choose_from_repo_btn.clicked.connect(self._choose_test_from_repo_dialog)
         repo_btn_layout.addWidget(self.choose_from_repo_btn)
         repo_btn_layout.addStretch()
@@ -216,19 +229,22 @@ class ExamsMixin:
         self._exam_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._exam_table.verticalHeader().setVisible(False)
         self._exam_table.setShowGrid(False)
-        self._exam_table.setMinimumHeight(140)
+        self._exam_table.setMinimumHeight(160)
         layout.addWidget(self._exam_table)
 
         # Лог событий
         self._log = QTextEdit()
         self._log.setObjectName("logArea")
         self._log.setReadOnly(True)
-        self._log.setMaximumHeight(130)
+        self._log.setMinimumHeight(120)
         layout.addWidget(self._log)
 
         self._loaded_test_name = ""
         self._student_count = 0
         self._update_exams_page_test_view()
+
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
         self.stacked_widget.addWidget(self.exams_page)
 
     def _update_exams_page_test_view(self):

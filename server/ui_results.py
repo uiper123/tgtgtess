@@ -26,13 +26,25 @@ except ImportError:
 class ResultsMixin:
     def _build_results_page(self):
         self.results_page = QWidget()
-        layout = QVBoxLayout(self.results_page)
+        main_layout = QVBoxLayout(self.results_page)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Создаем QScrollArea для удобной прокрутки результатов студентов на любых экранах
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+
+        scroll_content = QWidget()
+        scroll_content.setObjectName("scrollContent")
+        layout = QVBoxLayout(scroll_content)
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
 
         title = QLabel("Итоговые результаты студентов")
         title.setProperty("class", "sectionTitle")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #1e293b; border: none;")
+        title.setStyleSheet("background: transparent; border: none;")
         layout.addWidget(title)
 
         # Filters and Search Card Container (premium design alignment)
@@ -101,27 +113,27 @@ class ResultsMixin:
         self.r_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.r_table.verticalHeader().setVisible(False)
         self.r_table.setShowGrid(False)
+        self.r_table.setMinimumHeight(350)
         layout.addWidget(self.r_table)
 
         btn_row = QHBoxLayout()
         export_btn = QPushButton("Экспортировать отфильтрованные в CSV")
-        export_btn.setStyleSheet(
-            "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 20px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #059669; }"
-        )
+        export_btn.setProperty("class", "successBtn")
+        export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.clicked.connect(self._export_manually)
         btn_row.addWidget(export_btn)
         
         clear_btn = QPushButton("Очистить всю историю результатов")
-        clear_btn.setStyleSheet(
-            "QPushButton { background-color: #ef4444; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 20px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #dc2626; }"
-        )
+        clear_btn.setProperty("class", "dangerBtn")
+        clear_btn.setCursor(Qt.PointingHandCursor)
         clear_btn.clicked.connect(self._clear_results_history)
         btn_row.addWidget(clear_btn)
 
         btn_row.addStretch()
         layout.addLayout(btn_row)
+
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
         self.stacked_widget.addWidget(self.results_page)
 
     def _clear_results_history(self):

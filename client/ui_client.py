@@ -279,12 +279,7 @@ class StudentWindow(QMainWindow):
         self._prev_btn.setObjectName("prevBtn")
         self._prev_btn.setCursor(Qt.PointingHandCursor)
         self._prev_btn.clicked.connect(self._prev_question)
-        self._prev_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; border: 2px solid #cbd5e1; color: #334155; "
-            "font-weight: bold; font-size: 14px; padding: 10px 24px; border-radius: 8px; }"
-            "QPushButton:hover { background-color: #f1f5f9; border-color: #94a3b8; }"
-            "QPushButton:disabled { color: #94a3b8; border: 2px solid #e2e8f0; background-color: #f8fafc; }"
-        )
+        self._prev_btn.setProperty("class", "secondaryBtn")
         bb.addWidget(self._prev_btn)
 
         bb.addStretch()
@@ -349,10 +344,7 @@ class StudentWindow(QMainWindow):
         cl.addSpacing(12)
         
         ok_btn = QPushButton("Вернуться на экран входа")
-        ok_btn.setStyleSheet(
-            "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 20px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #2563eb; }"
-        )
+        ok_btn.setProperty("class", "primaryBtn")
         ok_btn.setCursor(Qt.PointingHandCursor)
         ok_btn.clicked.connect(self._reset_to_login)
         cl.addWidget(ok_btn)
@@ -702,16 +694,12 @@ class StudentWindow(QMainWindow):
         is_last = (index == total - 1)
         if is_last:
             self._next_btn.setText("Завершить тест")
-            self._next_btn.setStyleSheet(
-                "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 14px; padding: 12px 32px; border: none; border-radius: 10px; }"
-                "QPushButton:hover { background-color: #059669; }"
-            )
+            self._next_btn.setProperty("class", "finishBtn")
         else:
             self._next_btn.setText("Ответить и продолжить")
-            self._next_btn.setStyleSheet(
-                "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 14px; padding: 12px 32px; border: none; border-radius: 10px; }"
-                "QPushButton:hover { background-color: #2563eb; }"
-            )
+            self._next_btn.setProperty("class", "nextBtn")
+        self._next_btn.style().unpolish(self._next_btn)
+        self._next_btn.style().polish(self._next_btn)
 
     def _on_answer_changed(self):
         self._collect_current_answer()
