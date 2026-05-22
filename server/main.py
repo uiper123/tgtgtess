@@ -83,6 +83,11 @@ class ExamServer(QObject):
         self._tcp_server = QTcpServer(self)
         self._tcp_server.newConnection.connect(self._on_new_connection)
 
+        # Считываем сохраненный порт из QSettings на старте приложения
+        from PySide6.QtCore import QSettings
+        settings = QSettings("EduTest", "Server")
+        self.DEFAULT_PORT = settings.value("tcp_port", 9876, type=int)
+
         # Текущие настройки экзамена
         self._allowed_group: str = ''
         self._duration_minutes: int = 60

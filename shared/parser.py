@@ -338,11 +338,19 @@ def get_grade_details(score_str: str) -> tuple:
             return "0%", "#ef4444"
         percent = (correct / total) * 100
         percent_str = f"{int(percent)}%"
-        if percent >= 90:
+        
+        # Чтение пороговых значений из настроек с безопасными дефолтами
+        from PySide6.QtCore import QSettings
+        settings = QSettings("EduTest", "Server")
+        g5 = settings.value("grade_5_min", 90, type=int)
+        g4 = settings.value("grade_4_min", 70, type=int)
+        g3 = settings.value("grade_3_min", 50, type=int)
+        
+        if percent >= g5:
             return percent_str, "#10b981"
-        elif percent >= 70:
+        elif percent >= g4:
             return percent_str, "#3b82f6"
-        elif percent >= 50:
+        elif percent >= g3:
             return percent_str, "#f59e0b"
         else:
             return percent_str, "#ef4444"
