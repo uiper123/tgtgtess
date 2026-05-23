@@ -238,4 +238,4 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         self.setStyleSheet(scaled_qss)
         
         if hasattr(self, "_exam_table"):
-            self._exam_table.verticalHeader().setDefaultSectionSize(int(48 * scale_factor))
+            self._exam_table.verticalHeader().setDefaultSectionSize(int(54 * scale_factor))

@@ -345,7 +345,7 @@ QTableWidget {
 }
 QTableWidget::item {
     border-bottom: 1px solid #f1f5f9;
-    padding: 10px 12px;
+    padding: 6px 12px;
 }
 QTableWidget::item:hover {
     background-color: #f8fafc;

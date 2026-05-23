@@ -224,7 +224,7 @@ class ExamsMixin:
         self._exam_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self._exam_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self._exam_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self._exam_table.verticalHeader().setDefaultSectionSize(48)
+        self._exam_table.verticalHeader().setDefaultSectionSize(54)
         self._exam_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._exam_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._exam_table.verticalHeader().setVisible(False)
@@ -355,7 +355,7 @@ class ExamsMixin:
             # Кнопки действий (Мониторинг и Остановить)
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(4, 2, 4, 2)
+            actions_layout.setContentsMargins(4, 0, 4, 0)
             actions_layout.setSpacing(8)
 
             monitor_btn = QPushButton("Мониторинг")
