@@ -248,6 +248,21 @@ class StudentClient(QObject):
         save_encrypted_backup(self._name, self._group, score_placeholder, answers)
         return sent
 
+    def send_cheat_warning(self, description: str) -> bool:
+        """Отправляет на сервер информацию о нарушении режима киоска (попытка списать)."""
+        packet = {
+            'action': 'cheat_warning',
+            'name': self._name,
+            'group': self._group,
+            'description': description,
+        }
+        sent = False
+        if self._socket.state() == QAbstractSocket.ConnectedState:
+            bytes_written = self._socket.write(pack_message(packet))
+            self._socket.flush()
+            sent = bytes_written != -1
+        return sent
+
     def save_backup(self, answers: dict, score: str = "N/A"):
         """Позволяет принудительно сохранить локальную резервную копию ответов."""
         save_encrypted_backup(self._name, self._group, score, answers)

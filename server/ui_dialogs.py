@@ -520,14 +520,24 @@ class MonitoringDialog(QDialog):
                 self.table.setItem(row, 2, status_item)
 
             if s.finished:
-                status_item.setText("Сдал тест")
-                status_item.setForeground(QColor("#10b981"))
+                warn_count = len(getattr(s, 'cheat_warnings', []))
+                if warn_count >= 3:
+                    status_item.setText("Сдан (Блокировка ⚠️)")
+                    status_item.setForeground(QColor("#ef4444"))
+                else:
+                    status_item.setText("Сдал тест")
+                    status_item.setForeground(QColor("#10b981"))
             elif not s.active:
                 status_item.setText("Соединение потеряно")
                 status_item.setForeground(QColor("#ef4444"))
             else:
-                status_item.setText("Выполняет тест")
-                status_item.setForeground(QColor("#3b82f6"))
+                warn_count = len(getattr(s, 'cheat_warnings', []))
+                if warn_count > 0:
+                    status_item.setText(f"Выполняет (⚠️ Предупр: {warn_count}/3)")
+                    status_item.setForeground(QColor("#e11d48"))
+                else:
+                    status_item.setText("Выполняет тест")
+                    status_item.setForeground(QColor("#3b82f6"))
 
             # Проверяем или создаем ячейку для результата
             score_item = self.table.item(row, 3)

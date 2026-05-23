@@ -43,7 +43,7 @@ def pack_message(data: dict) -> bytes:
 
 class ConnectedStudent:
     """Данные о подключённом студенте."""
-    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions')
+    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions', 'cheat_warnings')
 
     def __init__(self, socket: QTcpSocket, name: str, group: str):
         self.socket = socket
@@ -55,6 +55,7 @@ class ConnectedStudent:
         self.active = True
         self.answers: Dict[int, List[str]] = {}
         self.questions: List[Dict[str, Any]] = []
+        self.cheat_warnings = []
 
 
 class ExamServer(QObject):
@@ -72,6 +73,7 @@ class ExamServer(QObject):
     student_connected = Signal(str, str)          # name, group
     student_finished = Signal(str, str, str)       # name, group, score
     student_disconnected = Signal(str, str)       # name, group
+    student_cheat_warning = Signal(str, str, str)  # name, group, description
     server_started = Signal(str, int)              # address, port
     server_error = Signal(str)                     # message
     log_message = Signal(str)                      # message
@@ -300,8 +302,27 @@ class ExamServer(QObject):
             self._handle_result(sock, packet)
         elif action == 'get_active_group':
             self._handle_get_active_group(sock, packet)
+        elif action == 'cheat_warning':
+            self._handle_cheat_warning(sock, packet)
         else:
             self.log_message.emit(f"Неизвестное действие: {action}")
+
+    def _handle_cheat_warning(self, sock: QTcpSocket, packet: dict):
+        """Обрабатывает пакет с предупреждением о нарушении правил прохождения теста."""
+        name = packet.get('name', 'Неизвестный')
+        group = packet.get('group', 'Неизвестная')
+        desc = packet.get('description', 'Попытка переключения рабочего стола/окна')
+
+        self.log_message.emit(f"⚠️ ВНИМАНИЕ: Студент {name} ({group}) нарушил режим тестирования: {desc}")
+
+        student_key = (name, group)
+        if student_key in self._monitor_data:
+            student = self._monitor_data[student_key]
+            if not hasattr(student, 'cheat_warnings') or student.cheat_warnings is None:
+                student.cheat_warnings = []
+            student.cheat_warnings.append(desc)
+
+        self.student_cheat_warning.emit(name, group, desc)
 
     def _handle_get_active_group(self, sock: QTcpSocket, packet: dict):
         """Отправляет список активных академических групп."""

@@ -820,3 +820,44 @@ class StudentWindow(QMainWindow):
                 event.ignore()
                 return
         super().keyPressEvent(event)
+
+    def changeEvent(self, event):
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.ActivationChange:
+            if getattr(self, "_kiosk_active", False) and not getattr(self, "_test_finished", False):
+                if not self.isActiveWindow():
+                    self._handle_focus_loss()
+        super().changeEvent(event)
+
+    def _handle_focus_loss(self):
+        if getattr(self, "_test_finished", False):
+            return
+            
+        self._focus_loss_count = getattr(self, "_focus_loss_count", 0) + 1
+        
+        # Отправляем предупреждение на сервер
+        warning_desc = f"Потеря фокуса / Переключение рабочего стола (Предупреждение {self._focus_loss_count})"
+        self.client.send_cheat_warning(warning_desc)
+        
+        if self._focus_loss_count >= 3:
+            self._timer.stop()
+            self._test_finished = True
+            QMessageBox.critical(
+                self, "ТЕСТ БЛОКИРОВАН",
+                "Превышено допустимое количество попыток сворачивания окна (3/3)!\n"
+                "Ваш тест автоматически завершен с сохранением текущих ответов и заблокирован за нарушение правил.",
+                QMessageBox.Ok
+            )
+            self._finish_test()
+        else:
+            QMessageBox.warning(
+                self, "ВНИМАНИЕ — ПОПЫТКА СПИСАТЬ",
+                f"Обнаружен выход из полноэкранного режима или переключение рабочего стола!\n"
+                f"Во время тестирования запрещено переключать окна и рабочие столы.\n\n"
+                f"Предупреждение {self._focus_loss_count} из 3.\n"
+                f"При достижении 3 предупреждений ваш тест будет автоматически заблокирован!",
+                QMessageBox.Ok
+            )
+            # Принудительно возвращаем фокус и разворачиваем обратно
+            self.showFullScreen()
+            self.activateWindow()
