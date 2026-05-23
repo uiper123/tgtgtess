@@ -224,7 +224,7 @@ class ExamsMixin:
         self._exam_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self._exam_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self._exam_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self._exam_table.verticalHeader().setDefaultSectionSize(44)
+        self._exam_table.verticalHeader().setDefaultSectionSize(48)
         self._exam_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._exam_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._exam_table.verticalHeader().setVisible(False)
