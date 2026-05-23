@@ -40,9 +40,12 @@ def build_app(app_name, config):
         ])
     else:
         # Флаги для Linux
-        cmd.extend([
-            "--linux-onefile-icon=image.png"
-        ])
+        if os.path.exists("image.png"):
+            cmd.extend([
+                "--linux-onefile-icon=image.png"
+            ])
+        else:
+            print("Warning: image.png not found. Building Linux binary without embedded file icon.")
 
     run_command(cmd)
 
@@ -55,17 +58,23 @@ def main():
     if os.path.exists("image.ico") and not os.path.exists("image.png"):
         print("Converting image.ico to image.png...")
         try:
-            from PySide6.QtGui import QImage
-            img = QImage()
-            if img.load("image.ico"):
-                if img.save("image.png", "PNG"):
-                    print("Successfully created image.png from image.ico!")
+            from PIL import Image
+            with Image.open("image.ico") as img:
+                img.save("image.png", "PNG")
+            print("Successfully created image.png from image.ico using PIL!")
+        except Exception as pil_err:
+            try:
+                from PySide6.QtGui import QImage
+                img = QImage()
+                if img.load("image.ico"):
+                    if img.save("image.png", "PNG"):
+                        print("Successfully created image.png from image.ico using PySide6!")
+                    else:
+                        print("Failed to save image.png via PySide6")
                 else:
-                    print("Failed to save image.png")
-            else:
-                print("Failed to load image.ico")
-        except Exception as e:
-            print(f"Warning during icon conversion: {e}")
+                    print("Failed to load image.ico via PySide6")
+            except Exception as e:
+                print(f"Warning during icon conversion: {e} (PIL also failed: {pil_err})")
 
     # Создаем папки если нет
     if os.path.exists("dist"):
