@@ -147,7 +147,7 @@ QPushButton#refreshGroupsBtn:hover {
     border-color: #6366f1;
 }
 
-QPushButton#nextBtn {
+QPushButton#nextBtn, QPushButton.nextBtn {
     background-color: #6366f1;
     color: #ffffff;
     font-weight: bold;
@@ -155,12 +155,13 @@ QPushButton#nextBtn {
     padding: 12px 34px;
     border: none;
     border-radius: 12px;
+    min-height: 20px;
 }
-QPushButton#nextBtn:hover {
+QPushButton#nextBtn:hover, QPushButton.nextBtn:hover {
     background-color: #4f46e5;
 }
 
-QPushButton#finishBtn {
+QPushButton#finishBtn, QPushButton.finishBtn {
     background-color: #10b981;
     color: #ffffff;
     font-weight: bold;
@@ -168,9 +169,25 @@ QPushButton#finishBtn {
     padding: 12px 34px;
     border: none;
     border-radius: 12px;
+    min-height: 20px;
 }
-QPushButton#finishBtn:hover {
+QPushButton#finishBtn:hover, QPushButton.finishBtn:hover {
     background-color: #059669;
+}
+
+QPushButton#prevBtn, QPushButton.secondaryBtn {
+    background-color: #ffffff;
+    color: #475569;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 12px 34px;
+    border: 2px solid #cbd5e1;
+    border-radius: 12px;
+    min-height: 20px;
+}
+QPushButton#prevBtn:hover, QPushButton.secondaryBtn:hover {
+    background-color: #f8fafc;
+    border-color: #94a3b8;
 }
 
 QPushButton.primaryBtn {

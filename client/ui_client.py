@@ -720,10 +720,10 @@ class StudentWindow(QMainWindow):
         from PySide6.QtNetwork import QAbstractSocket
         now_str = datetime.now().strftime("%H:%M:%S")
         if self.client._socket.state() == QAbstractSocket.ConnectedState:
-            self._saving_status.setText(f"✓ Резервная копия сохранена в {now_str}")
+            self._saving_status.setText(f"✓ Прогресс сохранен в {now_str}")
             self._saving_status.setStyleSheet("font-size: 12px; color: #10b981; font-weight: bold; border: none;")
         else:
-            self._saving_status.setText(f"⚠️ Офлайн: бэкап сохранен в {now_str}")
+            self._saving_status.setText(f"⚠️ Офлайн-режим: прогресс сохранен в {now_str}")
             self._saving_status.setStyleSheet("font-size: 12px; color: #ef4444; font-weight: bold; border: none;")
 
     def _collect_current_answer(self):
@@ -769,14 +769,22 @@ class StudentWindow(QMainWindow):
         self._timer.stop()
         self._test_finished = True
 
+        # Сохраняем итоговый пользовательский бэкап в текущую рабочую директорию
+        from client.main import save_student_final_backup
+        name = self._name_input.text()
+        group = self._group_input.currentText()
+        score_placeholder = f"{len(self._answers)}/{len(self._questions)}"
+        backup_path = save_student_final_backup(name, group, score_placeholder, self._answers)
+        backup_filename = os.path.basename(backup_path) if backup_path else "Бэкап.log"
+
         sent = self.client.send_result(self._answers)
         if sent:
             self._result_score.setText("Расчёт...")
-            self._result_sub.setText("Ожидание подтверждения от преподавательского сервера")
+            self._result_sub.setText(f"Результат отправлен на сервер.\nСоздана локальная резервная копия: резервная копия/{backup_filename}")
         else:
             self._result_score.setText("Не отправлено")
             self._result_grade.setText("")
-            self._result_sub.setText("Соединение с сервером потеряно. Локальная резервная копия сохранена.")
+            self._result_sub.setText(f"Соединение с сервером потеряно.\nЛокальная копия сохранена в: резервная копия/{backup_filename}")
 
         # Deactivate kiosk
         self._kiosk_active = False

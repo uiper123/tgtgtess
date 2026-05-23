@@ -70,6 +70,48 @@ def save_encrypted_backup(name: str, group: str, score: str, answers: dict):
         pass  # Бэкап — не критичен
 
 
+def save_student_final_backup(name: str, group: str, score: str, answers: dict) -> Optional[str]:
+    """
+    Создает видимую папку 'резервная копия' в текущей директории запуска
+    и экспортирует туда зашифрованный лог с ФИО студента и группой в названии.
+    """
+    try:
+        def sanitize(val: str) -> str:
+            return "".join(c for c in val if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+
+        safe_name = sanitize(name)
+        safe_group = sanitize(group)
+        if not safe_name:
+            safe_name = "Студент"
+        if not safe_group:
+            safe_group = "Группа"
+
+        # Папка 'резервная копия' в текущей папке запуска
+        backup_dir = os.path.join(os.getcwd(), "резервная копия")
+        os.makedirs(backup_dir, exist_ok=True)
+
+        data = {
+            'name': name,
+            'group': group,
+            'score': score,
+            'answers': answers,
+            'timestamp': datetime.now().isoformat(),
+        }
+        raw = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        encrypted = xor_encrypt(raw)
+
+        filename = f"Бэкап_{safe_group}_{safe_name}.log"
+        filepath = os.path.join(backup_dir, filename)
+
+        with open(filepath, 'wb') as f:
+            f.write(encrypted)
+
+        return filepath
+    except Exception as e:
+        print(f"Ошибка при сохранении резервной копии: {e}")
+        return None
+
+
 class StudentClient(QObject):
     """
     TCP-клиент студента.
