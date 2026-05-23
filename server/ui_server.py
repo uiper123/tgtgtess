@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
 
 try:
-    from .styles import GLOBAL_QSS
+    from .styles import GLOBAL_QSS, get_scaled_qss
     from .ui_dialogs import (
         StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
         DropZoneWidget, SelectTestFromRepoDialog
@@ -30,7 +30,7 @@ try:
     from .ui_results import ResultsMixin
     from .ui_settings import SettingsMixin
 except ImportError:
-    from styles import GLOBAL_QSS
+    from styles import GLOBAL_QSS, get_scaled_qss
     from ui_dialogs import (
         StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
         DropZoneWidget, SelectTestFromRepoDialog
@@ -57,9 +57,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
-        self.setMinimumSize(1200, 750)
-        self.resize(1300, 850)
-        self.setStyleSheet(GLOBAL_QSS)
+        self.apply_app_scaling()
 
         self._current_test_group = "Новый тест"
 
@@ -213,3 +211,28 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
     def _show_error(self, msg: str):
         self._append_log(f"ОШИБКА: {msg}")
         QMessageBox.warning(self, "Ошибка", msg)
+
+    def apply_app_scaling(self):
+        saved_scale = self._settings.value("ui_scale", "100%")
+        scale_factor = 1.0
+        if saved_scale == "80%":
+            scale_factor = 0.8
+        elif saved_scale == "125%":
+            scale_factor = 1.25
+        elif saved_scale == "150%":
+            scale_factor = 1.5
+        elif saved_scale == "175%":
+            scale_factor = 1.75
+        elif saved_scale == "200%":
+            scale_factor = 2.0
+            
+        base_min_w = 1200
+        base_min_h = 750
+        base_w = 1300
+        base_h = 850
+        
+        self.setMinimumSize(int(base_min_w * scale_factor), int(base_min_h * scale_factor))
+        self.resize(int(base_w * scale_factor), int(base_h * scale_factor))
+        
+        scaled_qss = get_scaled_qss(GLOBAL_QSS, scale_factor)
+        self.setStyleSheet(scaled_qss)

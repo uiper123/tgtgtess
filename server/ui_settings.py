@@ -183,6 +183,44 @@ class SettingsMixin:
         s3_layout.addLayout(grid3)
         layout.addWidget(sect3_card)
 
+        # ----------------------------------------------------
+        # СЕКЦИЯ 4: Внешний вид и масштабирование
+        # ----------------------------------------------------
+        sect4_card = QFrame()
+        sect4_card.setProperty("class", "card")
+        s4_layout = QVBoxLayout(sect4_card)
+        s4_layout.setContentsMargins(20, 20, 20, 20)
+        s4_layout.setSpacing(14)
+
+        s4_title = QLabel("Внешний вид и масштабирование")
+        s4_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        s4_layout.addWidget(s4_title)
+
+        grid4 = QGridLayout()
+        grid4.setSpacing(12)
+
+        self.scale_combo = QComboBox()
+        self.scale_combo.addItems(["80%", "100%", "125%", "150%", "175%", "200%"])
+        
+        saved_scale = self._settings.value("ui_scale", "100%")
+        if isinstance(saved_scale, float):
+            saved_scale = f"{int(saved_scale * 100)}%"
+        elif isinstance(saved_scale, str) and not saved_scale.endswith("%"):
+            try:
+                saved_scale = f"{int(float(saved_scale) * 100)}%"
+            except ValueError:
+                saved_scale = "100%"
+                
+        index = self.scale_combo.findText(saved_scale)
+        if index >= 0:
+            self.scale_combo.setCurrentIndex(index)
+        else:
+            self.scale_combo.setCurrentIndex(1) # default to 100%
+
+        add_form_row(grid4, "Масштаб интерфейса (под размеры экрана):", self.scale_combo, 0)
+        s4_layout.addLayout(grid4)
+        layout.addWidget(sect4_card)
+
         # Кнопки действий
         btn_layout = QHBoxLayout()
         
@@ -241,6 +279,11 @@ class SettingsMixin:
         self._settings.setValue("grade_5_min", g5)
         self._settings.setValue("grade_4_min", g4)
         self._settings.setValue("grade_3_min", g3)
+        
+        # Сохранение масштабирования
+        selected_scale = self.scale_combo.currentText()
+        self._settings.setValue("ui_scale", selected_scale)
+        
         self._settings.sync()
 
         # Применяем новые параметры сразу к форме запуска тестов
@@ -254,6 +297,10 @@ class SettingsMixin:
             self._random_order_cb.setChecked(def_random_order)
         if hasattr(self, "_partial_multiple_cb"):
             self._partial_multiple_cb.setChecked(def_partial)
+
+        # Мгновенно применяем новый масштаб
+        if hasattr(self, "apply_app_scaling"):
+            self.apply_app_scaling()
 
         QMessageBox.information(self, "Настройки", "Все настройки успешно сохранены и применены!")
 
@@ -275,5 +322,6 @@ class SettingsMixin:
             self.g5_spin.setValue(90)
             self.g4_spin.setValue(70)
             self.g3_spin.setValue(50)
+            self.scale_combo.setCurrentIndex(1) # 100%
             self._save_settings()
 

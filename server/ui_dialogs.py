@@ -10,16 +10,33 @@ from PySide6.QtWidgets import (
 )
 
 try:
-    from .styles import GLOBAL_QSS
+    from .styles import GLOBAL_QSS, get_scaled_qss
 except ImportError:
-    from styles import GLOBAL_QSS
+    from styles import GLOBAL_QSS, get_scaled_qss
+
+def apply_dialog_scaling(dialog, parent, base_w, base_h):
+    scale_factor = 1.0
+    if parent and hasattr(parent, "_settings"):
+        saved_scale = parent._settings.value("ui_scale", "100%")
+        if saved_scale == "80%":
+            scale_factor = 0.8
+        elif saved_scale == "125%":
+            scale_factor = 1.25
+        elif saved_scale == "150%":
+            scale_factor = 1.5
+        elif saved_scale == "175%":
+            scale_factor = 1.75
+        elif saved_scale == "200%":
+            scale_factor = 2.0
+            
+    dialog.resize(int(base_w * scale_factor), int(base_h * scale_factor))
+    dialog.setStyleSheet(get_scaled_qss(GLOBAL_QSS, scale_factor))
 
 class StudentAnswersDialog(QDialog):
     def __init__(self, student, questions, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"Ответы студента: {student.name}")
-        self.resize(700, 500)
-        self.setStyleSheet(GLOBAL_QSS)
+        apply_dialog_scaling(self, parent, 700, 500)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -117,8 +134,7 @@ class EditQuestionDialog(QDialog):
     def __init__(self, question=None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Редактирование вопроса" if question else "Создание вопроса")
-        self.resize(650, 600)
-        self.setStyleSheet(GLOBAL_QSS)
+        apply_dialog_scaling(self, parent, 650, 600)
         
         self.question = question if question else {
             "number": 1,
@@ -397,8 +413,7 @@ class MonitoringDialog(QDialog):
             self.setWindowTitle(f"Мониторинг группы {group}")
         else:
             self.setWindowTitle("Мониторинг экзамена в реальном времени")
-        self.resize(700, 450)
-        self.setStyleSheet(GLOBAL_QSS)
+        apply_dialog_scaling(self, parent, 700, 450)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -599,8 +614,7 @@ class SelectTestFromRepoDialog(QDialog):
     def __init__(self, tests, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Выбрать тест из репозитория")
-        self.resize(500, 400)
-        self.setStyleSheet(GLOBAL_QSS)
+        apply_dialog_scaling(self, parent, 500, 400)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
