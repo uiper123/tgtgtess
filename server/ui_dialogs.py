@@ -613,8 +613,9 @@ class DropZoneWidget(QFrame):
 class SelectTestFromRepoDialog(QDialog):
     def __init__(self, tests, parent=None):
         super().__init__(parent)
+        self.tests = tests
         self.setWindowTitle("Выбрать тест из репозитория")
-        apply_dialog_scaling(self, parent, 500, 400)
+        apply_dialog_scaling(self, parent, 500, 420)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -623,6 +624,16 @@ class SelectTestFromRepoDialog(QDialog):
         title = QLabel("Выберите тест из сохраненных:")
         title.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b; border: none; background: transparent;")
         layout.addWidget(title)
+        
+        # Поле поиска
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 Поиск по названию или группе...")
+        self.search_input.setStyleSheet(
+            "QLineEdit { padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #ffffff; }"
+            "QLineEdit:focus { border: 1px solid #3b82f6; }"
+        )
+        self.search_input.textChanged.connect(self._filter_table)
+        layout.addWidget(self.search_input)
         
         self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["Название теста / Группа", "Вопросов"])
@@ -634,11 +645,7 @@ class SelectTestFromRepoDialog(QDialog):
         self.table.setShowGrid(False)
         layout.addWidget(self.table)
         
-        for t in tests:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(t["group"]))
-            self.table.setItem(row, 1, QTableWidgetItem(str(len(t["questions"]))))
+        self._filter_table()
             
         btn_lay = QHBoxLayout()
         btn_lay.addStretch()
@@ -663,6 +670,16 @@ class SelectTestFromRepoDialog(QDialog):
         self.selected_group = None
         
         self.table.doubleClicked.connect(self.accept)
+        
+    def _filter_table(self):
+        query = self.search_input.text().strip().lower()
+        self.table.setRowCount(0)
+        for t in self.tests:
+            if not query or query in t["group"].lower():
+                row = self.table.rowCount()
+                self.table.insertRow(row)
+                self.table.setItem(row, 0, QTableWidgetItem(t["group"]))
+                self.table.setItem(row, 1, QTableWidgetItem(str(len(t["questions"]))))
         
     def accept(self):
         selected = self.table.currentRow()

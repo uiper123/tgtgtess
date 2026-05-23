@@ -67,6 +67,52 @@ class DashboardMixin:
         
         layout.addLayout(header_lay)
 
+        # Фильтры и поиск
+        filter_card = QFrame()
+        filter_card.setProperty("class", "card")
+        filter_card.setStyleSheet("QFrame { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }")
+        filter_lay = QHBoxLayout(filter_card)
+        filter_lay.setContentsMargins(16, 12, 16, 12)
+        filter_lay.setSpacing(12)
+
+        # 1. Поле поиска
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 Поиск по названию или группе...")
+        self.search_input.setStyleSheet(
+            "QLineEdit { padding: 8px 12px 8px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #cbd5e1; background-color: #ffffff; }"
+            "QLineEdit:focus { border: 1px solid #6366f1; }"
+        )
+        self.search_input.textChanged.connect(self._update_dashboard_stats)
+        filter_lay.addWidget(self.search_input, 3)
+
+        # 2. Выпадающий список статусов
+        self.status_filter = QComboBox()
+        self.status_filter.addItems(["Все статусы", "Готовые тесты", "Пустые тесты"])
+        self.status_filter.setStyleSheet(
+            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #cbd5e1; background-color: #ffffff; min-width: 140px; }"
+            "QComboBox:focus { border: 1px solid #6366f1; }"
+        )
+        self.status_filter.currentIndexChanged.connect(self._update_dashboard_stats)
+        filter_lay.addWidget(self.status_filter, 1)
+
+        # 3. Выпадающий список сортировки
+        self.sort_filter = QComboBox()
+        self.sort_filter.addItems([
+            "Сортировка: По умолчанию",
+            "Сортировка: Название (А-Я)",
+            "Сортировка: Название (Я-А)",
+            "Вопросы: Меньше -> Больше",
+            "Вопросы: Больше -> Меньше"
+        ])
+        self.sort_filter.setStyleSheet(
+            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #cbd5e1; background-color: #ffffff; min-width: 180px; }"
+            "QComboBox:focus { border: 1px solid #6366f1; }"
+        )
+        self.sort_filter.currentIndexChanged.connect(self._update_dashboard_stats)
+        filter_lay.addWidget(self.sort_filter, 1)
+
+        layout.addWidget(filter_card)
+
         # Table of saved tests
         self.tests_table = QTableWidget(0, 3)
         self.tests_table.setHorizontalHeaderLabels(["Академическая группа / Название", "Количество вопросов", "Статус"])
@@ -127,6 +173,33 @@ class DashboardMixin:
     def _update_dashboard_stats(self):
         self.tests_table.setRowCount(0)
         tests = self._get_saved_tests()
+        
+        # 1. Поиск по тексту (название теста или группы)
+        if hasattr(self, "search_input"):
+            search_text = self.search_input.text().strip().lower()
+            if search_text:
+                tests = [t for t in tests if search_text in t["group"].lower()]
+                
+        # 2. Фильтрация по статусу (Все, Готовые, Пустые)
+        if hasattr(self, "status_filter"):
+            status_idx = self.status_filter.currentIndex()
+            if status_idx == 1: # Готовые
+                tests = [t for t in tests if len(t["questions"]) > 0]
+            elif status_idx == 2: # Пустые
+                tests = [t for t in tests if len(t["questions"]) == 0]
+                
+        # 3. Сортировка по разным критериям
+        if hasattr(self, "sort_filter"):
+            sort_idx = self.sort_filter.currentIndex()
+            if sort_idx == 1: # Название А-Я
+                tests.sort(key=lambda x: x["group"].lower())
+            elif sort_idx == 2: # Название Я-А
+                tests.sort(key=lambda x: x["group"].lower(), reverse=True)
+            elif sort_idx == 3: # Вопросы возрастание
+                tests.sort(key=lambda x: len(x["questions"]))
+            elif sort_idx == 4: # Вопросы убывание
+                tests.sort(key=lambda x: len(x["questions"]), reverse=True)
+                
         for t in tests:
             row = self.tests_table.rowCount()
             self.tests_table.insertRow(row)
