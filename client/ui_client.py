@@ -52,6 +52,7 @@ class StudentWindow(QMainWindow):
         self._timer.timeout.connect(self._tick)
         self._test_finished = False
         self._kiosk_active = False
+        self._protection_enabled = False
 
         # Connect signals
         self.client.connected_ok.connect(self._on_connected_ok)
@@ -357,6 +358,8 @@ class StudentWindow(QMainWindow):
     def _reset_to_login(self):
         self.client.disconnect()
         self._kiosk_active = False
+        self._protection_enabled = False
+        self._focus_loss_count = 0
         self.hide()
         self.setWindowFlags(self._login_window_flags)
         self._name_input.clear()
@@ -550,10 +553,18 @@ class StudentWindow(QMainWindow):
         """Включает режим киоска: полноэкранное окно без рамок."""
         self._capture_login_window_state()
         self._kiosk_active = True
+        self._protection_enabled = False
         self.setWindowFlags(
             Qt.Window | Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint
         )
         self.showFullScreen()
+        # Включаем прокторинг с задержкой в 1.5 секунды, когда переход на полный экран полностью завершен
+        QTimer.singleShot(1500, self._enable_protection)
+
+    def _enable_protection(self):
+        if getattr(self, "_kiosk_active", False) and not getattr(self, "_test_finished", False):
+            self._protection_enabled = True
+            self.activateWindow()
 
     def _show_question(self, index: int):
         """Отображает вопрос по индексу."""
@@ -769,6 +780,7 @@ class StudentWindow(QMainWindow):
 
         # Deactivate kiosk
         self._kiosk_active = False
+        self._protection_enabled = False
         self.hide()
         self.setWindowFlags(self._login_window_flags)
         self.showNormal()
@@ -824,9 +836,10 @@ class StudentWindow(QMainWindow):
     def changeEvent(self, event):
         from PySide6.QtCore import QEvent
         if event.type() == QEvent.ActivationChange:
-            if getattr(self, "_kiosk_active", False) and not getattr(self, "_test_finished", False):
-                if not self.isActiveWindow():
-                    self._handle_focus_loss()
+            if getattr(self, "_kiosk_active", False) and getattr(self, "_protection_enabled", False) and not getattr(self, "_test_finished", False):
+                if self._stack.currentIndex() == 1:
+                    if not self.isActiveWindow():
+                        self._handle_focus_loss()
         super().changeEvent(event)
 
     def _handle_focus_loss(self):

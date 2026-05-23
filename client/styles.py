@@ -173,6 +173,19 @@ QPushButton#finishBtn:hover {
     background-color: #059669;
 }
 
+QPushButton.primaryBtn {
+    background-color: #6366f1;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 12px 34px;
+    border: none;
+    border-radius: 12px;
+}
+QPushButton.primaryBtn:hover {
+    background-color: #4f46e5;
+}
+
 /* --- Карточка Вопроса --- */
 QFrame#questionCard {
     background-color: #ffffff;
