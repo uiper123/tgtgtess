@@ -270,7 +270,8 @@ class StudentWindow(QMainWindow):
         # Bottom Navigation Bar
         # ----------------------------------------------------
         bottom = QWidget()
-        bottom.setStyleSheet("background-color: #ffffff; border-top: 1px solid #e2e8f0;")
+        bottom.setObjectName("bottomBar")
+        bottom.setStyleSheet("#bottomBar { background-color: #ffffff; border-top: 1px solid #e2e8f0; }")
         bb = QHBoxLayout(bottom)
         bb.setContentsMargins(40, 16, 40, 16)
         bb.setSpacing(16)
@@ -705,9 +706,11 @@ class StudentWindow(QMainWindow):
         is_last = (index == total - 1)
         if is_last:
             self._next_btn.setText("Завершить тест")
+            self._next_btn.setObjectName("finishBtn")
             self._next_btn.setProperty("class", "finishBtn")
         else:
             self._next_btn.setText("Ответить и продолжить")
+            self._next_btn.setObjectName("nextBtn")
             self._next_btn.setProperty("class", "nextBtn")
         self._next_btn.style().unpolish(self._next_btn)
         self._next_btn.style().polish(self._next_btn)
