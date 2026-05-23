@@ -239,3 +239,5 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         
         if hasattr(self, "_exam_table"):
             self._exam_table.verticalHeader().setDefaultSectionSize(int(54 * scale_factor))
+            self._exam_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive)
+            self._exam_table.setColumnWidth(4, int(240 * scale_factor))

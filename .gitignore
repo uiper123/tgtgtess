@@ -67,3 +67,4 @@ tests/*.json
 *.jpeg
 !shared/*.png
 !shared/*.jpg
+резервная копия/
