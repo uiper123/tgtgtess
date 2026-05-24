@@ -29,6 +29,8 @@ def build_app(app_name, config):
         "--assume-yes-for-downloads",
         f"--output-filename={config['output']}",
         f"--output-dir=dist/{app_name}",
+        "--include-data-files=image.ico=image.ico",
+        "--include-data-files=image.png=image.png",
         config['main']
     ]
     

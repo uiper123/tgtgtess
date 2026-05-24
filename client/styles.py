@@ -1,3 +1,8 @@
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from shared.styles import get_scaled_qss
+
 CLIENT_QSS = """
 * {
     font-family: "Segoe UI", "Inter", "Outfit", "Roboto", sans-serif;
@@ -325,19 +330,4 @@ QMessageBox QPushButton:hover {
     background-color: #4f46e5;
 }
 """
-
-def get_scaled_qss(qss_text, scale_factor):
-    import re
-    scale_factor = float(scale_factor)
-    if scale_factor == 1.0:
-        return qss_text
-    
-    def replace_px(match):
-        value = float(match.group(1))
-        scaled_value = max(1, int(round(value * scale_factor)))
-        return f"{scaled_value}px"
-    
-    # Scale all px values in the client QSS safely
-    scaled_qss = re.sub(r'(\d+)px', replace_px, qss_text)
-    return scaled_qss
 

@@ -305,7 +305,7 @@ class ExamsMixin:
             return
         
         # Проверяем, не запущен ли уже тест для этой группы
-        if group.lower() in self.exam_server._active_exams:
+        if group.lower() in self.exam_server.get_active_exams():
             self._show_error(f"Экзамен для группы '{group}' уже запущен!")
             return
 
@@ -338,7 +338,7 @@ class ExamsMixin:
 
     def _update_exam_table_view(self):
         self._exam_table.setRowCount(0)
-        for group_key, exam in list(self.exam_server._active_exams.items()):
+        for group_key, exam in self.exam_server.get_active_exams().items():
             row = self._exam_table.rowCount()
             self._exam_table.insertRow(row)
             
@@ -350,7 +350,7 @@ class ExamsMixin:
             self._exam_table.setItem(row, 2, QTableWidgetItem("Активен"))
             
             # Подсчёт студентов для этой группы
-            student_count = sum(1 for s in self.exam_server._students.values() if s.group.lower() == group_key)
+            student_count = sum(1 for s in self.exam_server.get_connected_students() if s.group.lower() == group_key)
             self._exam_table.setItem(row, 3, QTableWidgetItem(str(student_count)))
 
             # Кнопки действий (Мониторинг и Остановить)

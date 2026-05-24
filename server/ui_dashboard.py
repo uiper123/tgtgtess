@@ -156,7 +156,6 @@ class DashboardMixin:
         self.stacked_widget.addWidget(self.dashboard_page)
 
     def _get_saved_tests(self):
-        import json
         tests = []
         for path in tests_dir().glob("*.json"):
             try:
@@ -286,31 +285,30 @@ class DashboardMixin:
             )
             if reply != QMessageBox.Yes:
                 return
-        if True:
-            path = test_path(group)
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                    self.exam_server.log_message.emit(f"Тест '{group}' удален из репозитория.")
-                except Exception as e:
-                    QMessageBox.critical(self, "Ошибка", f"Не удалось удалить файл: {e}")
-            
-            # If the deleted test was the active one, clear active questions
-            if self._current_test_group == group:
-                self._current_test_group = "Новый тест"
-                self.exam_server._questions = []
-                self.exam_server._network_payload = []
-                self.exam_server.test_title = "Итоговое тестирование"
-                self.exam_server.test_section = "Раздел: Основная часть"
-                self._update_test_headers_inputs()
-                self.active_test_lbl.setText("Активный тест: Новый тест")
-                self.selected_test_sidebar_lbl.setText("Тест: Новый тест")
-            
-            self._update_dashboard_stats()
-            self._update_exams_page_test_view()
+        
+        path = test_path(group)
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                self.exam_server.log_message.emit(f"Тест '{group}' удален из репозитория.")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось удалить файл: {e}")
+        
+        # If the deleted test was the active one, clear active questions
+        if self._current_test_group == group:
+            self._current_test_group = "Новый тест"
+            self.exam_server._questions = []
+            self.exam_server._network_payload = []
+            self.exam_server.test_title = "Итоговое тестирование"
+            self.exam_server.test_section = "Раздел: Основная часть"
+            self._update_test_headers_inputs()
+            self.active_test_lbl.setText("Активный тест: Новый тест")
+            self.selected_test_sidebar_lbl.setText("Тест: Новый тест")
+        
+        self._update_dashboard_stats()
+        self._update_exams_page_test_view()
 
     def _load_test_from_repo_by_group(self, group):
-        import json
         path = test_path(group)
         if os.path.exists(path):
             try:
@@ -332,7 +330,6 @@ class DashboardMixin:
     def _save_active_test_to_repo(self):
         if not self._current_test_group or self._current_test_group == "Новый тест" or not self.exam_server.questions:
             return
-        import json
         path = test_path(self._current_test_group)
         try:
             with open(path, "w", encoding="utf-8") as f:

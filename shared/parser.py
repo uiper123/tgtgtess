@@ -293,7 +293,10 @@ def calculate_score(
 
     for q in questions:
         q_num = q['number']
-        selected = student_answers.get(q_num, [])
+        # Ищем ответ в словаре, поддерживая как числовые ключи, так и строковые
+        selected = student_answers.get(q_num)
+        if selected is None:
+            selected = student_answers.get(str(q_num), [])
 
         if q.get('written', False):
             if not selected:
@@ -308,18 +311,28 @@ def calculate_score(
                 score += 1.0
             continue
 
-        selected_set = set(selected)
-        correct_set = set(a['text'] for a in q['answers'] if a['correct'])
+        selected_set = set(str(s).strip() for s in selected)
+        correct_set = set(str(a['text']).strip() for a in q['answers'] if a['correct'])
         wrong_selected = selected_set - correct_set
 
         if not correct_set:
             continue
+
         if q.get('multiple') and partial_multiple:
             correct_selected = selected_set & correct_set
-            question_score = (len(correct_selected) - len(wrong_selected)) / len(correct_set)
+            # Количество ВЕРНЫХ из ТЕХ, что должны быть выбраны, минус количество ОШИБОЧНЫХ
+            # Делим на общее количество верных ответов в этом вопросе
+            num_correct = len(correct_selected)
+            num_wrong = len(wrong_selected)
+            total_correct = len(correct_set)
+            
+            question_score = (num_correct - num_wrong) / total_correct
             score += max(0.0, min(1.0, question_score))
-        elif selected_set == correct_set:
-            score += 1.0
+        else:
+            # Для одиночного выбора или если частичный зачёт отключен
+            # Нужно точное совпадение набора выбранных ответов с набором правильных
+            if selected_set == correct_set and len(selected_set) > 0:
+                score += 1.0
 
     score_str = f"{score:.2f}".rstrip('0').rstrip('.')
     return f"{score_str}/{total}"

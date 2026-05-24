@@ -11,6 +11,7 @@ import json
 import csv
 import struct
 import random
+from functools import partial
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import QApplication
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from shared.parser import parse_test_file, questions_to_network_payload, calculate_score
+from shared.protocol import pack_message
 
 try:
     from .storage import project_root, results_path, safe_test_filename
@@ -30,20 +32,13 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Протокол: длина пакета (4 байта, big-endian) + JSON-данные (UTF-8)
-# ---------------------------------------------------------------------------
 
 MAX_MESSAGE_SIZE = 50 * 1024 * 1024
-
-def pack_message(data: dict) -> bytes:
-    """Упаковывает словарь в сетевой пакет: [4 байта длины][JSON UTF-8]."""
-    raw = json.dumps(data, ensure_ascii=False).encode('utf-8')
-    return struct.pack('!I', len(raw)) + raw
 
 
 class ConnectedStudent:
     """Данные о подключённом студенте."""
-    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions', 'cheat_warnings')
+    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions', 'cheat_warnings', 'connect_time')
 
     def __init__(self, socket: QTcpSocket, name: str, group: str):
         self.socket = socket
@@ -56,6 +51,7 @@ class ConnectedStudent:
         self.answers: Dict[int, List[str]] = {}
         self.questions: List[Dict[str, Any]] = []
         self.cheat_warnings = []
+        self.connect_time = datetime.now()
 
 
 class ExamServer(QObject):
@@ -246,6 +242,12 @@ class ExamServer(QObject):
     def questions(self) -> List[Dict[str, Any]]:
         return self._questions
 
+    def get_active_exams(self) -> Dict[str, Dict[str, Any]]:
+        return dict(self._active_exams)
+
+    def get_connected_students(self) -> List[ConnectedStudent]:
+        return list(self._students.values())
+
     # -- Внутренние обработчики сетевых событий --
 
     @Slot()
@@ -255,8 +257,8 @@ class ExamServer(QObject):
             if client_socket is None:
                 continue
             self._pending_buffers[client_socket] = QByteArray()
-            client_socket.readyRead.connect(lambda s=client_socket: self._on_data_ready(s))
-            client_socket.disconnected.connect(lambda s=client_socket: self._on_disconnected(s))
+            client_socket.readyRead.connect(partial(self._on_data_ready, client_socket))
+            client_socket.disconnected.connect(partial(self._on_disconnected, client_socket))
 
     def _on_data_ready(self, sock: QTcpSocket):
         """Читает данные из сокета и обрабатывает JSON-пакеты."""
@@ -408,6 +410,7 @@ class ExamServer(QObject):
             'duration': exam['duration'],
             'title': exam['title'],
             'section': exam['section'],
+            'test_name': exam.get('test_name', 'Тест')
         }
         sock.write(pack_message(response))
         sock.flush()
@@ -446,19 +449,22 @@ class ExamServer(QObject):
                 pass
 
         group_key = group.lower()
-        if getattr(student, 'questions', None):
-            questions_to_use = student.questions
-        elif group_key in self._active_exams:
-            questions_to_use = self._active_exams[group_key]['questions']
+        if group_key in self._active_exams:
+            exam = self._active_exams[group_key]
+            # Проверка времени (пункт 16 аудита)
+            elapsed = (datetime.now() - student.connect_time).total_seconds()
+            max_seconds = exam['duration'] * 60 + 60  # +60 сек буфер
+            if elapsed > max_seconds:
+                sock.write(pack_message({'status': 'error', 'message': 'time_out'}))
+                sock.flush()
+                self.log_message.emit(f"Результат отклонён: время вышло для {name} ({group})")
+                return
+            questions_to_use = student.questions if getattr(student, 'questions', None) else exam['questions']
+            partial_multiple = exam.get('partial_multiple', True)
         else:
             sock.write(pack_message({'status': 'error', 'message': 'exam_not_active'}))
             sock.flush()
             return
-
-        if group_key in self._active_exams:
-            partial_multiple = self._active_exams[group_key].get('partial_multiple', True)
-        else:
-            partial_multiple = True
 
         score = calculate_score(questions_to_use, int_answers, partial_multiple=partial_multiple)
         student.finished = True
@@ -484,6 +490,11 @@ class ExamServer(QObject):
         }
         self._results.append(result_entry)
         self._all_results.append(result_entry)
+        
+        # Ограничение размера истории (пункт 15 аудита)
+        if len(self._all_results) > 10000:
+            self._all_results = self._all_results[-10000:]
+            
         self._save_all_results_to_file()
 
         response = {
@@ -513,6 +524,11 @@ class ExamServer(QObject):
 
     def _export_results_csv(self):
         """Сохраняет результаты текущего экзамена в CSV-файл."""
+        from PySide6.QtCore import QSettings
+        settings = QSettings("EduTest", "Server")
+        if not settings.value("auto_export_csv", True, type=bool):
+            return
+
         if not self._results:
             self.log_message.emit("Нет результатов для экспорта.")
             return
@@ -558,20 +574,31 @@ class ExamServer(QObject):
         self.log_message.emit("Вся история результатов очищена.")
 
 
+def get_resource_path(relative_path):
+    """Получает абсолютный путь к ресурсу, работает для обычного запуска и для Nuitka/PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    # Для Nuitka
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    # Если мы в папке server/, ищем в корне проекта
+    potential_path = os.path.join(base_path, "..", relative_path)
+    if os.path.exists(potential_path):
+        return os.path.abspath(potential_path)
+    return os.path.abspath(os.path.join(base_path, relative_path))
+
+
 def main():
     """Запуск приложения сервера преподавателя."""
     app = QApplication(sys.argv)
     app.setApplicationName("TTGTiSO-Test — Сервер")
     app.setOrganizationName("EduTest")
 
-    # Установка иконки приложения (поиск в разных кандидатах для переносимости)
+    # Установка иконки приложения
     from PySide6.QtGui import QIcon
     icon_candidates = [
+        get_resource_path("image.ico"),
+        get_resource_path("image.png"),
         os.path.join(os.path.dirname(sys.executable), "image.ico"),
-        os.path.join(os.path.dirname(sys.executable), "image.png"),
-        os.path.join(os.path.dirname(sys.executable), "icon.png"),
-        os.path.join(os.path.dirname(__file__), "..", "image.ico"),
-        os.path.join(os.path.dirname(__file__), "..", "image.png"),
         "/opt/test_system_server/icon.png"
     ]
     for path in icon_candidates:

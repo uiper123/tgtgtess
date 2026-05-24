@@ -53,7 +53,12 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         
         # Установка иконки приложения
         from PySide6.QtGui import QIcon
-        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "image.ico"))
+        try:
+            from .main import get_resource_path
+        except ImportError:
+            from main import get_resource_path
+        
+        icon_path = get_resource_path("image.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 

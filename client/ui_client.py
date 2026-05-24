@@ -31,7 +31,12 @@ class StudentWindow(QMainWindow):
         
         # Установка иконки приложения
         from PySide6.QtGui import QIcon
-        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "image.ico"))
+        try:
+            from .main import get_resource_path
+        except ImportError:
+            from main import get_resource_path
+        
+        icon_path = get_resource_path("image.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
 
@@ -53,6 +58,7 @@ class StudentWindow(QMainWindow):
         self._test_finished = False
         self._kiosk_active = False
         self._protection_enabled = False
+        self._focus_loss_count = 0
 
         # Connect signals
         self.client.connected_ok.connect(self._on_connected_ok)
@@ -416,15 +422,23 @@ class StudentWindow(QMainWindow):
             self._save_current_ip()
             return
         self._save_current_ip()
+        
+        ip, port = self._parse_address(ip)
+        self.client.check_active_group(ip, port)
+
+    def _parse_address(self, addr: str) -> tuple[str, int]:
         port = 9876
-        if ':' in ip:
-            parts = ip.rsplit(':', 1)
+        ip = addr
+        if ':' in addr:
+            parts = addr.rsplit(':', 1)
             ip = parts[0]
             try:
-                port = int(parts[1])
+                p = int(parts[1])
+                if 1 <= p <= 65535:
+                    port = p
             except ValueError:
                 pass
-        self.client.check_active_group(ip, port)
+        return ip, port
 
     def _restore_saved_ip(self):
         ip = self._settings.value("last_server_ip", "", str).strip()
@@ -469,26 +483,19 @@ class StudentWindow(QMainWindow):
         self._connect_btn.setEnabled(False)
         self._connect_btn.setText("Подключение...")
 
-        # Извлекаем порт, если указан
-        port = 9876
-        if ':' in ip:
-            parts = ip.rsplit(':', 1)
-            ip = parts[0]
-            try:
-                port = int(parts[1])
-            except ValueError:
-                pass
+        ip, port = self._parse_address(ip)
 
         self.client.connect_to_server(ip, port, name, group)
 
-    @Slot(list, int, str, str)
-    def _on_connected_ok(self, questions, duration, title, section):
+    @Slot(list, int, str, str, str)
+    def _on_connected_ok(self, questions, duration, title, section, test_name):
         self._questions = questions
         self._duration = duration
         self._remaining = duration * 60
         self._current_q = 0
         self._answers.clear()
         self._test_finished = False
+        self._test_name = test_name
 
         # Установка кастомных заголовков
         self._test_title.setText(title)
@@ -722,7 +729,7 @@ class StudentWindow(QMainWindow):
         from datetime import datetime
         from PySide6.QtNetwork import QAbstractSocket
         now_str = datetime.now().strftime("%H:%M:%S")
-        if self.client._socket.state() == QAbstractSocket.ConnectedState:
+        if self.client.get_socket_state() == QAbstractSocket.ConnectedState:
             self._saving_status.setText(f"✓ Прогресс сохранен в {now_str}")
             self._saving_status.setStyleSheet("font-size: 12px; color: #10b981; font-weight: bold; border: none;")
         else:
@@ -773,11 +780,16 @@ class StudentWindow(QMainWindow):
         self._test_finished = True
 
         # Сохраняем итоговый пользовательский бэкап в текущую рабочую директорию
-        from client.main import save_student_final_backup
+        try:
+            from client.main import save_student_final_backup
+        except ImportError:
+            from main import save_student_final_backup
+        
         name = self._name_input.text()
         group = self._group_input.currentText()
         score_placeholder = f"{len(self._answers)}/{len(self._questions)}"
-        backup_path = save_student_final_backup(name, group, score_placeholder, self._answers)
+        test_name = getattr(self, "_test_name", "")
+        backup_path = save_student_final_backup(name, group, score_placeholder, self._answers, test_name)
         backup_filename = os.path.basename(backup_path) if backup_path else "Бэкап.log"
 
         sent = self.client.send_result(self._answers)
@@ -800,6 +812,8 @@ class StudentWindow(QMainWindow):
         self._stack.setCurrentIndex(2)
 
     def _tick(self):
+        if self._test_finished:
+            return
         self._remaining -= 1
         if self._remaining <= 0:
             self._finish_test()

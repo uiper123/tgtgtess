@@ -20,10 +20,7 @@ MAX_MESSAGE_SIZE = 50 * 1024 * 1024
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-
-def pack_message(data: dict) -> bytes:
-    raw = json.dumps(data, ensure_ascii=False).encode('utf-8')
-    return struct.pack('!I', len(raw)) + raw
+from shared.protocol import pack_message
 
 
 def xor_encrypt(data: bytes, key: bytes = b'EduTestPro2025') -> bytes:
@@ -46,13 +43,14 @@ def get_backup_dir() -> str:
     return backup_dir
 
 
-def save_encrypted_backup(name: str, group: str, score: str, answers: dict):
+def save_encrypted_backup(name: str, group: str, score: str, answers: dict, test_name: str = ""):
     """Сохраняет результат в зашифрованном .log файле."""
     data = {
         'name': name,
         'group': group,
         'score': score,
         'answers': answers,
+        'test_name': test_name,
         'timestamp': datetime.now().isoformat(),
     }
     raw = json.dumps(data, ensure_ascii=False).encode('utf-8')
@@ -70,7 +68,7 @@ def save_encrypted_backup(name: str, group: str, score: str, answers: dict):
         pass  # Бэкап — не критичен
 
 
-def save_student_final_backup(name: str, group: str, score: str, answers: dict) -> Optional[str]:
+def save_student_final_backup(name: str, group: str, score: str, answers: dict, test_name: str = "") -> Optional[str]:
     """
     Создает видимую папку 'резервная копия' в текущей директории запуска
     и экспортирует туда зашифрованный лог с ФИО студента и группой в названии.
@@ -95,6 +93,7 @@ def save_student_final_backup(name: str, group: str, score: str, answers: dict) 
             'group': group,
             'score': score,
             'answers': answers,
+            'test_name': test_name,
             'timestamp': datetime.now().isoformat(),
         }
         raw = json.dumps(data, ensure_ascii=False).encode('utf-8')
@@ -123,7 +122,7 @@ class StudentClient(QObject):
         log_message(str)
     """
 
-    connected_ok = Signal(list, int, str, str)         # questions, duration, title, section
+    connected_ok = Signal(list, int, str, str, str)         # questions, duration, title, section, test_name
     connection_error = Signal(str)           # message
     result_sent = Signal(str)                # score calculated by server
     force_stopped = Signal()                 # force stopped by teacher
@@ -142,12 +141,20 @@ class StudentClient(QObject):
         self._buffer = QByteArray()
         self._name = ''
         self._group = ''
+        self._test_name = ''
         self._pending_connect = False
+        self._intentional_disconnect = False
         self._temp_sock = None
         self._temp_buf = QByteArray()
 
     def check_active_group(self, host: str, port: int):
         """Запрашивает с сервера активные группы без входа."""
+        if self._temp_sock is not None:
+            try:
+                self._temp_sock.disconnectFromHost()
+                self._temp_sock.deleteLater()
+            except Exception:
+                pass
         self._temp_sock = QTcpSocket(self)
         self._temp_sock.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
         self._temp_buf = QByteArray()
@@ -192,6 +199,7 @@ class StudentClient(QObject):
         self._name = name.strip()
         self._group = group.strip()
         self._pending_connect = True
+        self._intentional_disconnect = False
         self._buffer.clear()
         self._socket.abort()  # Сброс предыдущего состояния подключения
         self._socket.connectToHost(host.strip(), port)
@@ -235,7 +243,9 @@ class StudentClient(QObject):
             duration = packet.get('duration', 60)
             title = packet.get('title', 'Итоговое тестирование')
             section = packet.get('section', 'Раздел: Основная часть')
-            self.connected_ok.emit(questions, duration, title, section)
+            test_name = packet.get('test_name', '')
+            self._test_name = test_name
+            self.connected_ok.emit(questions, duration, title, section, test_name)
         elif status == 'result_confirmed':
             score = packet.get('score', '0/0')
             self.result_sent.emit(score)
@@ -259,12 +269,15 @@ class StudentClient(QObject):
                 self.connection_error.emit('Результат отклонён: клиент не подключён к экзамену')
             elif msg == 'invalid_answers':
                 self.connection_error.emit('Результат отклонён: неверный формат ответов')
+            elif msg == 'time_out':
+                self.connection_error.emit('Время на выполнение теста истекло')
             else:
                 self.connection_error.emit(f'Ошибка сервера: {msg}')
 
     @Slot()
     def _on_socket_disconnected(self):
-        self.connection_error.emit('Соединение с сервером потеряно')
+        if not self._intentional_disconnect:
+            self.connection_error.emit('Соединение с сервером потеряно')
 
     @Slot(QAbstractSocket.SocketError)
     def _on_socket_error(self, error):
@@ -287,7 +300,7 @@ class StudentClient(QObject):
             sent = bytes_written != -1
 
         score_placeholder = f"{len(answers)}"
-        save_encrypted_backup(self._name, self._group, score_placeholder, answers)
+        save_encrypted_backup(self._name, self._group, score_placeholder, answers, self._test_name)
         return sent
 
     def send_cheat_warning(self, description: str) -> bool:
@@ -307,9 +320,10 @@ class StudentClient(QObject):
 
     def save_backup(self, answers: dict, score: str = "N/A"):
         """Позволяет принудительно сохранить локальную резервную копию ответов."""
-        save_encrypted_backup(self._name, self._group, score, answers)
+        save_encrypted_backup(self._name, self._group, score, answers, self._test_name)
 
     def disconnect(self):
+        self._intentional_disconnect = True
         if self._socket.state() == QAbstractSocket.ConnectedState:
             self._socket.disconnectFromHost()
 
@@ -321,20 +335,34 @@ class StudentClient(QObject):
     def student_group(self) -> str:
         return self._group
 
+    def get_socket_state(self) -> QAbstractSocket.SocketState:
+        return self._socket.state()
+
+
+def get_resource_path(relative_path):
+    """Получает абсолютный путь к ресурсу, работает для обычного запуска и для Nuitka/PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    # Для Nuitka
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    # Если мы в папке client/, ищем в корне проекта
+    potential_path = os.path.join(base_path, "..", relative_path)
+    if os.path.exists(potential_path):
+        return os.path.abspath(potential_path)
+    return os.path.abspath(os.path.join(base_path, relative_path))
+
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName("TTGTiSO-Test — Студент")
     app.setOrganizationName("EduTest")
 
-    # Установка иконки приложения (поиск в разных кандидатах для переносимости)
+    # Установка иконки приложения
     from PySide6.QtGui import QIcon
     icon_candidates = [
+        get_resource_path("image.ico"),
+        get_resource_path("image.png"),
         os.path.join(os.path.dirname(sys.executable), "image.ico"),
-        os.path.join(os.path.dirname(sys.executable), "image.png"),
-        os.path.join(os.path.dirname(sys.executable), "icon.png"),
-        os.path.join(os.path.dirname(__file__), "..", "image.ico"),
-        os.path.join(os.path.dirname(__file__), "..", "image.png"),
         "/opt/test_system_student/icon.png"
     ]
     for path in icon_candidates:

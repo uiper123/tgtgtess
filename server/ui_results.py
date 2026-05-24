@@ -123,6 +123,15 @@ class ResultsMixin:
         export_btn.clicked.connect(self._export_manually)
         btn_row.addWidget(export_btn)
         
+        import_log_btn = QPushButton("Импортировать лог студента (.log)")
+        import_log_btn.setStyleSheet(
+            "QPushButton { background-color: #8b5cf6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #7c3aed; }"
+        )
+        import_log_btn.setCursor(Qt.PointingHandCursor)
+        import_log_btn.clicked.connect(self._import_student_log)
+        btn_row.addWidget(import_log_btn)
+
         clear_btn = QPushButton("Очистить всю историю результатов")
         clear_btn.setProperty("class", "dangerBtn")
         clear_btn.setCursor(Qt.PointingHandCursor)
@@ -247,5 +256,79 @@ class ResultsMixin:
                 QMessageBox.information(self, "Успешно", f"Отфильтрованные результаты успешно сохранены:\n{path}")
             except IOError as exc:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать результаты: {exc}")
+
+    def _import_student_log(self):
+        log_path, _ = self._get_open_file_name("Выберите файл лога студента", "", "Лог-файлы (*.log)")
+        if not log_path:
+            return
+            
+        try:
+            # 1. Читаем и расшифровываем лог
+            with open(log_path, 'rb') as f:
+                encrypted_data = f.read()
+            
+            key = b'EduTestPro2025'
+            decrypted = bytearray(len(encrypted_data))
+            klen = len(key)
+            for i, b in enumerate(encrypted_data):
+                decrypted[i] = b ^ key[i % klen]
+            
+            log_json = json.loads(decrypted.decode('utf-8'))
+            student_name = log_json.get('name', 'Неизвестный')
+            student_group = log_json.get('group', 'Неизвестная')
+            student_answers = log_json.get('answers', {})
+            test_name_in_log = log_json.get('test_name', '')
+            
+            # В логе лежат номера вопросов как строки (JSON keys), приводим к int
+            int_answers = {}
+            for k, v in student_answers.items():
+                try:
+                    int_answers[int(k)] = v
+                except:
+                    pass
+            
+            # 2. Пытаемся автоматически найти тест в репозитории
+            questions = None
+            if test_name_in_log:
+                from .storage import test_path
+                potential_path = test_path(test_name_in_log)
+                if os.path.exists(potential_path):
+                    try:
+                        questions = parse_test_file(potential_path)
+                    except:
+                        pass
+            
+            if not questions:
+                QMessageBox.information(self, "Выбор теста", 
+                    f"Лог студента {student_name} загружен.\nАвтоматически найти тест '{test_name_in_log}' не удалось.\nВыберите файл теста (.txt) вручную.")
+                
+                manual_test_path, _ = self._get_open_file_name("Выберите файл теста для оценки", "", "Текстовые файлы (*.txt)")
+                if not manual_test_path:
+                    return
+                questions = parse_test_file(manual_test_path)
+
+            if not questions:
+                raise ValueError("Файл теста пуст или неверного формата.")
+            
+            # 3. Рассчитываем и сохраняем
+            from shared.parser import calculate_score
+            score = calculate_score(questions, int_answers, partial_multiple=True)
+            
+            result_entry = {
+                'name': student_name,
+                'group': student_group,
+                'score': score,
+                'answers': int_answers,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " (Импорт)",
+            }
+            
+            self.exam_server._all_results.append(result_entry)
+            self.exam_server._save_all_results_to_file()
+            self._update_results_table()
+            
+            QMessageBox.information(self, "Успешно", f"Результат студента {student_name} успешно импортирован!\nОценка: {score}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка импорта", f"Не удалось импортировать лог: {e}")
 
     # ========================== 5. НАСТРОЙКИ СИСТЕМЫ ==========================

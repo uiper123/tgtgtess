@@ -11,8 +11,10 @@ from PySide6.QtWidgets import (
 
 try:
     from .styles import GLOBAL_QSS, get_scaled_qss
+    from shared.parser import get_grade_details
 except ImportError:
     from styles import GLOBAL_QSS, get_scaled_qss
+    from shared.parser import get_grade_details
 
 def apply_dialog_scaling(dialog, parent, base_w, base_h):
     scale_factor = 1.0
@@ -72,8 +74,17 @@ class StudentAnswersDialog(QDialog):
                     student_text = student_ans[0] if student_ans else ""
                     from shared.parser import compare_written_answer
                     is_correct = any(compare_written_answer(student_text, ans_text) for ans_text in correct_answers)
+                    q_score_val = 1.0 if is_correct else 0.0
                 else:
-                    is_correct = set(student_ans) == set(correct_answers)
+                    # Рассчитываем частичный балл для отображения
+                    from shared.parser import calculate_score
+                    # Формируем структуру для одного вопроса
+                    single_q_score_str = calculate_score([q], {q_num: student_ans}, partial_multiple=True)
+                    try:
+                        q_score_val = float(single_q_score_str.split('/')[0])
+                    except:
+                        q_score_val = 0.0
+                    is_correct = (q_score_val >= 1.0)
 
                 # Card for each question
                 q_card = QFrame()
@@ -89,11 +100,14 @@ class StudentAnswersDialog(QDialog):
                 header.addWidget(q_lbl, 1)
 
                 badge = QLabel()
-                if is_correct:
-                    badge.setText("Верно")
+                if q_score_val >= 1.0:
+                    badge.setText("Верно (1.0)")
                     badge.setStyleSheet("background-color: #d1fae5; color: #065f46; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px; border: none;")
+                elif q_score_val > 0:
+                    badge.setText(f"Частично ({q_score_val})")
+                    badge.setStyleSheet("background-color: #fef3c7; color: #92400e; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px; border: none;")
                 else:
-                    badge.setText("Неверно")
+                    badge.setText("Неверно (0.0)")
                     badge.setStyleSheet("background-color: #fee2e2; color: #991b1b; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px; border: none;")
                 header.addWidget(badge)
                 card_lay.addLayout(header)
