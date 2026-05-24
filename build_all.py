@@ -29,10 +29,14 @@ def build_app(app_name, config):
         "--assume-yes-for-downloads",
         f"--output-filename={config['output']}",
         f"--output-dir=dist/{app_name}",
-        "--include-data-files=image.ico=image.ico",
-        "--include-data-files=image.png=image.png",
         config['main']
     ]
+    
+    # Включаем ресурсы только если они существуют
+    if os.path.exists("image.ico"):
+        cmd.insert(-1, "--include-data-files=image.ico=image.ico")
+    if os.path.exists("image.png"):
+        cmd.insert(-1, "--include-data-files=image.png=image.png")
     
     # Флаги для Windows
     if os.name == 'nt':
