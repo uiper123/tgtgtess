@@ -78,6 +78,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download Windows Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -90,12 +95,42 @@ jobs:
           name: linux-binaries
           path: dist-linux
 
+      - name: Prepare Binaries and Changelog
+        id: prepare
+        run: |
+          tag="${{ github.ref_name }}"
+          echo "Preparing release for tag: $tag"
+
+          # 1. Переименовываем файлы с добавлением версии тега
+          find dist-windows -name "TTGTiSO-Test-server.exe" -execdir mv {} "TTGTiSO-Test-server-$tag.exe" \;
+          find dist-windows -name "TTGTiSO-Test-student.exe" -execdir mv {} "TTGTiSO-Test-student-$tag.exe" \;
+          find dist-windows -name "EduTestStudent_Setup.exe" -execdir mv {} "EduTestStudent_Setup-$tag.exe" \;
+
+          find dist-linux -name "TTGTiSO-Test-server" -execdir mv {} "TTGTiSO-Test-server-$tag" \;
+          find dist-linux -name "TTGTiSO-Test-student" -execdir mv {} "TTGTiSO-Test-student-$tag" \;
+
+          # 2. Извлекаем сообщение тега или коммита
+          tag_message=$(git tag -l --format='%(contents)' "$tag" | xargs)
+          if [ -z "$tag_message" ]; then
+            tag_message=$(git log -1 --pretty=%B)
+          fi
+
+          echo "### 🚀 Релиз EduTest Pro $tag" > changelog.md
+          echo "" >> changelog.md
+          echo "#### 📝 Описание изменений:" >> changelog.md
+          echo "$tag_message" >> changelog.md
+          echo "" >> changelog.md
+          echo "---" >> changelog.md
+          echo "*Сборка выполнена автоматически с помощью GitHub Actions.*" >> changelog.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          name: Release ${{ github.ref_name }}
+          body_path: changelog.md
+          generate_release_notes: true
           files: |
-            dist-windows/**/*.exe
-            dist-linux/**/TTGTiSO-Test-server
-            dist-linux/**/TTGTiSO-Test-student
+            dist-windows/**/*-${{ github.ref_name }}.exe
+            dist-linux/**/*-${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
