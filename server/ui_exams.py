@@ -298,7 +298,7 @@ class ExamsMixin:
     def _toggle_exam(self):
         group = self._group_input.text().strip()
         if not group:
-            self._show_error("Укажите академическую группу!")
+            self._show_error("Укажите группу!")
             return
         if not self.exam_server.questions:
             self._show_error("Сначала перетащите или выберите файл теста!")

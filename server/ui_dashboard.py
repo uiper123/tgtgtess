@@ -115,7 +115,7 @@ class DashboardMixin:
 
         # Table of saved tests
         self.tests_table = QTableWidget(0, 3)
-        self.tests_table.setHorizontalHeaderLabels(["Академическая группа / Название", "Количество вопросов", "Статус"])
+        self.tests_table.setHorizontalHeaderLabels(["Группа / Название", "Количество вопросов", "Статус"])
         self.tests_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.tests_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         self.tests_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
@@ -217,7 +217,7 @@ class DashboardMixin:
 
     def _create_new_test_flow(self):
         from PySide6.QtWidgets import QInputDialog
-        name, ok = QInputDialog.getText(self, "Создать новый тест", "Введите название академической группы / теста:")
+        name, ok = QInputDialog.getText(self, "Создать новый тест", "Введите название группы / теста:")
         if ok and name.strip():
             name = name.strip()
             self._current_test_group = name

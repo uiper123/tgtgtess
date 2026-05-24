@@ -327,7 +327,7 @@ class ExamServer(QObject):
         self.student_cheat_warning.emit(name, group, desc)
 
     def _handle_get_active_group(self, sock: QTcpSocket, packet: dict):
-        """Отправляет список активных академических групп."""
+        """Отправляет список активных групп."""
         if not self._exam_active or not self._active_exams:
             response = {'status': 'error', 'message': 'exam_not_active'}
         else:

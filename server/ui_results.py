@@ -72,7 +72,7 @@ class ResultsMixin:
         # Group Filter layout
         group_lay = QVBoxLayout()
         group_lay.setSpacing(4)
-        group_lbl = QLabel("Академическая группа")
+        group_lbl = QLabel("Группа")
         group_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748b; border: none; background: transparent;")
         self.r_group_filter = QComboBox()
         self.r_group_filter.currentIndexChanged.connect(self._update_results_table)
