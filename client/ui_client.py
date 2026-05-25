@@ -158,6 +158,10 @@ class StudentWindow(QMainWindow):
         self._ip_input.textChanged.connect(self._on_ip_text_changed)
         cl.addWidget(self._ip_input)
 
+        ip_hint = QLabel("IP-адрес отображается внизу окна на компьютере преподавателя")
+        ip_hint.setStyleSheet("font-size: 10px; color: #94a3b8; border: none; margin-top: -8px; margin-bottom: 4px;")
+        cl.addWidget(ip_hint)
+
         cl.addSpacing(8)
 
         self._attempts_lbl = QLabel("")
