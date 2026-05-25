@@ -340,7 +340,7 @@ QTableWidget {
     background-color: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 14px;
-    gridline-color: transparent;
+    gridline-color: #e2e8f0;
     font-size: 13px;
     color: #334155;
     padding: 6px;

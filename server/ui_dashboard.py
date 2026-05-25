@@ -116,13 +116,14 @@ class DashboardMixin:
         # Table of saved tests
         self.tests_table = QTableWidget(0, 3)
         self.tests_table.setHorizontalHeaderLabels(["Группа / Название", "Количество вопросов", "Статус"])
-        self.tests_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.tests_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.tests_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.tests_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.tests_table.setColumnWidth(0, 450)
+        self.tests_table.setColumnWidth(1, 200)
+        self.tests_table.setColumnWidth(2, 150)
         self.tests_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tests_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tests_table.verticalHeader().setVisible(False)
-        self.tests_table.setShowGrid(False)
+        self.tests_table.setShowGrid(True)
         self.tests_table.setMinimumHeight(350)
         layout.addWidget(self.tests_table)
 

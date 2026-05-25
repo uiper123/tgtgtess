@@ -21,6 +21,7 @@ MAX_MESSAGE_SIZE = 50 * 1024 * 1024
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from shared.protocol import pack_message
+from shared.version import VERSION
 
 
 def xor_encrypt(data: bytes, key: bytes = b'EduTestPro2025') -> bytes:
@@ -128,6 +129,7 @@ class StudentClient(QObject):
     force_stopped = Signal()                 # force stopped by teacher
     log_message = Signal(str)
     active_group_found = Signal(list)        # active groups
+    update_received = Signal(str)            # version
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -212,6 +214,8 @@ class StudentClient(QObject):
                 'action': 'connect',
                 'name': self._name,
                 'group': self._group,
+                'version': VERSION,
+                'os': platform.system().lower()
             }
             self._socket.write(pack_message(packet))
             self._socket.flush()
@@ -251,6 +255,8 @@ class StudentClient(QObject):
             self.result_sent.emit(score)
         elif status == 'force_stopped':
             self.force_stopped.emit()
+        elif status == 'update_available':
+            self._apply_update(packet)
         elif status == 'error':
             msg = packet.get('message', 'unknown')
             if msg == 'wrong_group':
@@ -326,6 +332,55 @@ class StudentClient(QObject):
         self._intentional_disconnect = True
         if self._socket.state() == QAbstractSocket.ConnectedState:
             self._socket.disconnectFromHost()
+
+    def _apply_update(self, packet: dict):
+        """Сохраняет обновление и запускает скрипт замены."""
+        import base64
+        import subprocess
+        
+        version = packet.get('version')
+        filename = packet.get('filename')
+        payload = packet.get('payload')
+        
+        if not payload:
+            return
+
+        try:
+            data = base64.b64decode(payload)
+            # Путь к текущему исполняемому файлу
+            current_exe = os.path.abspath(sys.argv[0])
+            update_file = current_exe + ".new"
+            
+            with open(update_file, 'wb') as f:
+                f.write(data)
+            
+            # Создаем скрипт-апдейтер
+            if platform.system() == 'Windows':
+                updater_script = "update.bat"
+                with open(updater_script, 'w') as f:
+                    f.write(f'@echo off\n')
+                    f.write(f'timeout /t 2 /nobreak > nul\n')
+                    f.write(f'del "{current_exe}"\n')
+                    f.write(f'move "{update_file}" "{current_exe}"\n')
+                    f.write(f'start "" "{current_exe}"\n')
+                    f.write(f'del "%~f0"\n')
+                subprocess.Popen([updater_script], shell=True)
+            else:
+                updater_script = "update.sh"
+                with open(updater_script, 'w') as f:
+                    f.write(f'#!/bin/bash\n')
+                    f.write(f'sleep 2\n')
+                    f.write(f'mv "{update_file}" "{current_exe}"\n')
+                    f.write(f'chmod +x "{current_exe}"\n')
+                    f.write(f'"{current_exe}" &\n')
+                    f.write(f'rm "$0"\n')
+                os.chmod(updater_script, 0o755)
+                subprocess.Popen(["/bin/bash", updater_script])
+
+            self.update_received.emit(version)
+            QApplication.quit()
+        except Exception as e:
+            self.log_message.emit(f"Ошибка при применении обновления: {e}")
 
     @property
     def student_name(self) -> str:

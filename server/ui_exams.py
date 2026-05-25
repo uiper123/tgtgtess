@@ -219,17 +219,17 @@ class ExamsMixin:
         self._exam_table.setHorizontalHeaderLabels(
             ["Название теста", "Группа", "Статус", "Студенты", "Мониторинг"]
         )
-        self._exam_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self._exam_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self._exam_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self._exam_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self._exam_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive)
+        self._exam_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self._exam_table.setColumnWidth(0, 300)
+        self._exam_table.setColumnWidth(1, 120)
+        self._exam_table.setColumnWidth(2, 120)
+        self._exam_table.setColumnWidth(3, 120)
         self._exam_table.setColumnWidth(4, 240)
         self._exam_table.verticalHeader().setDefaultSectionSize(54)
         self._exam_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._exam_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._exam_table.verticalHeader().setVisible(False)
-        self._exam_table.setShowGrid(False)
+        self._exam_table.setShowGrid(True)
         self._exam_table.setMinimumHeight(160)
         layout.addWidget(self._exam_table)
 

@@ -100,15 +100,48 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         root_layout.setSpacing(0)
 
         # --- Боковое меню (Сайдбар) ---
-        sidebar = QWidget()
-        sidebar.setObjectName("sidebar")
-        sb_layout = QVBoxLayout(sidebar)
+        self.sidebar = QWidget()
+        self.sidebar.setObjectName("sidebar")
+        sb_layout = QVBoxLayout(self.sidebar)
         sb_layout.setContentsMargins(0, 0, 0, 0)
         sb_layout.setSpacing(0)
 
+        # Логотип и кнопка сворачивания
+        logo_container = QWidget()
+        logo_container.setObjectName("logoContainer")
+        logo_container.setStyleSheet("background: transparent; border: none;")
+        logo_lay = QHBoxLayout(logo_container)
+        logo_lay.setContentsMargins(20, 24, 0, 4)
+        logo_lay.setSpacing(10)
+
         logo = QLabel("TTGTiSO-Test")
         logo.setObjectName("logoLabel")
-        sb_layout.addWidget(logo)
+        logo.setStyleSheet("padding: 0; margin: 0; font-size: 20px; font-weight: 800; color: #ffffff;")
+        logo_lay.addWidget(logo)
+        
+        logo_lay.addStretch()
+
+        self.collapse_sidebar_btn = QPushButton("◀")
+        self.collapse_sidebar_btn.setObjectName("collapseSidebarBtn")
+        self.collapse_sidebar_btn.setCursor(Qt.PointingHandCursor)
+        self.collapse_sidebar_btn.setFixedSize(30, 30)
+        self.collapse_sidebar_btn.setStyleSheet(
+            "QPushButton {"
+            "  background-color: rgba(255, 255, 255, 0.08);"
+            "  color: #94a3b8;"
+            "  border: none;"
+            "  border-radius: 6px;"
+            "  font-size: 12px;"
+            "  margin-right: 14px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: rgba(255, 255, 255, 0.15);"
+            "  color: #ffffff;"
+            "}"
+        )
+        self.collapse_sidebar_btn.clicked.connect(self.toggle_sidebar)
+        logo_lay.addWidget(self.collapse_sidebar_btn)
+        sb_layout.addWidget(logo_container)
 
         sub = QLabel("")
         sub.setObjectName("logoSub")
@@ -157,11 +190,62 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         self._status_label.setObjectName("serverStatus")
         sb_layout.addWidget(self._status_label)
 
-        root_layout.addWidget(sidebar)
+        root_layout.addWidget(self.sidebar)
 
-        # --- Главная зона (QStackedWidget) ---
+        # --- Главная зона ---
+        self.main_container = QWidget()
+        main_cont_layout = QVBoxLayout(self.main_container)
+        main_cont_layout.setContentsMargins(0, 0, 0, 0)
+        main_cont_layout.setSpacing(0)
+
+        # Верхняя панель (видима только когда сайдбар свернут)
+        self.top_bar = QWidget()
+        self.top_bar.setObjectName("topBar")
+        self.top_bar.setStyleSheet(
+            "QWidget#topBar {"
+            "  background-color: #ffffff;"
+            "  border-bottom: 1px solid #e2e8f0;"
+            "}"
+        )
+        self.top_bar.setFixedHeight(50)
+        
+        top_bar_layout = QHBoxLayout(self.top_bar)
+        top_bar_layout.setContentsMargins(16, 0, 16, 0)
+        top_bar_layout.setSpacing(12)
+
+        self.expand_sidebar_btn = QPushButton("☰")
+        self.expand_sidebar_btn.setObjectName("expandSidebarBtn")
+        self.expand_sidebar_btn.setCursor(Qt.PointingHandCursor)
+        self.expand_sidebar_btn.setFixedSize(36, 36)
+        self.expand_sidebar_btn.setStyleSheet(
+            "QPushButton {"
+            "  background-color: #f1f5f9;"
+            "  color: #0f172a;"
+            "  border: 1px solid #cbd5e1;"
+            "  border-radius: 8px;"
+            "  font-size: 16px;"
+            "  font-weight: bold;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #e2e8f0;"
+            "}"
+        )
+        self.expand_sidebar_btn.clicked.connect(self.toggle_sidebar)
+        top_bar_layout.addWidget(self.expand_sidebar_btn)
+
+        self.top_bar_title = QLabel("TTGTiSO-Test — Панель управления")
+        self.top_bar_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #0f172a; border: none; background: transparent;")
+        top_bar_layout.addWidget(self.top_bar_title)
+
+        top_bar_layout.addStretch()
+        
+        main_cont_layout.addWidget(self.top_bar)
+        self.top_bar.hide() # Скрыто по умолчанию
+
         self.stacked_widget = QStackedWidget()
-        root_layout.addWidget(self.stacked_widget, 1)
+        main_cont_layout.addWidget(self.stacked_widget, 1)
+
+        root_layout.addWidget(self.main_container, 1)
 
         self._build_dashboard_page()
         self._build_questions_page()
@@ -171,6 +255,15 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
 
         # Активная страница по умолчанию
         self.switch_page("exams")
+
+    def toggle_sidebar(self):
+        """Сворачивание / разворачивание боковой панели."""
+        if self.sidebar.isVisible():
+            self.sidebar.hide()
+            self.top_bar.show()
+        else:
+            self.sidebar.show()
+            self.top_bar.hide()
 
     def switch_page(self, code):
         """Переключение страниц интерфейса."""
@@ -244,5 +337,26 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         
         if hasattr(self, "_exam_table"):
             self._exam_table.verticalHeader().setDefaultSectionSize(int(54 * scale_factor))
-            self._exam_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Interactive)
+            self._exam_table.setColumnWidth(0, int(300 * scale_factor))
+            self._exam_table.setColumnWidth(1, int(120 * scale_factor))
+            self._exam_table.setColumnWidth(2, int(120 * scale_factor))
+            self._exam_table.setColumnWidth(3, int(120 * scale_factor))
             self._exam_table.setColumnWidth(4, int(240 * scale_factor))
+            
+        if hasattr(self, "tests_table"):
+            self.tests_table.setColumnWidth(0, int(450 * scale_factor))
+            self.tests_table.setColumnWidth(1, int(200 * scale_factor))
+            self.tests_table.setColumnWidth(2, int(150 * scale_factor))
+            
+        if hasattr(self, "q_table"):
+            self.q_table.setColumnWidth(0, int(80 * scale_factor))
+            self.q_table.setColumnWidth(1, int(400 * scale_factor))
+            self.q_table.setColumnWidth(2, int(120 * scale_factor))
+            self.q_table.setColumnWidth(3, int(400 * scale_factor))
+            
+        if hasattr(self, "r_table"):
+            self.r_table.setColumnWidth(0, int(300 * scale_factor))
+            self.r_table.setColumnWidth(1, int(120 * scale_factor))
+            self.r_table.setColumnWidth(2, int(150 * scale_factor))
+            self.r_table.setColumnWidth(3, int(120 * scale_factor))
+            self.r_table.setColumnWidth(4, int(200 * scale_factor))

@@ -221,6 +221,51 @@ class SettingsMixin:
         s4_layout.addLayout(grid4)
         layout.addWidget(sect4_card)
 
+        # ----------------------------------------------------
+        # СЕКЦИЯ 5: Обновление системы
+        # ----------------------------------------------------
+        sect5_card = QFrame()
+        sect5_card.setProperty("class", "card")
+        s5_layout = QVBoxLayout(sect5_card)
+        s5_layout.setContentsMargins(20, 20, 20, 20)
+        s5_layout.setSpacing(14)
+
+        s5_title = QLabel("Обновление системы (GitHub)")
+        s5_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        s5_layout.addWidget(s5_title)
+
+        upd_info_lay = QHBoxLayout()
+        from shared.version import VERSION
+        self.ver_label = QLabel(f"Текущая версия: <b>{VERSION}</b>")
+        self.ver_label.setStyleSheet("font-size: 13px; color: #475569;")
+        upd_info_lay.addWidget(self.ver_label)
+        
+        self.upd_status_label = QLabel("")
+        self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #059669;")
+        upd_info_lay.addWidget(self.upd_status_label)
+        upd_info_lay.addStretch()
+        s5_layout.addLayout(upd_info_lay)
+
+        upd_btn_lay = QHBoxLayout()
+        
+        check_upd_btn = QPushButton("Проверить обновления")
+        check_upd_btn.setProperty("class", "secondaryBtn")
+        check_upd_btn.setCursor(Qt.PointingHandCursor)
+        check_upd_btn.clicked.connect(self._check_updates)
+        upd_btn_lay.addWidget(check_upd_btn)
+
+        self.download_upd_btn = QPushButton("Скачать обновления")
+        self.download_upd_btn.setProperty("class", "primaryBtn")
+        self.download_upd_btn.setCursor(Qt.PointingHandCursor)
+        self.download_upd_btn.setEnabled(False)
+        self.download_upd_btn.clicked.connect(self._download_updates)
+        upd_btn_lay.addWidget(self.download_upd_btn)
+        
+        upd_btn_lay.addStretch()
+        s5_layout.addLayout(upd_btn_lay)
+        
+        layout.addWidget(sect5_card)
+
         # Кнопки действий
         btn_layout = QHBoxLayout()
         
@@ -324,4 +369,58 @@ class SettingsMixin:
             self.g3_spin.setValue(50)
             self.scale_combo.setCurrentIndex(1) # 100%
             self._save_settings()
+
+    def _check_updates(self):
+        self.upd_status_label.setText("Проверка...")
+        QApplication.processEvents()
+        
+        update_data = self.exam_server.check_for_updates()
+        if update_data:
+            tag = update_data.get("tag_name", "Неизвестно")
+            self.upd_status_label.setText(f"Доступна новая версия: {tag}")
+            self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #2563eb;")
+            self.download_upd_btn.setEnabled(True)
+            self._latest_update_data = update_data
+        else:
+            self.upd_status_label.setText("У вас установлена актуальная версия.")
+            self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #059669;")
+            self.download_upd_btn.setEnabled(False)
+
+    def _download_updates(self):
+        if not hasattr(self, "_latest_update_data"):
+            return
+            
+        assets = self._latest_update_data.get("assets", [])
+        if not assets:
+            QMessageBox.warning(self, "Ошибка", "В релизе не найдены файлы для скачивания.")
+            return
+            
+        self.upd_status_label.setText("Скачивание...")
+        self.download_upd_btn.setEnabled(False)
+        QApplication.processEvents()
+        
+        upd_dir = self.exam_server.get_updates_dir()
+        success_count = 0
+        
+        for asset in assets:
+            name = asset.get("name", "")
+            url = asset.get("browser_download_url", "")
+            if name and url:
+                # Сохраняем во временную папку updates
+                dest = os.path.join(upd_dir, name)
+                if self.exam_server.download_asset(url, dest):
+                    success_count += 1
+        
+        if success_count > 0:
+            self.upd_status_label.setText(f"Обновления скачаны. Рассылка...")
+            QApplication.processEvents()
+            
+            # Автоматически запускаем массовое обновление
+            self.exam_server.broadcast_update()
+            
+            self.upd_status_label.setText(f"Обновлено ({success_count} файл.)")
+            QMessageBox.information(self, "Обновление", f"Успешно скачано {success_count} файлов.\nМассовое обновление клиентов запущено автоматически!")
+        else:
+            self.upd_status_label.setText("Ошибка при скачивании.")
+            self.download_upd_btn.setEnabled(True)
 

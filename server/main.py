@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from shared.parser import parse_test_file, questions_to_network_payload, calculate_score
 from shared.protocol import pack_message
+from shared.version import VERSION, GITHUB_REPO
 
 try:
     from .storage import project_root, results_path, safe_test_filename
@@ -38,7 +39,7 @@ MAX_MESSAGE_SIZE = 50 * 1024 * 1024
 
 class ConnectedStudent:
     """Данные о подключённом студенте."""
-    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions', 'cheat_warnings', 'connect_time')
+    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions', 'cheat_warnings', 'connect_time', 'version', 'os')
 
     def __init__(self, socket: QTcpSocket, name: str, group: str):
         self.socket = socket
@@ -52,6 +53,8 @@ class ConnectedStudent:
         self.questions: List[Dict[str, Any]] = []
         self.cheat_warnings = []
         self.connect_time = datetime.now()
+        self.version = "0.0.0"
+        self.os = "windows"
 
 
 class ExamServer(QObject):
@@ -344,6 +347,45 @@ class ExamServer(QObject):
         """Обрабатывает запрос студента на подключение."""
         name = packet.get('name', '').strip()
         group = packet.get('group', '').strip()
+        client_version = packet.get('version', '0.0.0')
+        client_os = packet.get('os', 'unknown')
+
+        # Проверка обновлений для клиента
+        upd_dir = self.get_updates_dir()
+        if os.path.exists(upd_dir):
+            # Ищем файл для соответствующей ОС (например, .exe для windows)
+            upd_file = None
+            if client_os == 'windows':
+                # Ищем любой .exe в папке updates
+                for f in os.listdir(upd_dir):
+                    if f.lower().endswith('.exe'):
+                        upd_file = os.path.join(upd_dir, f)
+                        break
+            else:
+                # Для linux ищем бинарник (без расширения или с .bin)
+                for f in os.listdir(upd_dir):
+                    if 'student' in f.lower() and not f.lower().endswith('.exe'):
+                        upd_file = os.path.join(upd_dir, f)
+                        break
+
+            if upd_file and client_version != VERSION: # Простая проверка версии
+                try:
+                    import base64
+                    with open(upd_file, 'rb') as f:
+                        file_data = base64.b64encode(f.read()).decode()
+                    
+                    response = {
+                        'status': 'update_available',
+                        'version': VERSION,
+                        'filename': os.path.basename(upd_file),
+                        'payload': file_data
+                    }
+                    sock.write(pack_message(response))
+                    sock.flush()
+                    self.log_message.emit(f"Отправлено обновление клиенту {name} ({client_os})")
+                    return # Прекращаем подключение, клиент должен обновиться
+                except Exception as e:
+                    self.log_message.emit(f"Ошибка при чтении файла обновления: {e}")
 
         if not name or not group:
             response = {'status': 'error', 'message': 'empty_fields'}
@@ -391,6 +433,8 @@ class ExamServer(QObject):
 
         # Регистрируем студента
         student = ConnectedStudent(sock, name, group)
+        student.version = client_version
+        student.os = client_os
         self._students[sock] = student
         self._monitor_data[(name, group)] = student
 
@@ -572,6 +616,88 @@ class ExamServer(QObject):
         self._all_results.clear()
         self._save_all_results_to_file()
         self.log_message.emit("Вся история результатов очищена.")
+
+    # -- Обновления через GitHub --
+
+    def check_for_updates(self) -> Optional[dict]:
+        """Проверяет наличие новых версий на GitHub."""
+        import urllib.request
+        import json
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode())
+                latest_version = data.get("tag_name", "").lstrip("v")
+                if latest_version and latest_version != VERSION:
+                    return data
+        except Exception as e:
+            self.log_message.emit(f"Ошибка при проверке обновлений: {e}")
+        return None
+
+    def download_asset(self, url: str, dest_path: str):
+        """Скачивает файл по ссылке."""
+        import urllib.request
+        try:
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            urllib.request.urlretrieve(url, dest_path)
+            return True
+        except Exception as e:
+            self.log_message.emit(f"Ошибка при скачивании {url}: {e}")
+            return False
+
+    def get_updates_dir(self):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "updates")
+
+    def broadcast_update(self):
+        """Рассылает пакет обновления всем подключенным студентам."""
+        upd_dir = self.get_updates_dir()
+        if not os.path.exists(upd_dir):
+            return
+
+        import base64
+        
+        # Предварительно загружаем файлы для разных ОС
+        updates = {}
+        for f in os.listdir(upd_dir):
+            path = os.path.join(upd_dir, f)
+            if f.lower().endswith('.exe'):
+                with open(path, 'rb') as rb:
+                    updates['windows'] = base64.b64encode(rb.read()).decode()
+                    updates['windows_name'] = f
+            elif 'student' in f.lower():
+                with open(path, 'rb') as rb:
+                    updates['linux'] = base64.b64encode(rb.read()).decode()
+                    updates['linux_name'] = f
+
+        if not updates:
+            return
+
+        count = 0
+        for sock, student in self._students.items():
+            # Определяем ОС клиента (мы добавили её в ConnectedStudent ранее? Нет, надо добавить)
+            # Если ОС неизвестна, пробуем по расширению или отправляем обобщенно
+            # Но лучше использовать сохраненный тип ОС из пакета connect
+            client_os = getattr(student, 'os', 'windows') # По умолчанию windows
+            
+            payload = updates.get(client_os)
+            fname = updates.get(f'{client_os}_name')
+            
+            if payload:
+                try:
+                    packet = {
+                        'status': 'update_available',
+                        'version': VERSION,
+                        'filename': fname,
+                        'payload': payload
+                    }
+                    sock.write(pack_message(packet))
+                    sock.flush()
+                    count += 1
+                except Exception:
+                    pass
+        
+        self.log_message.emit(f"Массовое обновление запущено для {count} клиентов.")
 
 
 def get_resource_path(relative_path):
