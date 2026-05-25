@@ -381,7 +381,7 @@ class ResultsMixin:
                 manual_test_path, _ = QFileDialog.getOpenFileName(
                     self,
                     "Выберите файл теста для просмотра ответов",
-                    tests_dir(),
+                    str(tests_dir()),
                     "Текстовые файлы (*.txt)"
                 )
                 if not manual_test_path or not os.path.exists(manual_test_path):
