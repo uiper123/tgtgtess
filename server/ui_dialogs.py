@@ -835,6 +835,29 @@ class UpdateProgressDialog(QDialog):
         self.client_widgets = {} # sock -> (name_lbl, progress_bar, status_lbl)
         self._populate_clients()
         
+        # Реалтайм-обновление списка клиентов в диалоге обновления
+        self.exam_server.student_connected.connect(self._on_student_changed)
+        self.exam_server.student_disconnected.connect(self._on_student_changed)
+        
+    def _on_student_changed(self, name, group):
+        self._populate_clients()
+        
+    def reject(self):
+        try:
+            self.exam_server.student_connected.disconnect(self._on_student_changed)
+            self.exam_server.student_disconnected.disconnect(self._on_student_changed)
+        except Exception:
+            pass
+        super().reject()
+
+    def closeEvent(self, event):
+        try:
+            self.exam_server.student_connected.disconnect(self._on_student_changed)
+            self.exam_server.student_disconnected.disconnect(self._on_student_changed)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
     def _populate_clients(self):
         from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QFrame
         # Очистить предыдущие виджеты

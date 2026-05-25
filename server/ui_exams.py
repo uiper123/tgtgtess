@@ -388,7 +388,24 @@ class ExamsMixin:
 
     @Slot(str, int)
     def _on_server_started(self, addr, port):
-        self._status_label.setText(f"Сервер: Работает (порт {port})")
+        from PySide6.QtNetwork import QNetworkInterface, QAbstractSocket
+        ips = []
+        for address in QNetworkInterface.allAddresses():
+            if address.protocol() == QAbstractSocket.IPv4Protocol:
+                ip_str = address.toString()
+                if not address.isLoopback() and not ip_str.startswith("169.254") and ip_str != "127.0.0.1":
+                    ips.append(ip_str)
+                    
+        if ips:
+            ip_display = ", ".join(ips)
+            self._status_label.setText(f"Сервер: Работает (IP: {ip_display}, порт {port})")
+            self.exam_server.log_message.emit(f"TCP-сервер успешно запущен и слушает на IP: {ip_display}, порт: {port}")
+            self.exam_server.log_message.emit("Студенты должны указать один из этих IP-адресов в своем приложении для подключения.")
+        else:
+            self._status_label.setText(f"Сервер: Работает (порт {port})")
+            self.exam_server.log_message.emit(f"TCP-сервер запущен на порту {port}")
+            
+        self.exam_server.log_message.emit(f"Внимание: убедитесь, что брандмауэр (firewall) на этом компьютере разрешает входящие TCP-подключения на порту {port}")
         self._status_label.setStyleSheet("color: #10b981; font-weight: bold;")
         self._update_exam_table_view()
 

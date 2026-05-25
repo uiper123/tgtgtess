@@ -292,8 +292,14 @@ class StudentClient(QObject):
 
     @Slot(QAbstractSocket.SocketError)
     def _on_socket_error(self, error):
+        err_str = self._socket.errorString()
         self.connection_error.emit(
-            f'Не удалось подключиться к серверу: {self._socket.errorString()}'
+            f'Не удалось подключиться к серверу ({err_str}).\n\n'
+            f'Рекомендации по устранению:\n'
+            f'1. Убедитесь, что IP-адрес сервера и порт введены правильно.\n'
+            f'2. Убедитесь, что преподаватель запустил тестирование на сервере.\n'
+            f'3. Проверьте, что компьютер студента и компьютер преподавателя находятся в одной сети.\n'
+            f'4. Убедитесь, что брандмауэр на компьютере преподавателя не блокирует порт {self._socket.peerPort() if self._socket.peerPort() > 0 else 9876}.'
         )
 
     def send_result(self, answers: dict) -> bool:
