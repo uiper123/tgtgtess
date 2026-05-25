@@ -426,6 +426,7 @@ class ExamServer(QObject):
             student.active = False
             self._students[sock] = student
             self.student_connected.emit(display_name, display_group)
+            self.log_message.emit(f"Фоновое дежурное подключение: {display_name} ({client_os}, версия {client_version})")
             
             # Отправляем подтверждение idle-подключения
             response = {'status': 'idle_connected', 'version': VERSION}

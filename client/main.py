@@ -214,6 +214,7 @@ class StudentClient(QObject):
         self._intentional_disconnect = False
         self._buffer.clear()
         self._socket.abort()
+        print(f"[DEBUG] Инициализация фонового дежурного подключения к {host}:{port}...")
         self._socket.connectToHost(host.strip(), port)
 
     @Slot()
@@ -227,6 +228,7 @@ class StudentClient(QObject):
                 'version': VERSION,
                 'os': platform.system().lower()
             }
+            print(f"[DEBUG] Сокет подключен к серверу. Отправка пакета: {packet}")
             self._socket.write(pack_message(packet))
             self._socket.flush()
 
@@ -272,7 +274,7 @@ class StudentClient(QObject):
         elif status == 'update_apply':
             self._run_updater()
         elif status == 'idle_connected':
-            pass
+            print("[DEBUG] Успешно зарегистрировано фоновое дежурное подключение на сервере.")
         elif status == 'error':
             msg = packet.get('message', 'unknown')
             if msg == 'wrong_group':
