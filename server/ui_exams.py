@@ -42,7 +42,7 @@ class ExamsMixin:
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(16)
 
-        title = QLabel("Управление экзаменами")
+        title = QLabel("Управление тестированиями")
         title.setProperty("class", "sectionTitle")
         layout.addWidget(title)
 
@@ -138,7 +138,7 @@ class ExamsMixin:
         btn_label = QLabel("")  # Spacer label to align button vertically
         btn_label.setStyleSheet("font-size: 12px;")
         btn_col.addWidget(btn_label)
-        self._start_btn = QPushButton("Запустить экзамен")
+        self._start_btn = QPushButton("Запустить тестирование")
         self._start_btn.setProperty("class", "successBtn")
         self._start_btn.setCursor(Qt.PointingHandCursor)
         self._start_btn.setMinimumHeight(44)
@@ -211,7 +211,7 @@ class ExamsMixin:
         self.active_test_status_card.hide()
 
         # Таблица экзаменов
-        table_title = QLabel("Список активных экзаменов")
+        table_title = QLabel("Список активных тестирований")
         table_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
         layout.addWidget(table_title)
 

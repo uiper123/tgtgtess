@@ -307,6 +307,8 @@ class ExamServer(QObject):
             self._handle_result(sock, packet)
         elif action == 'get_active_group':
             self._handle_get_active_group(sock, packet)
+        elif action == 'get_attempts_left':
+            self._handle_get_attempts_left(sock, packet)
         elif action == 'cheat_warning':
             self._handle_cheat_warning(sock, packet)
         else:
@@ -340,6 +342,31 @@ class ExamServer(QObject):
                 'groups': groups,
                 'group': ", ".join(groups),  # Совместимость со старым клиентом.
             }
+        sock.write(pack_message(response))
+        sock.flush()
+
+    def _handle_get_attempts_left(self, sock: QTcpSocket, packet: dict):
+        """Отправляет количество оставшихся попыток студента."""
+        name = packet.get('name', '').strip()
+        group = packet.get('group', '').strip()
+        
+        attempts_left = 0
+        max_attempts = 0
+        
+        if name and group:
+            group_key = group.lower()
+            if self._exam_active and group_key in self._active_exams:
+                exam = self._active_exams[group_key]
+                student_key = name.strip().casefold()
+                attempts_used = exam.setdefault('attempts', {}).get(student_key, 0)
+                max_attempts = exam.get('max_attempts', 1)
+                attempts_left = max(0, max_attempts - attempts_used)
+        
+        response = {
+            'status': 'attempts_left',
+            'attempts_left': attempts_left,
+            'max_attempts': max_attempts
+        }
         sock.write(pack_message(response))
         sock.flush()
 

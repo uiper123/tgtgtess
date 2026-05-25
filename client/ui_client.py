@@ -66,11 +66,17 @@ class StudentWindow(QMainWindow):
         self.client.result_sent.connect(self._on_result_sent)
         self.client.active_group_found.connect(self._on_active_group_found)
         self.client.force_stopped.connect(self._on_force_stopped)
+        self.client.attempts_checked_signal.connect(self._on_attempts_checked)
 
         self._ip_debounce_timer = QTimer(self)
         self._ip_debounce_timer.setSingleShot(True)
         self._ip_debounce_timer.setInterval(800)
         self._ip_debounce_timer.timeout.connect(self._on_ip_debounce_timeout)
+
+        self._attempts_debounce_timer = QTimer(self)
+        self._attempts_debounce_timer.setSingleShot(True)
+        self._attempts_debounce_timer.setInterval(400)
+        self._attempts_debounce_timer.timeout.connect(self._query_attempts_left)
 
         self._build_ui()
         self._restore_saved_ip()
@@ -128,12 +134,15 @@ class StudentWindow(QMainWindow):
         self._name_input.setPlaceholderText("Иванов Иван Иванович")
         cl.addWidget(self._name_input)
 
+        self._name_input.textChanged.connect(self._on_inputs_for_attempts_changed)
+
         lbl2 = QLabel("Группа")
         lbl2.setStyleSheet("font-size: 12px; font-weight: bold; color: #64748b; border: none;")
         cl.addWidget(lbl2)
         self._group_input = QComboBox()
         self._group_input.setEditable(True)
         self._group_input.lineEdit().setPlaceholderText("ИСП-311")
+        self._group_input.currentTextChanged.connect(self._on_inputs_for_attempts_changed)
         cl.addWidget(self._group_input)
         self._refresh_groups_btn = QPushButton("Обновить")
         self._refresh_groups_btn.setObjectName("refreshGroupsBtn")
@@ -151,7 +160,15 @@ class StudentWindow(QMainWindow):
 
         cl.addSpacing(8)
 
-        self._connect_btn = QPushButton("Подключиться к экзамену")
+        self._attempts_lbl = QLabel("")
+        self._attempts_lbl.setAlignment(Qt.AlignCenter)
+        self._attempts_lbl.setStyleSheet(
+            "font-size: 13px; font-weight: bold; color: #1e3a8a; border: none; margin: 4px; padding: 4px; background-color: #eff6ff; border-radius: 6px;"
+        )
+        self._attempts_lbl.hide()
+        cl.addWidget(self._attempts_lbl)
+
+        self._connect_btn = QPushButton("Подключиться к тестированию")
         self._connect_btn.setObjectName("connectBtn")
         self._connect_btn.setCursor(Qt.PointingHandCursor)
         self._connect_btn.clicked.connect(self._do_connect)
@@ -382,7 +399,7 @@ class StudentWindow(QMainWindow):
         self._group_input.lineEdit().setReadOnly(False)
         self._ip_input.setReadOnly(False)
         self._connect_btn.setEnabled(True)
-        self._connect_btn.setText("Подключиться к экзамену")
+        self._connect_btn.setText("Подключиться к тестированию")
         self._login_error.hide()
         self._stack.setCurrentIndex(0)
         self.showNormal()
@@ -400,6 +417,40 @@ class StudentWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
         self._name_input.setFocus(Qt.OtherFocusReason)
+
+    def _on_inputs_for_attempts_changed(self):
+        self._attempts_debounce_timer.start()
+
+    def _query_attempts_left(self):
+        ip = self._ip_input.text().strip()
+        name = self._name_input.text().strip()
+        group = self._group_input.currentText().strip()
+        
+        if not ip or not name or not group:
+            self._attempts_lbl.hide()
+            return
+            
+        ip, port = self._parse_address(ip)
+        self.client.check_attempts_left(ip, port, name, group)
+
+    @Slot(int, int)
+    def _on_attempts_checked(self, left: int, max_att: int):
+        if max_att == 0:
+            self._attempts_lbl.setText("Тестирование для группы не активно")
+            self._attempts_lbl.setStyleSheet(
+                "font-size: 13px; font-weight: bold; color: #64748b; border: none; margin: 4px; padding: 4px; background-color: #f1f5f9; border-radius: 6px;"
+            )
+        elif left > 0:
+            self._attempts_lbl.setText(f"Доступно попыток: {left} из {max_att}")
+            self._attempts_lbl.setStyleSheet(
+                "font-size: 13px; font-weight: bold; color: #059669; border: none; margin: 4px; padding: 4px; background-color: #ecfdf5; border-radius: 6px;"
+            )
+        else:
+            self._attempts_lbl.setText(f"Доступно попыток: 0 из {max_att} (Лимит исчерпан!)")
+            self._attempts_lbl.setStyleSheet(
+                "font-size: 13px; font-weight: bold; color: #dc2626; border: none; margin: 4px; padding: 4px; background-color: #fef2f2; border-radius: 6px;"
+            )
+        self._attempts_lbl.show()
 
     def _on_ip_text_changed(self):
         self._save_current_ip()
@@ -522,7 +573,7 @@ class StudentWindow(QMainWindow):
             return
 
         self._connect_btn.setEnabled(True)
-        self._connect_btn.setText("Подключиться к экзамену")
+        self._connect_btn.setText("Подключиться к тестированию")
         self._login_error.setText(msg)
         self._login_error.show()
 

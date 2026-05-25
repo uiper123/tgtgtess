@@ -87,7 +87,7 @@ class SettingsMixin:
         s1_layout.addWidget(self.disable_delete_confirm_cb)
 
         # Автоэкспорт в CSV
-        self.auto_export_csv_cb = QCheckBox("Автоматически экспортировать результаты в CSV-файл при остановке экзамена")
+        self.auto_export_csv_cb = QCheckBox("Автоматически экспортировать результаты в CSV-файл при остановке тестирования")
         self.auto_export_csv_cb.setObjectName("partialScoreCheck")
         self.auto_export_csv_cb.setCursor(Qt.PointingHandCursor)
         self.auto_export_csv_cb.setChecked(self._settings.value("auto_export_csv", True, type=bool))
@@ -96,7 +96,7 @@ class SettingsMixin:
         layout.addWidget(sect1_card)
 
         # ----------------------------------------------------
-        # СЕКЦИЯ 2: Параметры запуска экзамена по умолчанию
+        # СЕКЦИЯ 2: Параметры запуска тестирования по умолчанию
         # ----------------------------------------------------
         sect2_card = QFrame()
         sect2_card.setProperty("class", "card")
@@ -104,7 +104,7 @@ class SettingsMixin:
         s2_layout.setContentsMargins(20, 20, 20, 20)
         s2_layout.setSpacing(14)
 
-        s2_title = QLabel("Параметры запуска экзаменов по умолчанию")
+        s2_title = QLabel("Параметры запуска тестирований по умолчанию")
         s2_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
         s2_layout.addWidget(s2_title)
 

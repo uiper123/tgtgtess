@@ -426,7 +426,7 @@ class MonitoringDialog(QDialog):
         if group:
             self.setWindowTitle(f"Мониторинг группы {group}")
         else:
-            self.setWindowTitle("Мониторинг экзамена в реальном времени")
+            self.setWindowTitle("Мониторинг тестирования в реальном времени")
         apply_dialog_scaling(self, parent, 700, 450)
 
         layout = QVBoxLayout(self)

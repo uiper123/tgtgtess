@@ -182,7 +182,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         self.nav_buttons = {}
         nav_items = [
             ("dashboard", "Все тесты"),
-            ("exams", "Активные экзамены"),
+            ("exams", "Активные тестирования"),
             ("results", "Результаты студентов"),
             ("settings", "Настройки")
         ]

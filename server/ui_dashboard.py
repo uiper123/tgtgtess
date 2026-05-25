@@ -131,7 +131,7 @@ class DashboardMixin:
         act_lay = QHBoxLayout()
         act_lay.setSpacing(12)
 
-        self.start_exam_from_repo_btn = QPushButton("Запустить экзамен")
+        self.start_exam_from_repo_btn = QPushButton("Запустить тестирование")
         self.start_exam_from_repo_btn.setProperty("class", "successBtn")
         self.start_exam_from_repo_btn.setCursor(Qt.PointingHandCursor)
         self.start_exam_from_repo_btn.clicked.connect(self._start_exam_from_repo)

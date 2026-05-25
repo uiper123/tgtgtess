@@ -130,6 +130,7 @@ class StudentClient(QObject):
     log_message = Signal(str)
     active_group_found = Signal(list)        # active groups
     update_received = Signal(str)            # version
+    attempts_checked_signal = Signal(int, int) # attempts_left, max_attempts
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -268,7 +269,7 @@ class StudentClient(QObject):
                     'Вы не числитесь в текущей группе тестирования'
                 )
             elif msg == 'exam_not_active':
-                self.connection_error.emit('Экзамен ещё не запущен')
+                self.connection_error.emit('Тестирование ещё не запущено')
             elif msg == 'empty_fields':
                 self.connection_error.emit('Заполните все поля')
             elif msg == 'attempts_exceeded':
@@ -276,7 +277,7 @@ class StudentClient(QObject):
             elif msg == 'duplicate_connection':
                 self.connection_error.emit('Этот студент уже проходит тест')
             elif msg == 'not_connected':
-                self.connection_error.emit('Результат отклонён: клиент не подключён к экзамену')
+                self.connection_error.emit('Результат отклонён: клиент не подключён к тестированию')
             elif msg == 'invalid_answers':
                 self.connection_error.emit('Результат отклонён: неверный формат ответов')
             elif msg == 'time_out':
@@ -406,6 +407,57 @@ class StudentClient(QObject):
 
     def get_socket_state(self) -> QAbstractSocket.SocketState:
         return self._socket.state()
+
+    def check_attempts_left(self, host: str, port: int, name: str, group: str):
+        """Запрашивает с сервера количество оставшихся попыток студента."""
+        import struct
+        from shared.protocol import pack_message
+        
+        if hasattr(self, '_attempts_sock') and self._attempts_sock is not None:
+            try:
+                self._attempts_sock.disconnectFromHost()
+                self._attempts_sock.deleteLater()
+            except Exception:
+                pass
+        
+        self._attempts_sock = QTcpSocket(self)
+        self._attempts_sock.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
+        self._attempts_buf = QByteArray()
+        
+        def on_connected():
+            packet = {
+                'action': 'get_attempts_left',
+                'name': name.strip(),
+                'group': group.strip()
+            }
+            self._attempts_sock.write(pack_message(packet))
+            self._attempts_sock.flush()
+            
+        def on_ready_read():
+            self._attempts_buf.append(self._attempts_sock.readAll())
+            while len(self._attempts_buf) >= 4:
+                msg_len = struct.unpack('!I', self._attempts_buf[:4].data())[0]
+                if msg_len > MAX_MESSAGE_SIZE:
+                    self._attempts_sock.disconnectFromHost()
+                    return
+                if len(self._attempts_buf) < 4 + msg_len:
+                    break
+                raw = self._attempts_buf[4:4 + msg_len].data()
+                self._attempts_buf = self._attempts_buf[4 + msg_len:]
+                try:
+                    res = json.loads(raw.decode('utf-8'))
+                    if res.get('status') == 'attempts_left':
+                        left = res.get('attempts_left', 0)
+                        max_att = res.get('max_attempts', 0)
+                        self.attempts_checked_signal.emit(left, max_att)
+                except Exception:
+                    pass
+                self._attempts_sock.disconnectFromHost()
+                
+        self._attempts_sock.connected.connect(on_connected)
+        self._attempts_sock.readyRead.connect(on_ready_read)
+        self._attempts_sock.errorOccurred.connect(lambda error: None)
+        self._attempts_sock.connectToHost(host.strip(), port)
 
 
 def get_resource_path(relative_path):
