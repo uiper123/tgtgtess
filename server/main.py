@@ -117,6 +117,24 @@ class ExamServer(QObject):
         self._all_results: List[Dict[str, Any]] = []
         self._load_all_results_from_file()
 
+    def start_background_listening(self, port=None):
+        """Запускает прослушивание порта сервером для фоновых дежурных подключений."""
+        if port is None:
+            port = self.DEFAULT_PORT
+            
+        if not self._tcp_server.isListening():
+            from PySide6.QtNetwork import QHostAddress
+            if self._tcp_server.listen(QHostAddress.AnyIPv4, port):
+                self.log_message.emit(f"Сервер переведен в режим ожидания на порту {port}")
+                # Вызываем сигнал запуска, чтобы обновился GUI
+                addr = self._tcp_server.serverAddress().toString()
+                self.server_started.emit(addr, port)
+            else:
+                self.server_error.emit(
+                    f"Не удалось запустить дежурный сервер на порту {port}: "
+                    f"{self._tcp_server.errorString()}"
+                )
+
     # -- Публичные методы управления экзаменом --
 
     def load_test(self, filepath: str) -> int:
@@ -196,12 +214,10 @@ class ExamServer(QObject):
             
             self.log_message.emit(f"Экзамен для группы '{exam['group']}' остановлен.")
             
-        # Если активных экзаменов больше нет, выключаем TCP-сервер
+        # Если активных экзаменов больше нет, переводим в дежурный режим ожидания
         if not self._active_exams:
             self._exam_active = False
-            if self._tcp_server.isListening():
-                self._tcp_server.close()
-            self.log_message.emit("Все экзамены остановлены. Сервер отключен.")
+            self.log_message.emit("Все экзамены остановлены. Сервер переведен в дежурный режим ожидания.")
             self._export_results_csv()
 
     def stop_exam(self):
@@ -216,9 +232,7 @@ class ExamServer(QObject):
                 pass
             sock.disconnectFromHost()
         self._students.clear()
-        if self._tcp_server.isListening():
-            self._tcp_server.close()
-        self.log_message.emit("Все экзамены остановлены.")
+        self.log_message.emit("Все экзамены остановлены. Сервер переведен в дежурный режим ожидания.")
         self._export_results_csv()
 
     @property
@@ -869,6 +883,7 @@ def main():
 
     # Создаём сервер экзаменов
     exam_server = ExamServer()
+    exam_server.start_background_listening()
 
     # Импортируем и создаём GUI
     from ui_server import ServerWindow

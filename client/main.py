@@ -274,7 +274,7 @@ class StudentClient(QObject):
         elif status == 'update_apply':
             self._run_updater()
         elif status == 'idle_connected':
-            print("[DEBUG] Успешно зарегистрировано фоновое дежурное подключение на сервере.")
+            pass
         elif status == 'error':
             msg = packet.get('message', 'unknown')
             if msg == 'wrong_group':
