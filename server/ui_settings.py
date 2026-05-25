@@ -260,6 +260,12 @@ class SettingsMixin:
         self.download_upd_btn.setEnabled(False)
         self.download_upd_btn.clicked.connect(self._download_updates)
         upd_btn_lay.addWidget(self.download_upd_btn)
+
+        show_clients_btn = QPushButton("Подключенные клиенты")
+        show_clients_btn.setProperty("class", "secondaryBtn")
+        show_clients_btn.setCursor(Qt.PointingHandCursor)
+        show_clients_btn.clicked.connect(self._show_connected_clients)
+        upd_btn_lay.addWidget(show_clients_btn)
         
         upd_btn_lay.addStretch()
         s5_layout.addLayout(upd_btn_lay)
@@ -398,6 +404,14 @@ class SettingsMixin:
             self.upd_status_label.setText(f"Ошибка: {error or 'неизвестно'}")
             self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #dc2626;")
             self.download_upd_btn.setEnabled(False)
+
+    def _show_connected_clients(self):
+        try:
+            from .ui_dialogs import ConnectedClientsDialog
+        except ImportError:
+            from ui_dialogs import ConnectedClientsDialog
+        dlg = ConnectedClientsDialog(self.exam_server, self)
+        dlg.exec()
 
     def _download_updates(self):
         if not hasattr(self, "_latest_update_data"):

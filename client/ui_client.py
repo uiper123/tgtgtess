@@ -480,6 +480,7 @@ class StudentWindow(QMainWindow):
         
         ip, port = self._parse_address(ip)
         self.client.check_active_group(ip, port)
+        self.client.connect_to_server_idle(ip, port)
 
     def _parse_address(self, addr: str) -> tuple[str, int]:
         port = 9876

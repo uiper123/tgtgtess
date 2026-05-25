@@ -207,6 +207,15 @@ class StudentClient(QObject):
         self._socket.abort()  # Сброс предыдущего состояния подключения
         self._socket.connectToHost(host.strip(), port)
 
+    def connect_to_server_idle(self, host: str, port: int):
+        self._name = ""
+        self._group = ""
+        self._pending_connect = True
+        self._intentional_disconnect = False
+        self._buffer.clear()
+        self._socket.abort()
+        self._socket.connectToHost(host.strip(), port)
+
     @Slot()
     def _on_socket_connected(self):
         if self._pending_connect:
@@ -262,6 +271,8 @@ class StudentClient(QObject):
             self._save_update_file(packet)
         elif status == 'update_apply':
             self._run_updater()
+        elif status == 'idle_connected':
+            pass
         elif status == 'error':
             msg = packet.get('message', 'unknown')
             if msg == 'wrong_group':
@@ -288,10 +299,14 @@ class StudentClient(QObject):
     @Slot()
     def _on_socket_disconnected(self):
         if not self._intentional_disconnect:
+            if not self._name and not self._group:
+                return
             self.connection_error.emit('Соединение с сервером потеряно')
 
     @Slot(QAbstractSocket.SocketError)
     def _on_socket_error(self, error):
+        if not self._name and not self._group:
+            return
         err_str = self._socket.errorString()
         self.connection_error.emit(
             f'Не удалось подключиться к серверу ({err_str}).\n\n'

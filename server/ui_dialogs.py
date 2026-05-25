@@ -982,3 +982,130 @@ class UpdateProgressDialog(QDialog):
         QApplication.quit()
 
 
+class ConnectedClientsDialog(QDialog):
+    def __init__(self, exam_server, parent=None):
+        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+        from PySide6.QtCore import Qt, QTimer
+        super().__init__(parent)
+        self.exam_server = exam_server
+        self.setWindowTitle("Подключенные клиенты")
+        self.resize(680, 420)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f8fafc;
+            }
+            QLabel {
+                color: #0f172a;
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+            QTableWidget {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                gridline-color: #f1f5f9;
+            }
+            QHeaderView::section {
+                background-color: #f1f5f9;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 1px solid #cbd5e1;
+                color: #475569;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        # Title
+        title_label = QLabel("Список подключенных клиентов (в реальном времени)")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b;")
+        layout.addWidget(title_label)
+
+        # Description hint
+        desc_label = QLabel("Здесь отображаются устройства студентов, которые в данный момент подключены к серверу и проходят тестирование.")
+        desc_label.setStyleSheet("font-size: 11px; color: #64748b; margin-bottom: 4px;")
+        layout.addWidget(desc_label)
+
+        # Table
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Имя студента", "Группа", "ОС", "Версия клиента", "IP-адрес / Порт"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setShowGrid(True)
+        layout.addWidget(self.table)
+
+        # Actions layout
+        btn_lay = QHBoxLayout()
+        btn_lay.addStretch()
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setStyleSheet(
+            "QPushButton { background-color: #ffffff; color: #64748b; font-weight: bold; font-size: 13px; padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #f1f5f9; }"
+        )
+        close_btn.clicked.connect(self.accept)
+        btn_lay.addWidget(close_btn)
+
+        layout.addLayout(btn_lay)
+
+        # Timer for real-time updates
+        self.timer = QTimer(self)
+        self.timer.setInterval(1000)
+        self.timer.timeout.connect(self.update_clients)
+        self.timer.start()
+
+        self.update_clients()
+
+    def update_clients(self):
+        from PySide6.QtWidgets import QTableWidgetItem
+        students = list(self.exam_server._students.values())
+
+        if self.table.rowCount() != len(students):
+            self.table.setRowCount(len(students))
+
+        for row, s in enumerate(students):
+            # Name
+            name_item = self.table.item(row, 0)
+            if not name_item:
+                name_item = QTableWidgetItem()
+                self.table.setItem(row, 0, name_item)
+            name_item.setText(s.name)
+
+            # Group
+            group_item = self.table.item(row, 1)
+            if not group_item:
+                group_item = QTableWidgetItem()
+                self.table.setItem(row, 1, group_item)
+            group_item.setText(s.group)
+
+            # OS
+            os_item = self.table.item(row, 2)
+            if not os_item:
+                os_item = QTableWidgetItem()
+                self.table.setItem(row, 2, os_item)
+            os_item.setText(str(s.os).capitalize())
+
+            # Version
+            ver_item = self.table.item(row, 3)
+            if not ver_item:
+                ver_item = QTableWidgetItem()
+                self.table.setItem(row, 3, ver_item)
+            ver_item.setText(s.version)
+
+            # IP / Port
+            peer_item = self.table.item(row, 4)
+            if not peer_item:
+                peer_item = QTableWidgetItem()
+                self.table.setItem(row, 4, peer_item)
+            try:
+                peer_ip = s.socket.peerAddress().toString().removeprefix("::ffff:")
+                peer_port = s.socket.peerPort()
+                peer_item.setText(f"{peer_ip}:{peer_port}")
+            except Exception:
+                peer_item.setText("Неизвестно")
+
+

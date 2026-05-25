@@ -414,8 +414,21 @@ class ExamServer(QObject):
                 except Exception as e:
                     self.log_message.emit(f"Ошибка при чтении файла обновления: {e}")
 
+        # Если имя или группа пустые, регистрируем клиента как "Ожидание" (Idle/Waiting)
         if not name or not group:
-            response = {'status': 'error', 'message': 'empty_fields'}
+            peer_ip = sock.peerAddress().toString().removeprefix("::ffff:")
+            display_name = name if name else f"Устройство {peer_ip}"
+            display_group = group if group else "Ожидание"
+            
+            student = ConnectedStudent(sock, display_name, display_group)
+            student.version = client_version
+            student.os = client_os
+            student.active = False
+            self._students[sock] = student
+            self.student_connected.emit(display_name, display_group)
+            
+            # Отправляем подтверждение idle-подключения
+            response = {'status': 'idle_connected', 'version': VERSION}
             sock.write(pack_message(response))
             sock.flush()
             return
