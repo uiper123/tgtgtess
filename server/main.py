@@ -619,28 +619,59 @@ class ExamServer(QObject):
 
     # -- Обновления через GitHub --
 
-    def check_for_updates(self) -> Optional[dict]:
-        """Проверяет наличие новых версий на GitHub."""
+    def check_for_updates(self) -> tuple[Optional[dict], Optional[str]]:
+        """
+        Проверяет наличие новых версий на GitHub.
+        Возвращает (update_data, error_message).
+        """
         import urllib.request
         import json
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
                 latest_version = data.get("tag_name", "").lstrip("v")
-                if latest_version and latest_version != VERSION:
-                    return data
+                
+                if not latest_version:
+                    return None, "Не удалось определить версию в GitHub релизе"
+                
+                if latest_version != VERSION:
+                    return data, None
+                else:
+                    return None, "latest"
         except Exception as e:
-            self.log_message.emit(f"Ошибка при проверке обновлений: {e}")
-        return None
+            err_msg = str(e)
+            if "403" in err_msg:
+                err_msg = "Превышен лимит запросов GitHub API (403). Это часто происходит из-за общего IP при использовании VPN, Cloudflare WARP или корпоративной сети. Пожалуйста, временно отключите VPN и попробуйте снова."
+            elif "110" in err_msg or "timed out" in err_msg.lower():
+                err_msg = "Превышено время ожидания ответа от GitHub. Проверьте интернет-соединение."
+            self.log_message.emit(f"Ошибка при проверке обновлений: {err_msg}")
+            return None, err_msg
 
-    def download_asset(self, url: str, dest_path: str):
-        """Скачивает файл по ссылке."""
+    def download_asset(self, url: str, dest_path: str, progress_callback=None):
+        """Скачивает файл по ссылке с поддержкой User-Agent и оповещением прогресса."""
         import urllib.request
         try:
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            urllib.request.urlretrieve(url, dest_path)
+            req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                total_size = int(response.info().get('Content-Length', 0))
+                downloaded = 0
+                with open(dest_path, 'wb') as out_file:
+                    # Скачиваем по кусочкам для стабильности
+                    while True:
+                        chunk = response.read(1024 * 64)
+                        if not chunk:
+                            break
+                        out_file.write(chunk)
+                        downloaded += len(chunk)
+                        if progress_callback and total_size > 0:
+                            percent = int((downloaded / total_size) * 100)
+                            try:
+                                progress_callback(percent, downloaded, total_size)
+                            except Exception:
+                                pass
             return True
         except Exception as e:
             self.log_message.emit(f"Ошибка при скачивании {url}: {e}")
@@ -699,6 +730,43 @@ class ExamServer(QObject):
         
         self.log_message.emit(f"Массовое обновление запущено для {count} клиентов.")
 
+    def prepare_update_payloads(self) -> dict:
+        """Подготавливает закодированные в base64 пакеты обновления для ОС."""
+        upd_dir = self.get_updates_dir()
+        updates = {}
+        if not os.path.exists(upd_dir):
+            return updates
+
+        import base64
+        for f in os.listdir(upd_dir):
+            path = os.path.join(upd_dir, f)
+            if f.lower().endswith('.exe'):
+                try:
+                    with open(path, 'rb') as rb:
+                        updates['windows'] = base64.b64encode(rb.read()).decode()
+                        updates['windows_name'] = f
+                except Exception:
+                    pass
+            elif 'student' in f.lower():
+                try:
+                    with open(path, 'rb') as rb:
+                        updates['linux'] = base64.b64encode(rb.read()).decode()
+                        updates['linux_name'] = f
+                except Exception:
+                    pass
+        return updates
+
+    def send_reboot_to_all_clients(self):
+        """Отправляет сигнал принудительной перезагрузки на обновление всем клиентам."""
+        from shared.protocol import pack_message
+        packet = {'status': 'update_apply'}
+        for sock in list(self._students.keys()):
+            try:
+                sock.write(pack_message(packet))
+                sock.flush()
+            except Exception:
+                pass
+
 
 def get_resource_path(relative_path):
     """Получает абсолютный путь к ресурсу, работает для обычного запуска и для Nuitka/PyInstaller."""
@@ -720,17 +788,30 @@ def main():
     app.setOrganizationName("EduTest")
 
     # Установка иконки приложения
-    from PySide6.QtGui import QIcon
-    icon_candidates = [
-        get_resource_path("image.ico"),
-        get_resource_path("image.png"),
-        os.path.join(os.path.dirname(sys.executable), "image.ico"),
-        "/opt/test_system_server/icon.png"
-    ]
-    for path in icon_candidates:
-        if os.path.exists(path):
-            app.setWindowIcon(QIcon(path))
-            break
+    from PySide6.QtGui import QIcon, QPixmap
+    from PySide6.QtCore import QByteArray
+    icon_set = False
+    try:
+        from shared.icon_data import ICON_BASE64
+        ba = QByteArray.fromBase64(ICON_BASE64.encode('utf-8'))
+        pixmap = QPixmap()
+        if pixmap.loadFromData(ba):
+            app.setWindowIcon(QIcon(pixmap))
+            icon_set = True
+    except Exception as e:
+        print(f"Ошибка загрузки встроенной иконки: {e}")
+
+    if not icon_set:
+        icon_candidates = [
+            get_resource_path("image.ico"),
+            get_resource_path("image.png"),
+            os.path.join(os.path.dirname(sys.executable), "image.ico"),
+            "/opt/test_system_server/icon.png"
+        ]
+        for path in icon_candidates:
+            if os.path.exists(path):
+                app.setWindowIcon(QIcon(path))
+                break
 
     # Создаём сервер экзаменов
     exam_server = ExamServer()

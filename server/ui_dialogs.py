@@ -716,3 +716,246 @@ class SelectTestFromRepoDialog(QDialog):
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите тест!")
 
 
+class UpdateProgressDialog(QDialog):
+    def __init__(self, exam_server, parent=None):
+        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QScrollArea, QProgressBar, QWidget, QApplication
+        from PySide6.QtCore import Qt
+        super().__init__(parent)
+        self.exam_server = exam_server
+        self.setWindowTitle("Обновление системы")
+        self.resize(580, 450)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #f8fafc;
+            }
+            QLabel {
+                color: #0f172a;
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+            QProgressBar {
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                background-color: #e2e8f0;
+                text-align: center;
+                color: #0f172a;
+                font-weight: bold;
+                height: 18px;
+            }
+            QProgressBar::chunk {
+                background-color: #3b82f6;
+                border-radius: 5px;
+            }
+            QFrame.card {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 12px;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Title
+        title_label = QLabel("Установка системных обновлений")
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b;")
+        layout.addWidget(title_label)
+
+        # Section 1: Server Device Progress
+        server_frame = QFrame()
+        server_frame.setObjectName("server_card")
+        server_frame.setStyleSheet("""
+            QFrame#server_card {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 10px;
+            }
+        """)
+        server_lay = QVBoxLayout(server_frame)
+        server_lay.setContentsMargins(12, 12, 12, 12)
+        server_lay.setSpacing(8)
+
+        self.server_title = QLabel("Локальный сервер (Загрузка с GitHub)")
+        self.server_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #475569;")
+        server_lay.addWidget(self.server_title)
+
+        self.server_progress = QProgressBar()
+        self.server_progress.setValue(0)
+        server_lay.addWidget(self.server_progress)
+
+        self.server_status = QLabel("Ожидание...")
+        self.server_status.setStyleSheet("font-size: 11px; color: #64748b;")
+        server_lay.addWidget(self.server_status)
+
+        layout.addWidget(server_frame)
+
+        # Section 2: Connected Clients List
+        clients_label = QLabel("Подключенные клиенты (Передача обновлений)")
+        clients_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #475569;")
+        layout.addWidget(clients_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; }")
+        
+        self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background-color: #ffffff;")
+        self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setSpacing(12)
+        self.scroll_layout.setContentsMargins(10, 10, 10, 10)
+        
+        scroll.setWidget(self.scroll_content)
+        layout.addWidget(scroll, 1)
+
+        # Bottom Buttons
+        btn_lay = QHBoxLayout()
+        btn_lay.addStretch()
+
+        self.cancel_btn = QPushButton("Отмена")
+        self.cancel_btn.setStyleSheet(
+            "QPushButton { background-color: #ffffff; color: #64748b; font-weight: bold; font-size: 13px; padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #f1f5f9; }"
+        )
+        self.cancel_btn.clicked.connect(self.reject)
+        btn_lay.addWidget(self.cancel_btn)
+
+        self.upgrade_btn = QPushButton("Обновить все")
+        self.upgrade_btn.setStyleSheet(
+            "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #059669; }"
+            "QPushButton:disabled { background-color: #cbd5e1; color: #94a3b8; }"
+        )
+        self.upgrade_btn.setEnabled(False)
+        self.upgrade_btn.clicked.connect(self.apply_full_upgrade)
+        btn_lay.addWidget(self.upgrade_btn)
+
+        layout.addLayout(btn_lay)
+
+        self.client_widgets = {} # sock -> (name_lbl, progress_bar, status_lbl)
+        self._populate_clients()
+        
+    def _populate_clients(self):
+        from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QFrame
+        # Очистить предыдущие виджеты
+        for i in reversed(range(self.scroll_layout.count())):
+            item = self.scroll_layout.itemAt(i)
+            if item and item.widget():
+                w = item.widget()
+                w.setParent(None)
+                w.deleteLater()
+                
+        self.client_widgets.clear()
+        
+        students = list(self.exam_server._students.values())
+        if not students:
+            empty_lbl = QLabel("Нет подключенных клиентов.")
+            empty_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; font-style: italic;")
+            self.scroll_layout.addWidget(empty_lbl)
+            return
+            
+        for s in students:
+            item_widget = QWidget()
+            item_lay = QVBoxLayout(item_widget)
+            item_lay.setContentsMargins(0, 0, 0, 8)
+            item_lay.setSpacing(4)
+            
+            info_lay = QHBoxLayout()
+            name_lbl = QLabel(f"{s.name} ({s.group})")
+            name_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #334155;")
+            ver_lbl = QLabel(f"Версия: {s.version}")
+            ver_lbl.setStyleSheet("font-size: 11px; color: #64748b;")
+            info_lay.addWidget(name_lbl)
+            info_lay.addStretch()
+            info_lay.addWidget(ver_lbl)
+            item_lay.addLayout(info_lay)
+            
+            prog = QProgressBar()
+            prog.setValue(0)
+            prog.setFixedHeight(12)
+            prog.setStyleSheet("""
+                QProgressBar {
+                    border: 1px solid #e2e8f0;
+                    border-radius: 4px;
+                    background-color: #f1f5f9;
+                    text-align: center;
+                    font-size: 9px;
+                    color: transparent;
+                }
+                QProgressBar::chunk {
+                    background-color: #10b981;
+                    border-radius: 3px;
+                }
+            """)
+            item_lay.addWidget(prog)
+            
+            status_lbl = QLabel("Ожидание скачивания сервера...")
+            status_lbl.setStyleSheet("font-size: 10px; color: #94a3b8;")
+            item_lay.addWidget(status_lbl)
+            
+            # Разделительная полоса
+            sep = QFrame()
+            sep.setFrameShape(QFrame.HLine)
+            sep.setFrameShadow(QFrame.Sunken)
+            sep.setStyleSheet("color: #f1f5f9;")
+            item_lay.addWidget(sep)
+            
+            self.scroll_layout.addWidget(item_widget)
+            self.client_widgets[s.socket] = (name_lbl, prog, status_lbl)
+
+    def set_server_progress(self, percent, text):
+        self.server_progress.setValue(percent)
+        self.server_status.setText(text)
+        
+    def set_client_progress(self, socket, percent, text):
+        if socket in self.client_widgets:
+            _, prog, status_lbl = self.client_widgets[socket]
+            prog.setValue(percent)
+            status_lbl.setText(text)
+            if percent == 100:
+                status_lbl.setStyleSheet("font-size: 10px; color: #059669; font-weight: bold;")
+            else:
+                status_lbl.setStyleSheet("font-size: 10px; color: #2563eb;")
+
+    def enable_upgrade(self):
+        self.upgrade_btn.setEnabled(True)
+
+    def apply_full_upgrade(self):
+        from PySide6.QtWidgets import QApplication
+        import os
+        import sys
+        import subprocess
+        import platform
+        
+        # Рассылка перезагрузки клиентам
+        self.exam_server.send_reboot_to_all_clients()
+        
+        # Перезагрузка сервера
+        current_exe = os.path.abspath(sys.argv[0])
+        update_file = current_exe + ".new"
+        if os.path.exists(update_file):
+            if platform.system() == 'Windows':
+                updater_script = "update.bat"
+                with open(updater_script, 'w') as f:
+                    f.write('@echo off\n')
+                    f.write('timeout /t 2 /nobreak > nul\n')
+                    f.write(f'del "{current_exe}"\n')
+                    f.write(f'move "{update_file}" "{current_exe}"\n')
+                    f.write(f'start "" "{current_exe}"\n')
+                    f.write('del "%~f0"\n')
+                subprocess.Popen([updater_script], shell=True)
+            else:
+                updater_script = "update.sh"
+                with open(updater_script, 'w') as f:
+                    f.write('#!/bin/bash\n')
+                    f.write('sleep 2\n')
+                    f.write(f'mv "{update_file}" "{current_exe}"\n')
+                    f.write(f'chmod +x "{current_exe}"\n')
+                    f.write(f'"{current_exe}" &\n')
+                    f.write('rm "$0"\n')
+                os.chmod(updater_script, 0o755)
+                subprocess.Popen(["/bin/bash", updater_script])
+                
+        QApplication.quit()
+
+

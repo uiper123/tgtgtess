@@ -45,11 +45,23 @@ except ImportError:
 # Главное окно Преподавателя
 # ---------------------------------------------------------------------------
 class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, SettingsMixin, QMainWindow):
+    update_checked_signal = Signal(object, str)
+    update_downloaded_signal = Signal(int)
+    server_download_progress_signal = Signal(int, str)
+    client_update_progress_signal = Signal(object, int, str)
+    all_updates_ready_signal = Signal()
+
     def __init__(self, exam_server, parent=None):
         super().__init__(parent)
         self.exam_server = exam_server
         self._settings = QSettings("EduTest", "Server")
         self.setWindowTitle("TTGTiSO-Test — Панель преподавателя")
+        
+        self.update_checked_signal.connect(self._on_update_checked)
+        self.update_downloaded_signal.connect(self._on_update_downloaded)
+        self.server_download_progress_signal.connect(self._on_server_download_progress)
+        self.client_update_progress_signal.connect(self._on_client_update_progress)
+        self.all_updates_ready_signal.connect(self._on_all_updates_ready)
         
         # Установка иконки приложения
         from PySide6.QtGui import QIcon

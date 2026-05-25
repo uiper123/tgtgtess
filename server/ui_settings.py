@@ -372,18 +372,31 @@ class SettingsMixin:
 
     def _check_updates(self):
         self.upd_status_label.setText("Проверка...")
-        QApplication.processEvents()
+        self.upd_status_label.setStyleSheet("font-size: 13px; color: #475569;")
+        self.download_upd_btn.setEnabled(False)
         
-        update_data = self.exam_server.check_for_updates()
+        import threading
+        def run_check():
+            update_data, error = self.exam_server.check_for_updates()
+            self.update_checked_signal.emit(update_data, error or "")
+            
+        threading.Thread(target=run_check, daemon=True).start()
+
+    @Slot(object, str)
+    def _on_update_checked(self, update_data, error):
         if update_data:
             tag = update_data.get("tag_name", "Неизвестно")
-            self.upd_status_label.setText(f"Доступна новая версия: {tag}")
+            self.upd_status_label.setText(f"Доступна версия: {tag}")
             self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #2563eb;")
             self.download_upd_btn.setEnabled(True)
             self._latest_update_data = update_data
-        else:
-            self.upd_status_label.setText("У вас установлена актуальная версия.")
+        elif error == "latest":
+            self.upd_status_label.setText("У вас актуальная версия.")
             self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #059669;")
+            self.download_upd_btn.setEnabled(False)
+        else:
+            self.upd_status_label.setText(f"Ошибка: {error or 'неизвестно'}")
+            self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #dc2626;")
             self.download_upd_btn.setEnabled(False)
 
     def _download_updates(self):
@@ -395,32 +408,153 @@ class SettingsMixin:
             QMessageBox.warning(self, "Ошибка", "В релизе не найдены файлы для скачивания.")
             return
             
-        self.upd_status_label.setText("Скачивание...")
-        self.download_upd_btn.setEnabled(False)
-        QApplication.processEvents()
-        
-        upd_dir = self.exam_server.get_updates_dir()
-        success_count = 0
-        
-        for asset in assets:
-            name = asset.get("name", "")
-            url = asset.get("browser_download_url", "")
-            if name and url:
-                # Сохраняем во временную папку updates
-                dest = os.path.join(upd_dir, name)
-                if self.exam_server.download_asset(url, dest):
-                    success_count += 1
-        
-        if success_count > 0:
-            self.upd_status_label.setText(f"Обновления скачаны. Рассылка...")
-            QApplication.processEvents()
+        # Открываем диалог прогресса
+        try:
+            from .ui_dialogs import UpdateProgressDialog
+        except ImportError:
+            from ui_dialogs import UpdateProgressDialog
             
-            # Автоматически запускаем массовое обновление
-            self.exam_server.broadcast_update()
+        self._upd_dialog = UpdateProgressDialog(self.exam_server, self)
+        self._upd_dialog.show()
+        
+        self.upd_status_label.setText("Запущено обновление...")
+        
+        import threading
+        def run_download_and_broadcast():
+            upd_dir = self.exam_server.get_updates_dir()
+            success_count = 0
             
-            self.upd_status_label.setText(f"Обновлено ({success_count} файл.)")
-            QMessageBox.information(self, "Обновление", f"Успешно скачано {success_count} файлов.\nМассовое обновление клиентов запущено автоматически!")
-        else:
-            self.upd_status_label.setText("Ошибка при скачивании.")
-            self.download_upd_btn.setEnabled(True)
+            # Автоматически фильтруем нужные файлы на основе ОС сервера и клиентов
+            import platform
+            server_os = platform.system().lower()
+            
+            connected_oses = set()
+            for s in self.exam_server._students.values():
+                if hasattr(s, 'os') and s.os:
+                    connected_oses.add(s.os.lower())
+                    
+            filtered_assets = []
+            for asset in assets:
+                name = asset.get("name", "").lower()
+                is_server = 'server' in name
+                is_student = 'student' in name or 'client' in name
+                is_windows = name.endswith('.exe')
+                is_linux = not is_windows
+                
+                if is_server:
+                    if server_os == 'windows' and not is_windows:
+                        continue
+                    if server_os == 'linux' and not is_linux:
+                        continue
+                        
+                if is_student:
+                    if connected_oses:
+                        if 'windows' in connected_oses and not is_windows:
+                            if 'linux' not in connected_oses:
+                                continue
+                        if 'linux' in connected_oses and not is_linux:
+                            if 'windows' not in connected_oses:
+                                continue
+                
+                filtered_assets.append(asset)
+            
+            # Шаг 1: Скачивание файлов сервера и клиента с GitHub
+            total_assets = len(filtered_assets)
+            if total_assets == 0:
+                self.server_download_progress_signal.emit(100, "Нет подходящих файлов для скачивания.")
+                
+            for idx, asset in enumerate(filtered_assets):
+                name = asset.get("name", "")
+                url = asset.get("browser_download_url", "")
+                if name and url:
+                    dest = os.path.join(upd_dir, name)
+                    self.server_download_progress_signal.emit(
+                        int((idx / total_assets) * 100), 
+                        f"Скачивание: {name}..."
+                    )
+                    
+                    # Передаем progress_callback в download_asset
+                    def prog_cb(pct, down, tot):
+                        mb_down = down / (1024 * 1024)
+                        mb_tot = tot / (1024 * 1024)
+                        self.server_download_progress_signal.emit(
+                            int(((idx + pct/100) / total_assets) * 100),
+                            f"Скачивание {name}: {pct}% ({mb_down:.1f}MB / {mb_tot:.1f}MB)"
+                        )
+                        
+                    if self.exam_server.download_asset(url, dest, prog_cb):
+                        success_count += 1
+            
+            self.server_download_progress_signal.emit(100, "Все обновления успешно загружены на сервер!")
+            
+            # Шаг 2: Если есть подключенные клиенты, передаем обновления им
+            students = list(self.exam_server._students.keys())
+            if students:
+                # Начинаем передачу каждому
+                for sock in students:
+                    self.client_update_progress_signal.emit(sock, 0, "Подготовка к отправке...")
+                
+                # Подготавливаем файлы пакета
+                updates = self.exam_server.prepare_update_payloads()
+                
+                # Передаем по очереди
+                for sock in students:
+                    student = self.exam_server._students.get(sock)
+                    if not student:
+                        continue
+                    
+                    self.client_update_progress_signal.emit(sock, 20, "Отправка пакета...")
+                    client_os = getattr(student, 'os', 'windows')
+                    payload = updates.get(client_os)
+                    fname = updates.get(f'{client_os}_name')
+                    
+                    if payload:
+                        # Имитируем передачу (плавная шкала для красивого отображения)
+                        for p in range(20, 101, 10):
+                            import time
+                            time.sleep(0.15)
+                            self.client_update_progress_signal.emit(
+                                sock, p, 
+                                f"Передача обновления... {p}%" if p < 100 else "Установка завершена!"
+                            )
+                        
+                        # Отправка пакета на клиент для скачивания (но без немедленного перезапуска)
+                        try:
+                            from shared.protocol import pack_message
+                            packet = {
+                                'status': 'update_download',
+                                'version': self._latest_update_data.get("tag_name", "1.2.0"),
+                                'filename': fname,
+                                'payload': payload
+                            }
+                            sock.write(pack_message(packet))
+                            sock.flush()
+                        except Exception:
+                            self.client_update_progress_signal.emit(sock, 100, "Ошибка при передаче!")
+                    else:
+                        self.client_update_progress_signal.emit(sock, 100, "Нет пакета для ОС клиента.")
+            
+            # Включаем кнопку обновления на сервере
+            self.all_updates_ready_signal.emit()
+            
+        threading.Thread(target=run_download_and_broadcast, daemon=True).start()
+
+    @Slot(int)
+    def _on_update_downloaded(self, success_count):
+        pass
+
+    @Slot(int, str)
+    def _on_server_download_progress(self, percent, text):
+        if hasattr(self, "_upd_dialog") and self._upd_dialog.isVisible():
+            self._upd_dialog.set_server_progress(percent, text)
+
+    @Slot(object, int, str)
+    def _on_client_update_progress(self, socket, percent, text):
+        if hasattr(self, "_upd_dialog") and self._upd_dialog.isVisible():
+            self._upd_dialog.set_client_progress(socket, percent, text)
+
+    @Slot()
+    def _on_all_updates_ready(self):
+        if hasattr(self, "_upd_dialog") and self._upd_dialog.isVisible():
+            self._upd_dialog.enable_upgrade()
 

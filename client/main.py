@@ -257,6 +257,10 @@ class StudentClient(QObject):
             self.force_stopped.emit()
         elif status == 'update_available':
             self._apply_update(packet)
+        elif status == 'update_download':
+            self._save_update_file(packet)
+        elif status == 'update_apply':
+            self._run_updater()
         elif status == 'error':
             msg = packet.get('message', 'unknown')
             if msg == 'wrong_group':
@@ -333,28 +337,33 @@ class StudentClient(QObject):
         if self._socket.state() == QAbstractSocket.ConnectedState:
             self._socket.disconnectFromHost()
 
-    def _apply_update(self, packet: dict):
-        """Сохраняет обновление и запускает скрипт замены."""
+    def _save_update_file(self, packet: dict) -> bool:
+        """Декодирует и сохраняет файл обновления в .new."""
         import base64
-        import subprocess
-        
-        version = packet.get('version')
-        filename = packet.get('filename')
         payload = packet.get('payload')
-        
         if not payload:
-            return
-
+            return False
         try:
             data = base64.b64decode(payload)
-            # Путь к текущему исполняемому файлу
             current_exe = os.path.abspath(sys.argv[0])
             update_file = current_exe + ".new"
-            
             with open(update_file, 'wb') as f:
                 f.write(data)
-            
-            # Создаем скрипт-апдейтер
+            return True
+        except Exception as e:
+            self.log_message.emit(f"Ошибка при сохранении обновления: {e}")
+            return False
+
+    def _run_updater(self):
+        """Запускает скрипт замены и перезагружает приложение."""
+        import subprocess
+        try:
+            current_exe = os.path.abspath(sys.argv[0])
+            update_file = current_exe + ".new"
+            if not os.path.exists(update_file):
+                self.log_message.emit("Ошибка: файл обновления .new не найден.")
+                return
+
             if platform.system() == 'Windows':
                 updater_script = "update.bat"
                 with open(updater_script, 'w') as f:
@@ -377,10 +386,15 @@ class StudentClient(QObject):
                 os.chmod(updater_script, 0o755)
                 subprocess.Popen(["/bin/bash", updater_script])
 
-            self.update_received.emit(version)
+            self.update_received.emit(VERSION)
             QApplication.quit()
         except Exception as e:
-            self.log_message.emit(f"Ошибка при применении обновления: {e}")
+            self.log_message.emit(f"Ошибка при перезапуске обновления: {e}")
+
+    def _apply_update(self, packet: dict):
+        """Сохраняет обновление и сразу запускает скрипт замены (обратная совместимость)."""
+        if self._save_update_file(packet):
+            self._run_updater()
 
     @property
     def student_name(self) -> str:
@@ -413,17 +427,30 @@ def main():
     app.setOrganizationName("EduTest")
 
     # Установка иконки приложения
-    from PySide6.QtGui import QIcon
-    icon_candidates = [
-        get_resource_path("image.ico"),
-        get_resource_path("image.png"),
-        os.path.join(os.path.dirname(sys.executable), "image.ico"),
-        "/opt/test_system_student/icon.png"
-    ]
-    for path in icon_candidates:
-        if os.path.exists(path):
-            app.setWindowIcon(QIcon(path))
-            break
+    from PySide6.QtGui import QIcon, QPixmap
+    from PySide6.QtCore import QByteArray
+    icon_set = False
+    try:
+        from shared.icon_data import ICON_BASE64
+        ba = QByteArray.fromBase64(ICON_BASE64.encode('utf-8'))
+        pixmap = QPixmap()
+        if pixmap.loadFromData(ba):
+            app.setWindowIcon(QIcon(pixmap))
+            icon_set = True
+    except Exception as e:
+        print(f"Ошибка загрузки встроенной иконки: {e}")
+
+    if not icon_set:
+        icon_candidates = [
+            get_resource_path("image.ico"),
+            get_resource_path("image.png"),
+            os.path.join(os.path.dirname(sys.executable), "image.ico"),
+            "/opt/test_system_student/icon.png"
+        ]
+        for path in icon_candidates:
+            if os.path.exists(path):
+                app.setWindowIcon(QIcon(path))
+                break
 
     # Глобально отключаем системный прокси для всех сокетов
     QNetworkProxy.setApplicationProxy(QNetworkProxy(QNetworkProxy.NoProxy))
