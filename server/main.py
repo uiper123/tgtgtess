@@ -644,8 +644,6 @@ class ExamServer(QObject):
         self._save_all_results_to_file()
         self.log_message.emit("Вся история результатов очищена.")
 
-    # -- Обновления через GitHub --
-
     def check_for_updates(self) -> tuple[Optional[dict], Optional[str]]:
         """
         Проверяет наличие новых версий на GitHub.
@@ -653,10 +651,16 @@ class ExamServer(QObject):
         """
         import urllib.request
         import json
+        import ssl
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         try:
+            try:
+                ssl_context = ssl._create_unverified_context()
+            except AttributeError:
+                ssl_context = None
+                
             req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
                 data = json.loads(response.read().decode())
                 latest_version = data.get("tag_name", "").lstrip("v")
                 
@@ -679,10 +683,16 @@ class ExamServer(QObject):
     def download_asset(self, url: str, dest_path: str, progress_callback=None):
         """Скачивает файл по ссылке с поддержкой User-Agent и оповещением прогресса."""
         import urllib.request
+        import ssl
         try:
+            try:
+                ssl_context = ssl._create_unverified_context()
+            except AttributeError:
+                ssl_context = None
+                
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
                 total_size = int(response.info().get('Content-Length', 0))
                 downloaded = 0
                 with open(dest_path, 'wb') as out_file:
