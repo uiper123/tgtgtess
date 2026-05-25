@@ -369,7 +369,8 @@ QHeaderView::section {
     font-size: 12px;
     padding: 12px;
     border: none;
-    border-bottom: 2px solid #e2e8f0;
+    border-right: 1px solid #cbd5e1;
+    border-bottom: 2px solid #cbd5e1;
     text-align: left;
 }
 
