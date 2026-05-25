@@ -291,7 +291,10 @@ class ResultsMixin:
             # 2. Пытаемся автоматически найти тест в репозитории
             questions = None
             if test_name_in_log:
-                from .storage import test_path
+                try:
+                    from .storage import test_path
+                except ImportError:
+                    from storage import test_path
                 potential_path = test_path(test_name_in_log)
                 if os.path.exists(potential_path):
                     try:
