@@ -949,6 +949,7 @@ class UpdateProgressDialog(QDialog):
         import sys
         import subprocess
         import platform
+        import shutil
         
         # Рассылка перезагрузки клиентам
         self.exam_server.send_reboot_to_all_clients()
@@ -956,6 +957,36 @@ class UpdateProgressDialog(QDialog):
         # Перезагрузка сервера
         current_exe = os.path.abspath(sys.argv[0])
         update_file = current_exe + ".new"
+        
+        # Если запущен скрипт .py, мы не заменяем его бинарным файлом.
+        # Просто перезапускаем текущий .py с помощью sys.executable.
+        if current_exe.endswith('.py'):
+            if platform.system() == 'Windows':
+                subprocess.Popen([sys.executable, current_exe])
+            else:
+                subprocess.Popen([sys.executable, current_exe])
+            QApplication.quit()
+            return
+            
+        # Для скомпилированного бинарника: ищем скачанный с GitHub файл сервера в updates/
+        upd_dir = self.exam_server.get_updates_dir()
+        if os.path.exists(upd_dir):
+            server_os = platform.system().lower()
+            for f in os.listdir(upd_dir):
+                name_lower = f.lower()
+                if 'server' in name_lower:
+                    if server_os == 'windows' and not name_lower.endswith('.exe'):
+                        continue
+                    if server_os == 'linux' and name_lower.endswith('.exe'):
+                        continue
+                    
+                    src_path = os.path.join(upd_dir, f)
+                    try:
+                        shutil.copy2(src_path, update_file)
+                        break
+                    except Exception as e:
+                        print(f"Ошибка при копировании файла обновления сервера: {e}")
+        
         if os.path.exists(update_file):
             if platform.system() == 'Windows':
                 updater_script = "update.bat"

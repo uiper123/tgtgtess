@@ -384,6 +384,22 @@ class StudentClient(QObject):
         try:
             current_exe = os.path.abspath(sys.argv[0])
             update_file = current_exe + ".new"
+            
+            # Если запущен скрипт .py, мы не заменяем его бинарным файлом.
+            # Просто перезапускаем текущий .py с помощью sys.executable.
+            if current_exe.endswith('.py'):
+                try:
+                    if os.path.exists(update_file):
+                        os.remove(update_file)
+                except Exception:
+                    pass
+                if platform.system() == 'Windows':
+                    subprocess.Popen([sys.executable, current_exe])
+                else:
+                    subprocess.Popen([sys.executable, current_exe])
+                QApplication.quit()
+                return
+
             if not os.path.exists(update_file):
                 self.log_message.emit("Ошибка: файл обновления .new не найден.")
                 return
