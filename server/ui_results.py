@@ -115,6 +115,7 @@ class ResultsMixin:
         self.r_table.verticalHeader().setVisible(False)
         self.r_table.setShowGrid(True)
         self.r_table.setMinimumHeight(350)
+        self.r_table.cellDoubleClicked.connect(self._on_result_row_double_clicked)
         layout.addWidget(self.r_table)
 
         btn_row = QHBoxLayout()
@@ -334,5 +335,81 @@ class ResultsMixin:
             
         except Exception as e:
             QMessageBox.critical(self, "Ошибка импорта", f"Не удалось импортировать лог: {e}")
+
+    def _on_result_row_double_clicked(self, row, col):
+        if not hasattr(self, 'filtered_results') or row < 0 or row >= len(self.filtered_results):
+            return
+            
+        result_entry = self.filtered_results[row]
+        
+        # 1. Пытаемся получить вопросы для этого студента
+        questions = None
+        group = result_entry.get('group', '')
+        
+        # Сначала ищем в активных сессиях для этой группы
+        if group:
+            active_exam = self.exam_server._active_exams.get(group.lower())
+            if active_exam:
+                questions = active_exam.get('questions')
+                
+        # Если активной сессии нет, пробуем найти тест по названию
+        if not questions and result_entry.get('test_name'):
+            try:
+                from .storage import test_path
+            except ImportError:
+                from storage import test_path
+            potential_path = test_path(result_entry['test_name'])
+            if os.path.exists(potential_path):
+                try:
+                    questions = parse_test_file(potential_path)
+                except:
+                    pass
+                    
+        # Если все еще нет вопросов, просим выбрать файл теста вручную
+        if not questions:
+            QMessageBox.information(
+                self, 
+                "Просмотр ответов",
+                f"Для просмотра детальных ответов студента {result_entry.get('name')} выберите файл теста (.txt), который он проходил."
+            )
+            try:
+                from .storage import tests_dir
+            except ImportError:
+                from storage import tests_dir
+                
+            manual_test_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Выберите файл теста для просмотра ответов",
+                tests_dir(),
+                "Текстовые файлы (*.txt)"
+            )
+            if not manual_test_path or not os.path.exists(manual_test_path):
+                return
+            try:
+                questions = parse_test_file(manual_test_path)
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось прочитать файл теста: {e}")
+                return
+                
+        if not questions:
+            QMessageBox.warning(self, "Внимание", "Не удалось загрузить вопросы теста.")
+            return
+            
+        # 2. Создаем псевдо-объект студента для StudentAnswersDialog
+        class PseudoStudent:
+            def __init__(self, name, group, answers):
+                self.name = name
+                self.group = group
+                self.answers = answers
+                
+        student = PseudoStudent(
+            name=result_entry.get('name', 'Неизвестный'),
+            group=result_entry.get('group', 'Неизвестная'),
+            answers=result_entry.get('answers', {})
+        )
+        
+        # 3. Открываем диалог с ответами
+        dialog = StudentAnswersDialog(student, questions, self)
+        dialog.exec()
 
     # ========================== 5. НАСТРОЙКИ СИСТЕМЫ ==========================

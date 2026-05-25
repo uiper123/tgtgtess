@@ -547,16 +547,19 @@ class ExamServer(QObject):
             self._monitor_data[(name, group)].score = score
             self._monitor_data[(name, group)].answers = int_answers
 
+        test_name = ""
         if group_key in self._active_exams:
             attempts = self._active_exams[group_key].setdefault('attempts', {})
             student_key = name.strip().casefold()
             attempts[student_key] = attempts.get(student_key, 0) + 1
+            test_name = self._active_exams[group_key].get('test_name', '')
 
         result_entry = {
             'name': name,
             'group': group,
             'score': score,
             'answers': int_answers,
+            'test_name': test_name,
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }
         self._results.append(result_entry)
