@@ -103,14 +103,14 @@ class ResultsMixin:
 
         # Table of Results
         self.r_table = QTableWidget(0, 6)
-        self.r_table.setHorizontalHeaderLabels(["Имя студента", "Группа", "Набранные баллы", "Процент", "Время сдачи", "Действие"])
+        self.r_table.setHorizontalHeaderLabels(["Имя студента", "Группа", "Название теста", "Набранные баллы", "Процент", "Время сдачи"])
         self.r_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.r_table.setColumnWidth(0, 250)
         self.r_table.setColumnWidth(1, 100)
-        self.r_table.setColumnWidth(2, 130)
-        self.r_table.setColumnWidth(3, 100)
-        self.r_table.setColumnWidth(4, 180)
-        self.r_table.setColumnWidth(5, 140)
+        self.r_table.setColumnWidth(2, 200)
+        self.r_table.setColumnWidth(3, 130)
+        self.r_table.setColumnWidth(4, 100)
+        self.r_table.setColumnWidth(5, 180)
         self.r_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.r_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.r_table.verticalHeader().setVisible(False)
@@ -185,7 +185,11 @@ class ResultsMixin:
         # 1. Apply search filter
         search_text = self.r_search.text().strip().lower()
         if search_text:
-            results = [r for r in results if search_text in r.get('name', '').lower()]
+            results = [r for r in results if 
+                search_text in r.get('name', '').lower() or
+                search_text in r.get('group', '').lower() or
+                search_text in r.get('test_name', '').lower()
+            ]
 
         # 2. Apply group filter
         group_filter = self.r_group_filter.currentText()
@@ -226,54 +230,20 @@ class ResultsMixin:
             self.r_table.setItem(row, 0, QTableWidgetItem(r.get('name', '')))
             self.r_table.setItem(row, 1, QTableWidgetItem(r.get('group', '')))
             
+            test_name = r.get('test_name', '')
+            if not test_name:
+                test_name = '—'
+            self.r_table.setItem(row, 2, QTableWidgetItem(test_name))
+            
             score_str = r.get('score', '0/0')
-            self.r_table.setItem(row, 2, QTableWidgetItem(score_str))
+            self.r_table.setItem(row, 3, QTableWidgetItem(score_str))
             
             grade_text, grade_color = get_grade_details(score_str)
             grade_item = QTableWidgetItem(grade_text)
             grade_item.setForeground(QColor(grade_color))
-            self.r_table.setItem(row, 3, grade_item)
+            self.r_table.setItem(row, 4, grade_item)
             
-            self.r_table.setItem(row, 4, QTableWidgetItem(r.get('timestamp', '')))
-            
-            # Check if test file exists
-            has_test = False
-            group = r.get('group', '')
-            if group and self.exam_server._active_exams.get(group.lower()):
-                has_test = True
-            else:
-                try:
-                    from .storage import test_path
-                except ImportError:
-                    from storage import test_path
-                test_names_to_try = []
-                if r.get('test_name'): test_names_to_try.append(r['test_name'])
-                if group: test_names_to_try.append(group)
-                for t_name in test_names_to_try:
-                    json_path = test_path(t_name)
-                    txt_path = json_path.with_suffix('.txt')
-                    
-                    if os.path.exists(json_path) or os.path.exists(txt_path):
-                        has_test = True
-                        break
-
-            # Action button
-            if has_test:
-                action_btn = QPushButton("Открыть")
-                action_btn.setProperty("class", "tableSecondaryBtn")
-            else:
-                action_btn = QPushButton("Нет теста")
-                action_btn.setProperty("class", "tableDangerBtn")
-                
-            action_btn.setCursor(Qt.PointingHandCursor)
-            action_btn.clicked.connect(lambda checked=False, r_idx=row: self._on_result_row_action(r_idx))
-            
-            btn_widget = QWidget()
-            btn_lay = QHBoxLayout(btn_widget)
-            btn_lay.setContentsMargins(4, 4, 4, 4)
-            btn_lay.setAlignment(Qt.AlignCenter)
-            btn_lay.addWidget(action_btn)
-            self.r_table.setCellWidget(row, 5, btn_widget)
+            self.r_table.setItem(row, 5, QTableWidgetItem(r.get('timestamp', '')))
 
     def _on_result_row_action(self, row):
         # Delegate to the existing double-click handler which already has smart loading logic
