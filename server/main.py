@@ -34,7 +34,17 @@ except ImportError:
 
 # ---------------------------------------------------------------------------
 
-MAX_MESSAGE_SIZE = 50 * 1024 * 1024
+MAX_MESSAGE_SIZE = 500 * 1024 * 1024
+UPDATE_CHUNK_SIZE = 10 * 1024 * 1024  # 10 MB бинарных данных на чанк
+OLD_CLIENT_MAX_SIZE = 45 * 1024 * 1024  # Лимит для старых клиентов (< v1.3.5)
+
+
+def _version_tuple(v: str) -> tuple:
+    """Преобразует строку версии '1.3.3' в кортеж (1, 3, 3) для сравнения."""
+    try:
+        return tuple(int(x) for x in v.split('.'))
+    except (ValueError, AttributeError):
+        return (0, 0, 0)
 
 
 class ConnectedStudent:
@@ -397,34 +407,51 @@ class ExamServer(QObject):
             # Ищем файл для соответствующей ОС (например, .exe для windows)
             upd_file = None
             if client_os == 'windows':
-                # Ищем любой .exe в папке updates
                 for f in os.listdir(upd_dir):
                     if f.lower().endswith('.exe'):
                         upd_file = os.path.join(upd_dir, f)
                         break
             else:
-                # Для linux ищем бинарник (без расширения или с .bin)
                 for f in os.listdir(upd_dir):
                     if 'student' in f.lower() and not f.lower().endswith('.exe'):
                         upd_file = os.path.join(upd_dir, f)
                         break
 
-            if upd_file and client_version != VERSION: # Простая проверка версии
+            if upd_file and client_version != VERSION:
                 try:
                     import base64
-                    with open(upd_file, 'rb') as f:
-                        file_data = base64.b64encode(f.read()).decode()
-                    
-                    response = {
-                        'status': 'update_available',
-                        'version': VERSION,
-                        'filename': os.path.basename(upd_file),
-                        'payload': file_data
-                    }
-                    sock.write(pack_message(response))
-                    sock.flush()
-                    self.log_message.emit(f"Отправлено обновление клиенту {name} ({client_os})")
-                    return # Прекращаем подключение, клиент должен обновиться
+                    file_size = os.path.getsize(upd_file)
+                    # Оценка размера в base64 (+33% + JSON overhead)
+                    estimated_packet_size = int(file_size * 1.37) + 1024
+                    client_ver = _version_tuple(client_version)
+
+                    if estimated_packet_size <= OLD_CLIENT_MAX_SIZE:
+                        # Маленький файл — отправляем одним пакетом (совместимость со всеми версиями)
+                        with open(upd_file, 'rb') as f:
+                            file_data = base64.b64encode(f.read()).decode()
+                        response = {
+                            'status': 'update_available',
+                            'version': VERSION,
+                            'filename': os.path.basename(upd_file),
+                            'payload': file_data
+                        }
+                        sock.write(pack_message(response))
+                        sock.flush()
+                        self.log_message.emit(f"Отправлено обновление клиенту {name} ({client_os}), размер: {file_size // 1024} КБ")
+                        return
+                    elif client_ver >= (1, 3, 5):
+                        # Большой файл + новый клиент — чанковая отправка
+                        self._send_chunked_update(sock, upd_file, name, client_os)
+                        return
+                    else:
+                        # Большой файл + старый клиент — пропускаем обновление, допускаем к тесту
+                        self.log_message.emit(
+                            f"⚠️ Обновление для {name} ({client_os}, v{client_version}) пропущено: "
+                            f"файл слишком большой ({file_size // 1024 // 1024} МБ), "
+                            f"клиент не поддерживает чанковую загрузку. "
+                            f"Обновите клиента вручную."
+                        )
+                        # НЕ делаем return — продолжаем обработку подключения
                 except Exception as e:
                     self.log_message.emit(f"Ошибка при чтении файла обновления: {e}")
 
@@ -745,6 +772,46 @@ class ExamServer(QObject):
             self.log_message.emit(f"Ошибка при скачивании {url}: {e}")
             return False
 
+    def _send_chunked_update(self, sock: QTcpSocket, upd_file: str, name: str, client_os: str):
+        """Отправляет файл обновления чанками для клиентов >= v1.3.5."""
+        import base64
+        file_size = os.path.getsize(upd_file)
+        total_chunks = (file_size + UPDATE_CHUNK_SIZE - 1) // UPDATE_CHUNK_SIZE
+
+        # 1. Отправляем start-пакет с метаданными
+        start_packet = {
+            'status': 'update_start',
+            'version': VERSION,
+            'filename': os.path.basename(upd_file),
+            'total_chunks': total_chunks,
+            'file_size': file_size
+        }
+        sock.write(pack_message(start_packet))
+        sock.flush()
+
+        # 2. Отправляем чанки
+        with open(upd_file, 'rb') as f:
+            for i in range(total_chunks):
+                chunk = f.read(UPDATE_CHUNK_SIZE)
+                chunk_b64 = base64.b64encode(chunk).decode()
+                chunk_packet = {
+                    'status': 'update_chunk',
+                    'chunk_index': i,
+                    'payload': chunk_b64
+                }
+                sock.write(pack_message(chunk_packet))
+                sock.flush()
+
+        # 3. Отправляем complete-пакет
+        complete_packet = {'status': 'update_complete'}
+        sock.write(pack_message(complete_packet))
+        sock.flush()
+
+        self.log_message.emit(
+            f"Отправлено чанковое обновление клиенту {name} ({client_os}): "
+            f"{total_chunks} чанков, {file_size // 1024 // 1024} МБ"
+        )
+
     def get_updates_dir(self):
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "updates")
 
@@ -754,47 +821,55 @@ class ExamServer(QObject):
         if not os.path.exists(upd_dir):
             return
 
-        import base64
-        
-        # Предварительно загружаем файлы для разных ОС
-        updates = {}
+        # Находим файлы обновлений для каждой ОС
+        update_files = {}  # os_name -> file_path
         for f in os.listdir(upd_dir):
             path = os.path.join(upd_dir, f)
             if f.lower().endswith('.exe'):
-                with open(path, 'rb') as rb:
-                    updates['windows'] = base64.b64encode(rb.read()).decode()
-                    updates['windows_name'] = f
+                update_files['windows'] = path
             elif 'student' in f.lower():
-                with open(path, 'rb') as rb:
-                    updates['linux'] = base64.b64encode(rb.read()).decode()
-                    updates['linux_name'] = f
+                update_files['linux'] = path
 
-        if not updates:
+        if not update_files:
             return
 
         count = 0
         for sock, student in self._students.items():
-            # Определяем ОС клиента (мы добавили её в ConnectedStudent ранее? Нет, надо добавить)
-            # Если ОС неизвестна, пробуем по расширению или отправляем обобщенно
-            # Но лучше использовать сохраненный тип ОС из пакета connect
-            client_os = getattr(student, 'os', 'windows') # По умолчанию windows
-            
-            payload = updates.get(client_os)
-            fname = updates.get(f'{client_os}_name')
-            
-            if payload:
-                try:
+            client_os = getattr(student, 'os', 'windows')
+            upd_file = update_files.get(client_os)
+            if not upd_file:
+                continue
+
+            client_ver = _version_tuple(getattr(student, 'version', '0.0.0'))
+            file_size = os.path.getsize(upd_file)
+            estimated_packet_size = int(file_size * 1.37) + 1024
+
+            try:
+                if estimated_packet_size <= OLD_CLIENT_MAX_SIZE:
+                    # Маленький файл — одним пакетом (совместимость)
+                    import base64
+                    with open(upd_file, 'rb') as rb:
+                        file_data = base64.b64encode(rb.read()).decode()
                     packet = {
                         'status': 'update_available',
                         'version': VERSION,
-                        'filename': fname,
-                        'payload': payload
+                        'filename': os.path.basename(upd_file),
+                        'payload': file_data
                     }
                     sock.write(pack_message(packet))
                     sock.flush()
                     count += 1
-                except Exception:
-                    pass
+                elif client_ver >= (1, 3, 5):
+                    # Большой файл + новый клиент — чанковая отправка
+                    self._send_chunked_update(sock, upd_file, student.name, client_os)
+                    count += 1
+                else:
+                    self.log_message.emit(
+                        f"⚠️ Пропущено обновление для {student.name} (v{student.version}): "
+                        f"файл слишком большой, клиент не поддерживает чанковую загрузку"
+                    )
+            except Exception:
+                pass
         
         self.log_message.emit(f"Массовое обновление запущено для {count} клиентов.")
 

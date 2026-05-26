@@ -16,7 +16,7 @@ from PySide6.QtCore import Qt, QObject, Signal, Slot, QByteArray, QTimer
 from PySide6.QtNetwork import QTcpSocket, QAbstractSocket, QNetworkProxy
 from PySide6.QtWidgets import QApplication
 
-MAX_MESSAGE_SIZE = 50 * 1024 * 1024
+MAX_MESSAGE_SIZE = 500 * 1024 * 1024
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -131,6 +131,7 @@ class StudentClient(QObject):
     active_group_found = Signal(list)        # active groups
     update_received = Signal(str)            # version
     attempts_checked_signal = Signal(int, int) # attempts_left, max_attempts
+    update_progress_signal = Signal(int, str) # percent, text_status
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -149,6 +150,10 @@ class StudentClient(QObject):
         self._intentional_disconnect = False
         self._temp_sock = None
         self._temp_buf = QByteArray()
+        # Состояние чанковой загрузки обновлений
+        self._update_file_path = ''
+        self._update_total_chunks = 0
+        self._update_received_chunks = 0
 
     def check_active_group(self, host: str, port: int):
         """Запрашивает с сервера активные группы без входа."""
@@ -273,6 +278,12 @@ class StudentClient(QObject):
             self._save_update_file(packet)
         elif status == 'update_apply':
             self._run_updater()
+        elif status == 'update_start':
+            self._handle_update_start(packet)
+        elif status == 'update_chunk':
+            self._handle_update_chunk(packet)
+        elif status == 'update_complete':
+            self._handle_update_complete()
         elif status == 'idle_connected':
             pass
         elif status == 'error':
@@ -435,6 +446,59 @@ class StudentClient(QObject):
         """Сохраняет обновление и сразу запускает скрипт замены (обратная совместимость)."""
         if self._save_update_file(packet):
             self._run_updater()
+
+    def _handle_update_start(self, packet: dict):
+        """Начало чанковой загрузки обновления — создаём пустой файл .new."""
+        self._update_total_chunks = packet.get('total_chunks', 0)
+        self._update_received_chunks = 0
+        self._update_file_path = os.path.abspath(sys.argv[0]) + ".new"
+        try:
+            with open(self._update_file_path, 'wb') as f:
+                pass  # Создаём/очищаем файл
+            version = packet.get('version', '?')
+            file_size = packet.get('file_size', 0)
+            self.log_message.emit(
+                f"Начало загрузки обновления v{version}: "
+                f"{self._update_total_chunks} чанков, {file_size // 1024 // 1024} МБ"
+            )
+            self.update_progress_signal.emit(0, f"Подготовка к загрузке обновления (v{version})...")
+        except Exception as e:
+            self.log_message.emit(f"Ошибка при создании файла обновления: {e}")
+            self.update_progress_signal.emit(0, f"Ошибка: {e}")
+
+    def _handle_update_chunk(self, packet: dict):
+        """Получен очередной чанк обновления — дописываем в файл .new."""
+        import base64
+        chunk_data = packet.get('payload', '')
+        if not chunk_data:
+            return
+        try:
+            data = base64.b64decode(chunk_data)
+            with open(self._update_file_path, 'ab') as f:
+                f.write(data)
+            self._update_received_chunks += 1
+            
+            if self._update_total_chunks > 0:
+                percent = int((self._update_received_chunks / self._update_total_chunks) * 100)
+                self.update_progress_signal.emit(
+                    percent, 
+                    f"Загрузка обновления: {percent}% ({self._update_received_chunks} из {self._update_total_chunks} частей)"
+                )
+        except Exception as e:
+            self.log_message.emit(f"Ошибка при записи чанка обновления: {e}")
+            self.update_progress_signal.emit(0, f"Ошибка записи: {e}")
+
+    def _handle_update_complete(self):
+        """Все чанки получены — запускаем процедуру обновления."""
+        self.log_message.emit(
+            f"Загрузка обновления завершена: {self._update_received_chunks}/{self._update_total_chunks} чанков"
+        )
+        if self._update_received_chunks == self._update_total_chunks and self._update_total_chunks > 0:
+            self.update_progress_signal.emit(100, "Загрузка завершена! Перезапуск...")
+            self._run_updater()
+        else:
+            self.log_message.emit("Ошибка: не все чанки обновления получены, обновление отменено.")
+            self.update_progress_signal.emit(0, "Ошибка: получены не все данные.")
 
     @property
     def student_name(self) -> str:

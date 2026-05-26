@@ -502,52 +502,104 @@ class SettingsMixin:
             self.server_download_progress_signal.emit(100, "Все обновления успешно загружены на сервер!")
             
             # Шаг 2: Если есть подключенные клиенты, передаем обновления им
-            students = list(self.exam_server._students.keys())
+            students = list(self.exam_server._students.items())
             if students:
-                # Начинаем передачу каждому
-                for sock in students:
-                    self.client_update_progress_signal.emit(sock, 0, "Подготовка к отправке...")
-                
-                # Подготавливаем файлы пакета
-                updates = self.exam_server.prepare_update_payloads()
-                
-                # Передаем по очереди
-                for sock in students:
-                    student = self.exam_server._students.get(sock)
-                    if not student:
-                        continue
-                    
-                    self.client_update_progress_signal.emit(sock, 20, "Отправка пакета...")
+                import base64
+                from shared.protocol import pack_message
+                from main import _version_tuple, UPDATE_CHUNK_SIZE, OLD_CLIENT_MAX_SIZE
+
+                # Находим файлы обновлений для каждой ОС
+                update_files = {}
+                if os.path.exists(upd_dir):
+                    for f in os.listdir(upd_dir):
+                        path = os.path.join(upd_dir, f)
+                        if f.lower().endswith('.exe'):
+                            update_files['windows'] = path
+                        elif 'student' in f.lower():
+                            update_files['linux'] = path
+
+                for sock, student in students:
                     client_os = getattr(student, 'os', 'windows')
-                    payload = updates.get(client_os)
-                    fname = updates.get(f'{client_os}_name')
-                    
-                    if payload:
-                        # Имитируем передачу (плавная шкала для красивого отображения)
-                        for p in range(20, 101, 10):
-                            import time
-                            time.sleep(0.15)
-                            self.client_update_progress_signal.emit(
-                                sock, p, 
-                                f"Передача обновления... {p}%" if p < 100 else "Установка завершена!"
-                            )
-                        
-                        # Отправка пакета на клиент для скачивания (но без немедленного перезапуска)
-                        try:
-                            from shared.protocol import pack_message
+                    upd_file = update_files.get(client_os)
+
+                    if not upd_file or not os.path.exists(upd_file):
+                        self.client_update_progress_signal.emit(sock, 100, "Нет пакета для ОС клиента.")
+                        continue
+
+                    file_size = os.path.getsize(upd_file)
+                    estimated_b64 = int(file_size * 1.37) + 1024
+                    client_ver = _version_tuple(getattr(student, 'version', '0.0.0'))
+
+                    self.client_update_progress_signal.emit(sock, 0, "Подготовка к отправке...")
+
+                    try:
+                        if estimated_b64 <= OLD_CLIENT_MAX_SIZE:
+                            # Маленький файл — одним пакетом (совместимость со всеми)
+                            self.client_update_progress_signal.emit(sock, 10, "Чтение файла...")
+                            with open(upd_file, 'rb') as f:
+                                file_data = base64.b64encode(f.read()).decode()
                             packet = {
                                 'status': 'update_download',
-                                'version': self._latest_update_data.get("tag_name", "1.2.0"),
-                                'filename': fname,
-                                'payload': payload
+                                'version': self._latest_update_data.get("tag_name", "").lstrip("v"),
+                                'filename': os.path.basename(upd_file),
+                                'payload': file_data
                             }
+                            self.client_update_progress_signal.emit(sock, 50, "Отправка пакета...")
                             sock.write(pack_message(packet))
                             sock.flush()
-                        except Exception:
-                            self.client_update_progress_signal.emit(sock, 100, "Ошибка при передаче!")
-                    else:
-                        self.client_update_progress_signal.emit(sock, 100, "Нет пакета для ОС клиента.")
-            
+                            self.client_update_progress_signal.emit(sock, 100, "Передача завершена!")
+
+                        elif client_ver >= (1, 3, 5):
+                            # Большой файл + новый клиент — чанковая отправка с реальным прогрессом
+                            total_chunks = (file_size + UPDATE_CHUNK_SIZE - 1) // UPDATE_CHUNK_SIZE
+
+                            # 1. update_start
+                            start_pkt = {
+                                'status': 'update_start',
+                                'version': self._latest_update_data.get("tag_name", "").lstrip("v"),
+                                'filename': os.path.basename(upd_file),
+                                'total_chunks': total_chunks,
+                                'file_size': file_size
+                            }
+                            sock.write(pack_message(start_pkt))
+                            sock.flush()
+
+                            # 2. update_chunk × N
+                            with open(upd_file, 'rb') as f:
+                                for i in range(total_chunks):
+                                    chunk = f.read(UPDATE_CHUNK_SIZE)
+                                    chunk_b64 = base64.b64encode(chunk).decode()
+                                    chunk_pkt = {
+                                        'status': 'update_chunk',
+                                        'chunk_index': i,
+                                        'payload': chunk_b64
+                                    }
+                                    sock.write(pack_message(chunk_pkt))
+                                    sock.flush()
+
+                                    pct = int(((i + 1) / total_chunks) * 100)
+                                    mb_sent = min((i + 1) * UPDATE_CHUNK_SIZE, file_size) / (1024 * 1024)
+                                    mb_total = file_size / (1024 * 1024)
+                                    self.client_update_progress_signal.emit(
+                                        sock, pct,
+                                        f"Передача: {pct}% ({mb_sent:.1f} / {mb_total:.1f} МБ)"
+                                    )
+
+                            # 3. update_complete
+                            sock.write(pack_message({'status': 'update_complete'}))
+                            sock.flush()
+                            self.client_update_progress_signal.emit(sock, 100, "Передача завершена!")
+
+                        else:
+                            # Старый клиент — файл слишком большой
+                            self.client_update_progress_signal.emit(
+                                sock, 100,
+                                f"⚠️ Пропущено (v{student.version}): обновите вручную"
+                            )
+
+                    except Exception as e:
+                        self.client_update_progress_signal.emit(sock, 100, f"Ошибка: {e}")
+
             # Включаем кнопку обновления на сервере
             self.all_updates_ready_signal.emit()
             

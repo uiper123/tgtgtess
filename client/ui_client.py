@@ -21,6 +21,47 @@ try:
 except ImportError:
     from styles import CLIENT_QSS
 
+from PySide6.QtWidgets import QDialog
+
+class ClientUpdateDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Обновление системы")
+        self.resize(400, 150)
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
+        self.setModal(True)
+        self.setStyleSheet("""
+            QDialog { background-color: #f8fafc; }
+            QLabel { color: #0f172a; font-family: 'Segoe UI', Arial, sans-serif; }
+            QProgressBar {
+                border: 1px solid #cbd5e1; border-radius: 6px;
+                background-color: #e2e8f0; text-align: center;
+                color: #0f172a; font-weight: bold; height: 18px;
+            }
+            QProgressBar::chunk { background-color: #3b82f6; border-radius: 5px; }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        self.title_lbl = QLabel("Скачивание обновления...")
+        self.title_lbl.setStyleSheet("font-size: 14px; font-weight: bold;")
+        layout.addWidget(self.title_lbl)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        layout.addWidget(self.progress)
+
+        self.status_lbl = QLabel("Ожидание...")
+        self.status_lbl.setStyleSheet("font-size: 11px; color: #64748b;")
+        layout.addWidget(self.status_lbl)
+
+    def update_progress(self, percent, text):
+        self.progress.setValue(percent)
+        self.status_lbl.setText(text)
+
 class StudentWindow(QMainWindow):
     """Главное окно студента: авторизация → тест → результат."""
 
@@ -60,13 +101,14 @@ class StudentWindow(QMainWindow):
         self._protection_enabled = False
         self._focus_loss_count = 0
 
-        # Connect signals
         self.client.connected_ok.connect(self._on_connected_ok)
         self.client.connection_error.connect(self._on_connection_error)
         self.client.result_sent.connect(self._on_result_sent)
         self.client.active_group_found.connect(self._on_active_group_found)
         self.client.force_stopped.connect(self._on_force_stopped)
         self.client.attempts_checked_signal.connect(self._on_attempts_checked)
+        self.client.update_progress_signal.connect(self._on_update_progress)
+        self._update_dialog = None
 
         self._ip_debounce_timer = QTimer(self)
         self._ip_debounce_timer.setSingleShot(True)
@@ -382,6 +424,17 @@ class StudentWindow(QMainWindow):
         self._stack.addWidget(page)
 
     # ========================== LOGIC ==========================
+
+    @Slot(int, str)
+    def _on_update_progress(self, percent: int, text: str):
+        if not self._update_dialog:
+            self._update_dialog = ClientUpdateDialog(self)
+            self._update_dialog.show()
+        
+        self._update_dialog.update_progress(percent, text)
+        
+        if percent == 100 and "завершена" in text.lower():
+            QTimer.singleShot(2000, self._update_dialog.close)
 
     def _reset_to_login(self):
         self.client.disconnect()
