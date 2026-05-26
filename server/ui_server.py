@@ -28,6 +28,7 @@ try:
     from .ui_questions import QuestionsMixin
     from .ui_exams import ExamsMixin
     from .ui_results import ResultsMixin
+    from .ui_logs import LogsMixin
     from .ui_settings import SettingsMixin
 except ImportError:
     from styles import GLOBAL_QSS, get_scaled_qss
@@ -39,12 +40,13 @@ except ImportError:
     from ui_questions import QuestionsMixin
     from ui_exams import ExamsMixin
     from ui_results import ResultsMixin
+    from ui_logs import LogsMixin
     from ui_settings import SettingsMixin
 
 # ---------------------------------------------------------------------------
 # Главное окно Преподавателя
 # ---------------------------------------------------------------------------
-class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, SettingsMixin, QMainWindow):
+class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, LogsMixin, SettingsMixin, QMainWindow):
     update_checked_signal = Signal(object, str)
     update_downloaded_signal = Signal(int)
     server_download_progress_signal = Signal(int, str)
@@ -184,6 +186,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
             ("dashboard", "Все тесты"),
             ("exams", "Активные тестирования"),
             ("results", "Результаты студентов"),
+            ("logs", "Логи системы"),
             ("settings", "Настройки")
         ]
 
@@ -263,6 +266,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         self._build_questions_page()
         self._build_exams_page()
         self._build_results_page()
+        self._build_logs_page()
         self._build_settings_page()
 
         # Активная страница по умолчанию
@@ -296,6 +300,8 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Set
         elif code == "results":
             self._update_results_table()
             self.stacked_widget.setCurrentWidget(self.results_page)
+        elif code == "logs":
+            self.stacked_widget.setCurrentWidget(self.logs_page)
         elif code == "settings":
             self.stacked_widget.setCurrentWidget(self.settings_page)
 

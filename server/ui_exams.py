@@ -233,12 +233,7 @@ class ExamsMixin:
         self._exam_table.setMinimumHeight(160)
         layout.addWidget(self._exam_table)
 
-        # Лог событий
-        self._log = QTextEdit()
-        self._log.setObjectName("logArea")
-        self._log.setReadOnly(True)
-        self._log.setMinimumHeight(120)
-        layout.addWidget(self._log)
+        # Убрали лог событий из вкладки экзаменов, перенесли в отдельную вкладку "Логи"
 
         self._loaded_test_name = ""
         self._student_count = 0
