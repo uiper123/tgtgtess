@@ -250,7 +250,10 @@ class ResultsMixin:
                 if r.get('test_name'): test_names_to_try.append(r['test_name'])
                 if group: test_names_to_try.append(group)
                 for t_name in test_names_to_try:
-                    if os.path.exists(test_path(t_name)):
+                    json_path = test_path(t_name)
+                    txt_path = json_path.with_suffix('.txt')
+                    
+                    if os.path.exists(json_path) or os.path.exists(txt_path):
                         has_test = True
                         break
 
@@ -267,7 +270,8 @@ class ResultsMixin:
             
             btn_widget = QWidget()
             btn_lay = QHBoxLayout(btn_widget)
-            btn_lay.setContentsMargins(2, 2, 2, 2)
+            btn_lay.setContentsMargins(4, 4, 4, 4)
+            btn_lay.setAlignment(Qt.AlignCenter)
             btn_lay.addWidget(action_btn)
             self.r_table.setCellWidget(row, 5, btn_widget)
 
@@ -408,17 +412,29 @@ class ResultsMixin:
                     test_names_to_try.append(group)
                     
                 for t_name in test_names_to_try:
-                    potential_path = test_path(t_name)
-                    if os.path.exists(potential_path):
+                    json_path = test_path(t_name)
+                    txt_path = json_path.with_suffix('.txt')
+                    
+                    found_path = None
+                    if os.path.exists(json_path):
+                        found_path = json_path
+                    elif os.path.exists(txt_path):
+                        found_path = txt_path
+                        
+                    if found_path:
                         try:
-                            import json
-                            with open(potential_path, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                                questions = data.get("questions", [])
-                                if questions:
-                                    break
+                            if str(found_path).lower().endswith('.json'):
+                                import json
+                                with open(found_path, 'r', encoding='utf-8') as f:
+                                    data = json.load(f)
+                                    questions = data.get("questions", [])
+                            else:
+                                questions = parse_test_file(str(found_path))
+                                
+                            if questions:
+                                break
                         except Exception as e:
-                            print(f"Failed to load JSON test: {e}")
+                            print(f"Failed to load test: {e}")
                             pass
                             
             # Если все еще нет вопросов, просим выбрать файл теста вручную
