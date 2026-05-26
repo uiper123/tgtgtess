@@ -728,7 +728,7 @@ class ExamServer(QObject):
                 if latest_version != VERSION:
                     return data, None
                 else:
-                    return None, "latest"
+                    return data, "latest"
         except Exception as e:
             err_msg = str(e)
             if "403" in err_msg:

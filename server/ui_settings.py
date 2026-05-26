@@ -262,6 +262,13 @@ class SettingsMixin:
         self.download_upd_btn.setEnabled(False)
         self.download_upd_btn.clicked.connect(self._download_updates)
         upd_btn_lay.addWidget(self.download_upd_btn)
+        
+        self.update_clients_btn = QPushButton("Обновить клиентов")
+        self.update_clients_btn.setProperty("class", "secondaryBtn")
+        self.update_clients_btn.setCursor(Qt.PointingHandCursor)
+        self.update_clients_btn.setEnabled(False)
+        self.update_clients_btn.clicked.connect(self._download_updates)
+        upd_btn_lay.addWidget(self.update_clients_btn)
 
         show_clients_btn = QPushButton("Подключенные клиенты")
         show_clients_btn.setProperty("class", "secondaryBtn")
@@ -397,19 +404,24 @@ class SettingsMixin:
     @Slot(object, str)
     def _on_update_checked(self, update_data, error):
         if update_data:
+            self._latest_update_data = update_data
+
+        if not error:
             tag = update_data.get("tag_name", "Неизвестно")
             self.upd_status_label.setText(f"Доступна версия: {tag}")
             self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #2563eb;")
             self.download_upd_btn.setEnabled(True)
-            self._latest_update_data = update_data
+            self.update_clients_btn.setEnabled(True)
         elif error == "latest":
             self.upd_status_label.setText("У вас актуальная версия.")
             self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #059669;")
             self.download_upd_btn.setEnabled(False)
+            self.update_clients_btn.setEnabled(True)
         else:
             self.upd_status_label.setText(f"Ошибка: {error or 'неизвестно'}")
             self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #dc2626;")
             self.download_upd_btn.setEnabled(False)
+            self.update_clients_btn.setEnabled(False)
 
     def _show_connected_clients(self):
         try:
