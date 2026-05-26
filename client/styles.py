@@ -8,8 +8,9 @@ CLIENT_QSS = """
     font-family: "Segoe UI", "Inter", "Outfit", "Roboto", sans-serif;
 }
 
-QMainWindow, QWidget#centralWidget {
+QMainWindow, QWidget#centralWidget, QWidget#scrollContent, QScrollArea#mainScroll {
     background-color: #f8fafc;
+    border: none;
 }
 
 /* --- Премиальные скроллбары --- */

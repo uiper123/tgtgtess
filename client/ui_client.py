@@ -231,10 +231,10 @@ class StudentWindow(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        scroll.setObjectName("mainScroll")
         
         scroll_content = QWidget()
-        scroll_content.setStyleSheet("background: transparent;")
+        scroll_content.setObjectName("scrollContent")
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setAlignment(Qt.AlignCenter)
         scroll_layout.addWidget(card)
