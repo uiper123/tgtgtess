@@ -95,7 +95,7 @@ class SettingsMixin:
 
         # Всплывающие уведомления
         self.show_notifications_cb = QCheckBox("Показывать всплывающие уведомления (сохранение, запуск тестов)")
-        self.show_notifications_cb.setObjectName("notificationsCheck")
+        self.show_notifications_cb.setObjectName("partialScoreCheck")
         self.show_notifications_cb.setCursor(Qt.PointingHandCursor)
         self.show_notifications_cb.setChecked(self._settings.value("show_notifications", True, type=bool))
         s1_layout.addWidget(self.show_notifications_cb)
