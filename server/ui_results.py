@@ -353,19 +353,29 @@ class ResultsMixin:
                 if active_exam:
                     questions = active_exam.get('questions')
                     
-            # Если активной сессии нет, пробуем найти тест по названию
-            if not questions and result_entry.get('test_name'):
+            # Если активной сессии нет, пробуем найти тест по test_name или group
+            if not questions:
                 try:
                     from .storage import test_path
                 except ImportError:
                     from storage import test_path
-                potential_path = test_path(result_entry['test_name'])
-                if os.path.exists(potential_path):
-                    try:
-                        questions = parse_test_file(potential_path)
-                    except:
-                        pass
-                        
+                
+                test_names_to_try = []
+                if result_entry.get('test_name'):
+                    test_names_to_try.append(result_entry['test_name'])
+                if group:
+                    test_names_to_try.append(group)
+                    
+                for t_name in test_names_to_try:
+                    potential_path = test_path(t_name)
+                    if os.path.exists(potential_path):
+                        try:
+                            questions = parse_test_file(potential_path)
+                            if questions:
+                                break
+                        except:
+                            pass
+                            
             # Если все еще нет вопросов, просим выбрать файл теста вручную
             if not questions:
                 QMessageBox.information(
