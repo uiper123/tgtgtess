@@ -215,8 +215,8 @@ class QuestionsMixin:
             self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
             self._update_questions_table()
             self._save_active_test_to_repo()
-            self._update_dashboard_stats()
             self._update_exams_page_test_view()
+            self.show_toast("Вопрос успешно добавлен", "success")
 
     def edit_question(self):
         row = self.q_table.currentRow()
@@ -234,8 +234,8 @@ class QuestionsMixin:
             self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
             self._update_questions_table()
             self._save_active_test_to_repo()
-            self._update_dashboard_stats()
             self._update_exams_page_test_view()
+            self.show_toast(f"Вопрос №{row + 1} успешно изменён", "success")
 
     def delete_question(self):
         row = self.q_table.currentRow()
@@ -259,8 +259,8 @@ class QuestionsMixin:
         self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
         self._update_questions_table()
         self._save_active_test_to_repo()
-        self._update_dashboard_stats()
         self._update_exams_page_test_view()
+        self.show_toast(f"Вопрос №{row + 1} удалён", "info")
 
     def export_test(self):
         if not self.exam_server.questions:
@@ -310,9 +310,8 @@ class QuestionsMixin:
                 self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
                 self._update_questions_table()
                 self._save_active_test_to_repo()
-                self._update_dashboard_stats()
                 self._update_exams_page_test_view()
-                QMessageBox.information(self, "Успешно", f"Успешно импортировано {len(new_questions)} вопросов.")
+                self.show_toast(f"Успешно импортировано {len(new_questions)} вопросов", "success")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать вопросы: {e}")
 
@@ -341,9 +340,8 @@ class QuestionsMixin:
                     self.exam_server._network_payload = questions_to_network_payload(self.exam_server.questions)
                     self._update_questions_table()
                     self._save_active_test_to_repo()
-                    self._update_dashboard_stats()
                     self._update_exams_page_test_view()
-                    QMessageBox.information(self, "Успешно", f"Импортировано {len(new_questions)} вопросов из теста '{group}'.")
+                    self.show_toast(f"Импортировано {len(new_questions)} вопросов из теста '{group}'", "success")
                 except Exception as e:
                     QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать вопросы: {e}")
 

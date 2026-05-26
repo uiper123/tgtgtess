@@ -93,6 +93,13 @@ class SettingsMixin:
         self.auto_export_csv_cb.setChecked(self._settings.value("auto_export_csv", True, type=bool))
         s1_layout.addWidget(self.auto_export_csv_cb)
 
+        # Всплывающие уведомления
+        self.show_notifications_cb = QCheckBox("Показывать всплывающие уведомления (сохранение, запуск тестов)")
+        self.show_notifications_cb.setObjectName("notificationsCheck")
+        self.show_notifications_cb.setCursor(Qt.PointingHandCursor)
+        self.show_notifications_cb.setChecked(self._settings.value("show_notifications", True, type=bool))
+        s1_layout.addWidget(self.show_notifications_cb)
+
         layout.addWidget(sect1_card)
 
         # ----------------------------------------------------
@@ -299,6 +306,7 @@ class SettingsMixin:
         new_port = self.port_spin.value()
         disable_confirm = self.disable_delete_confirm_cb.isChecked()
         auto_export = self.auto_export_csv_cb.isChecked()
+        show_notifications = self.show_notifications_cb.isChecked()
         
         def_duration = self.def_duration_spin.value()
         def_q_limit = self.def_q_limit_spin.value()
@@ -320,6 +328,7 @@ class SettingsMixin:
         self._settings.setValue("tcp_port", new_port)
         self._settings.setValue("disable_delete_confirm", disable_confirm)
         self._settings.setValue("auto_export_csv", auto_export)
+        self._settings.setValue("show_notifications", show_notifications)
         
         self._settings.setValue("default_duration", def_duration)
         self._settings.setValue("default_questions_limit", def_q_limit)
@@ -353,7 +362,7 @@ class SettingsMixin:
         if hasattr(self, "apply_app_scaling"):
             self.apply_app_scaling()
 
-        QMessageBox.information(self, "Настройки", "Все настройки успешно сохранены и применены!")
+        self.show_toast("Все настройки успешно сохранены!", "success")
 
     def _reset_settings(self):
         reply = QMessageBox.question(
@@ -365,6 +374,7 @@ class SettingsMixin:
             self.port_spin.setValue(9876)
             self.disable_delete_confirm_cb.setChecked(False)
             self.auto_export_csv_cb.setChecked(True)
+            self.show_notifications_cb.setChecked(True)
             self.def_duration_spin.setValue(60)
             self.def_q_limit_spin.setValue(10)
             self.def_attempts_spin.setValue(1)

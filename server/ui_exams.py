@@ -287,8 +287,10 @@ class ExamsMixin:
             self._update_dashboard_stats()
             
             self.exam_server.log_message.emit(f"Тест успешно импортирован в репозиторий под именем '{group_name}'")
+            self.show_toast(f"Тест '{group_name}' успешно загружен!", "success")
         except Exception as e:
             self._show_error(str(e))
+            self.show_toast(f"Ошибка загрузки: {str(e)}", "error")
 
     def _toggle_exam(self):
         group = self._group_input.text().strip()
@@ -330,6 +332,7 @@ class ExamsMixin:
 
         # Перезаполняем таблицу активных экзаменов
         self._update_exam_table_view()
+        self.show_toast(f"Тестирование для группы '{group}' запущено!", "info")
 
     def _update_exam_table_view(self):
         self._exam_table.setRowCount(0)

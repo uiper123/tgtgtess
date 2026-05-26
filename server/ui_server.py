@@ -24,6 +24,7 @@ try:
         StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
         DropZoneWidget, SelectTestFromRepoDialog
     )
+    from .ui_toasts import ToastNotification
     from .ui_dashboard import DashboardMixin
     from .ui_questions import QuestionsMixin
     from .ui_exams import ExamsMixin
@@ -36,6 +37,7 @@ except ImportError:
         StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
         DropZoneWidget, SelectTestFromRepoDialog
     )
+    from ui_toasts import ToastNotification
     from ui_dashboard import DashboardMixin
     from ui_questions import QuestionsMixin
     from ui_exams import ExamsMixin
@@ -99,6 +101,12 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         if isinstance(val, int):
             return val != 0
         return bool(val)
+
+    def show_toast(self, message: str, type: str = "success", duration: int = 3000):
+        """Отображает всплывающее уведомление, если они включены в настройках."""
+        if self._settings.value("show_notifications", True, type=bool):
+            toast = ToastNotification(self, message, type, duration)
+            toast.show_animation()
 
     def _get_open_file_name(self, title: str, directory: str, filter_str: str) -> tuple:
         return QFileDialog.getOpenFileName(None, title, directory, filter_str)
