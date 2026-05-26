@@ -114,6 +114,7 @@ class ResultsMixin:
         self.r_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.r_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.r_table.verticalHeader().setVisible(False)
+        self.r_table.verticalHeader().setDefaultSectionSize(44)
         self.r_table.setShowGrid(True)
         self.r_table.setMinimumHeight(350)
         self.r_table.cellDoubleClicked.connect(self._on_result_row_double_clicked)
@@ -255,20 +256,18 @@ class ResultsMixin:
 
             # Action button
             if has_test:
-                action_btn = QPushButton("Посмотреть")
+                action_btn = QPushButton("Открыть")
                 action_btn.setProperty("class", "tableSecondaryBtn")
             else:
-                action_btn = QPushButton("Указать тест")
+                action_btn = QPushButton("Нет теста")
                 action_btn.setProperty("class", "tableDangerBtn")
                 
             action_btn.setCursor(Qt.PointingHandCursor)
-            
-            # Use a lambda with a default argument to capture the current row/result correctly
             action_btn.clicked.connect(lambda checked=False, r_idx=row: self._on_result_row_action(r_idx))
             
             btn_widget = QWidget()
             btn_lay = QHBoxLayout(btn_widget)
-            btn_lay.setContentsMargins(4, 4, 4, 4)
+            btn_lay.setContentsMargins(2, 2, 2, 2)
             btn_lay.addWidget(action_btn)
             self.r_table.setCellWidget(row, 5, btn_widget)
 
@@ -412,10 +411,14 @@ class ResultsMixin:
                     potential_path = test_path(t_name)
                     if os.path.exists(potential_path):
                         try:
-                            questions = parse_test_file(potential_path)
-                            if questions:
-                                break
-                        except:
+                            import json
+                            with open(potential_path, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                questions = data.get("questions", [])
+                                if questions:
+                                    break
+                        except Exception as e:
+                            print(f"Failed to load JSON test: {e}")
                             pass
                             
             # Если все еще нет вопросов, просим выбрать файл теста вручную
@@ -423,7 +426,7 @@ class ResultsMixin:
                 QMessageBox.information(
                     self, 
                     "Просмотр ответов",
-                    f"Для просмотра детальных ответов студента {result_entry.get('name')} выберите файл теста (.txt), который он проходил."
+                    f"Тест для студента '{result_entry.get('name')}' не найден в локальной базе.\nПожалуйста, выберите файл теста (.txt или .json)."
                 )
                 try:
                     from .storage import tests_dir
@@ -432,14 +435,20 @@ class ResultsMixin:
                     
                 manual_test_path, _ = QFileDialog.getOpenFileName(
                     self,
-                    "Выберите файл теста для просмотра ответов",
+                    "Выберите файл теста",
                     str(tests_dir()),
-                    "Текстовые файлы (*.txt)"
+                    "Файлы тестов (*.txt *.json)"
                 )
                 if not manual_test_path or not os.path.exists(manual_test_path):
                     return
                 try:
-                    questions = parse_test_file(manual_test_path)
+                    if manual_test_path.lower().endswith('.json'):
+                        import json
+                        with open(manual_test_path, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            questions = data.get("questions", [])
+                    else:
+                        questions = parse_test_file(manual_test_path)
                 except Exception as e:
                     QMessageBox.critical(self, "Ошибка", f"Не удалось прочитать файл теста: {e}")
                     return
