@@ -154,8 +154,8 @@ class StudentWindow(QMainWindow):
         card.setObjectName("loginCard")
         card.setFixedWidth(420)
         cl = QVBoxLayout(card)
-        cl.setSpacing(16)
-        cl.setContentsMargins(32, 32, 32, 32)
+        cl.setSpacing(12)
+        cl.setContentsMargins(32, 24, 32, 24)
 
         title = QLabel("TTGTiSO-Test")
         title.setAlignment(Qt.AlignCenter)
@@ -201,7 +201,8 @@ class StudentWindow(QMainWindow):
         cl.addWidget(self._ip_input)
 
         ip_hint = QLabel("IP-адрес отображается внизу окна на компьютере преподавателя")
-        ip_hint.setStyleSheet("font-size: 10px; color: #94a3b8; border: none; margin-top: -8px; margin-bottom: 4px;")
+        ip_hint.setStyleSheet("font-size: 10px; color: #94a3b8; border: none;")
+        ip_hint.setWordWrap(True)
         cl.addWidget(ip_hint)
 
         cl.addSpacing(8)
@@ -226,7 +227,20 @@ class StudentWindow(QMainWindow):
         self._login_error.hide()
         cl.addWidget(self._login_error)
 
-        outer.addWidget(card)
+        # Wrap card in a scroll area to prevent cutoff on small screens
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        
+        scroll_content = QWidget()
+        scroll_content.setStyleSheet("background: transparent;")
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setAlignment(Qt.AlignCenter)
+        scroll_layout.addWidget(card)
+        
+        scroll.setWidget(scroll_content)
+        outer.addWidget(scroll)
         self._stack.addWidget(page)
 
     # ========================== TEST PAGE ==========================
