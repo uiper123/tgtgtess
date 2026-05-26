@@ -102,14 +102,15 @@ class ResultsMixin:
         layout.addWidget(filter_card)
 
         # Table of Results
-        self.r_table = QTableWidget(0, 5)
-        self.r_table.setHorizontalHeaderLabels(["Имя студента", "Группа", "Набранные баллы", "Процент", "Время сдачи"])
+        self.r_table = QTableWidget(0, 6)
+        self.r_table.setHorizontalHeaderLabels(["Имя студента", "Группа", "Набранные баллы", "Процент", "Время сдачи", "Действие"])
         self.r_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.r_table.setColumnWidth(0, 300)
-        self.r_table.setColumnWidth(1, 120)
-        self.r_table.setColumnWidth(2, 150)
-        self.r_table.setColumnWidth(3, 120)
-        self.r_table.setColumnWidth(4, 200)
+        self.r_table.setColumnWidth(0, 250)
+        self.r_table.setColumnWidth(1, 100)
+        self.r_table.setColumnWidth(2, 130)
+        self.r_table.setColumnWidth(3, 100)
+        self.r_table.setColumnWidth(4, 180)
+        self.r_table.setColumnWidth(5, 140)
         self.r_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.r_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.r_table.verticalHeader().setVisible(False)
@@ -233,6 +234,47 @@ class ResultsMixin:
             self.r_table.setItem(row, 3, grade_item)
             
             self.r_table.setItem(row, 4, QTableWidgetItem(r.get('timestamp', '')))
+            
+            # Check if test file exists
+            has_test = False
+            group = r.get('group', '')
+            if group and self.exam_server._active_exams.get(group.lower()):
+                has_test = True
+            else:
+                try:
+                    from .storage import test_path
+                except ImportError:
+                    from storage import test_path
+                test_names_to_try = []
+                if r.get('test_name'): test_names_to_try.append(r['test_name'])
+                if group: test_names_to_try.append(group)
+                for t_name in test_names_to_try:
+                    if os.path.exists(test_path(t_name)):
+                        has_test = True
+                        break
+
+            # Action button
+            if has_test:
+                action_btn = QPushButton("Посмотреть")
+                action_btn.setProperty("class", "tableSecondaryBtn")
+            else:
+                action_btn = QPushButton("Указать тест")
+                action_btn.setProperty("class", "tableDangerBtn")
+                
+            action_btn.setCursor(Qt.PointingHandCursor)
+            
+            # Use a lambda with a default argument to capture the current row/result correctly
+            action_btn.clicked.connect(lambda checked=False, r_idx=row: self._on_result_row_action(r_idx))
+            
+            btn_widget = QWidget()
+            btn_lay = QHBoxLayout(btn_widget)
+            btn_lay.setContentsMargins(4, 4, 4, 4)
+            btn_lay.addWidget(action_btn)
+            self.r_table.setCellWidget(row, 5, btn_widget)
+
+    def _on_result_row_action(self, row):
+        # Delegate to the existing double-click handler which already has smart loading logic
+        self._on_result_row_double_clicked(row, 0)
 
     def _export_manually(self):
         if not hasattr(self, 'filtered_results') or not self.filtered_results:
