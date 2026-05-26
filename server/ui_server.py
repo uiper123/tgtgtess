@@ -321,7 +321,23 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
     @Slot(str)
     def _append_log(self, msg: str):
         ts = datetime.now().strftime('%H:%M:%S')
-        self._log.append(f"[{ts}] {msg}")
+        
+        # Определение цвета в зависимости от ключевых слов
+        color = "#334155" # Default slate-700 (Обычный)
+        msg_lower = msg.lower()
+        
+        if any(w in msg_lower for w in ["ошибка", "error", "отклонён", "отключился", "отменено", "не найден"]):
+            color = "#dc2626" # Red
+        elif any(w in msg_lower for w in ["успешно", "завершен", "подключился", "success", "сохранен"]):
+            color = "#10b981" # Green
+        elif any(w in msg_lower for w in ["внимание", "пропущено", "предупреждение", "не активен", "ожидание"]):
+            color = "#d97706" # Orange
+        elif any(w in msg_lower for w in ["скачивание", "передача", "загрузка", "обновления"]):
+            color = "#2563eb" # Blue
+            
+        # Форматируем строку как HTML
+        formatted_msg = f'<span style="color: #94a3b8;">[{ts}]</span> <strong style="color: {color};">{msg}</strong>'
+        self._log.append(formatted_msg)
 
     @Slot(str)
     def _show_error(self, msg: str):

@@ -383,6 +383,7 @@ class SettingsMixin:
         
         import threading
         def run_check():
+            self.exam_server.log_message.emit("Запущена проверка обновлений на GitHub...")
             update_data, error = self.exam_server.check_for_updates()
             self.update_checked_signal.emit(update_data, error or "")
             
@@ -435,6 +436,7 @@ class SettingsMixin:
         
         import threading
         def run_download_and_broadcast():
+            self.exam_server.log_message.emit("Начато скачивание обновлений сервера и клиентов...")
             upd_dir = self.exam_server.get_updates_dir()
             success_count = 0
             
@@ -500,6 +502,7 @@ class SettingsMixin:
                         success_count += 1
             
             self.server_download_progress_signal.emit(100, "Все обновления успешно загружены на сервер!")
+            self.exam_server.log_message.emit("Обновления успешно скачаны на сервер. Подготовка к раздаче клиентам...")
             
             # Шаг 2: Если есть подключенные клиенты, передаем обновления им
             students = list(self.exam_server._students.items())
@@ -596,11 +599,14 @@ class SettingsMixin:
                                 sock, 100,
                                 f"⚠️ Пропущено (v{student.version}): обновите вручную"
                             )
+                            self.exam_server.log_message.emit(f"⚠️ Пропущено обновление для {student.name} ({student.group}): старая версия {student.version} не поддерживает чанковую загрузку.")
 
                     except Exception as e:
                         self.client_update_progress_signal.emit(sock, 100, f"Ошибка: {e}")
+                        self.exam_server.log_message.emit(f"Ошибка при передаче обновления клиенту: {e}")
 
             # Включаем кнопку обновления на сервере
+            self.exam_server.log_message.emit("Рассылка обновлений всем подключенным клиентам завершена.")
             self.all_updates_ready_signal.emit()
             
         threading.Thread(target=run_download_and_broadcast, daemon=True).start()
