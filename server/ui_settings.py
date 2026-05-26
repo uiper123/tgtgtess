@@ -81,21 +81,18 @@ class SettingsMixin:
 
         # Подтверждение удаления
         self.disable_delete_confirm_cb = QCheckBox("Отключить диалоги подтверждения при удалении вопросов и тестов")
-        self.disable_delete_confirm_cb.setObjectName("randomOrderCheck")
         self.disable_delete_confirm_cb.setCursor(Qt.PointingHandCursor)
         self.disable_delete_confirm_cb.setChecked(self._get_disable_delete_confirm())
         s1_layout.addWidget(self.disable_delete_confirm_cb)
 
         # Автоэкспорт в CSV
         self.auto_export_csv_cb = QCheckBox("Автоматически экспортировать результаты в CSV-файл при остановке тестирования")
-        self.auto_export_csv_cb.setObjectName("partialScoreCheck")
         self.auto_export_csv_cb.setCursor(Qt.PointingHandCursor)
         self.auto_export_csv_cb.setChecked(self._settings.value("auto_export_csv", True, type=bool))
         s1_layout.addWidget(self.auto_export_csv_cb)
 
         # Всплывающие уведомления
         self.show_notifications_cb = QCheckBox("Показывать всплывающие уведомления (сохранение, запуск тестов)")
-        self.show_notifications_cb.setObjectName("partialScoreCheck")
         self.show_notifications_cb.setCursor(Qt.PointingHandCursor)
         self.show_notifications_cb.setChecked(self._settings.value("show_notifications", True, type=bool))
         s1_layout.addWidget(self.show_notifications_cb)
@@ -140,13 +137,11 @@ class SettingsMixin:
 
         # Галочки
         self.def_random_order_cb = QCheckBox("Перемешивать порядок вопросов у студентов по умолчанию")
-        self.def_random_order_cb.setObjectName("randomOrderCheck")
         self.def_random_order_cb.setCursor(Qt.PointingHandCursor)
         self.def_random_order_cb.setChecked(self._settings.value("default_random_order", False, type=bool))
         s2_layout.addWidget(self.def_random_order_cb)
 
         self.def_partial_cb = QCheckBox("Разрешить частичный зачет баллов для множественного выбора по умолчанию")
-        self.def_partial_cb.setObjectName("partialScoreCheck")
         self.def_partial_cb.setCursor(Qt.PointingHandCursor)
         self.def_partial_cb.setChecked(self._settings.value("default_partial_multiple", True, type=bool))
         s2_layout.addWidget(self.def_partial_cb)

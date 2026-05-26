@@ -208,7 +208,7 @@ QComboBox QAbstractItemView {
 }
 
 /* --- Красивые Чекбоксы --- */
-QCheckBox#randomOrderCheck, QCheckBox#partialScoreCheck {
+QCheckBox {
     color: #0f172a;
     font-size: 13px;
     font-weight: 600;
@@ -218,37 +218,20 @@ QCheckBox#randomOrderCheck, QCheckBox#partialScoreCheck {
     border-radius: 10px;
     background-color: #ffffff;
 }
-QCheckBox#randomOrderCheck:hover {
+QCheckBox:hover {
     border-color: #6366f1;
     background-color: #f5f3ff;
 }
-QCheckBox#randomOrderCheck::indicator {
+QCheckBox::indicator {
     width: 20px;
     height: 20px;
     border-radius: 6px;
     border: 2px solid #cbd5e1;
     background-color: #ffffff;
 }
-QCheckBox#randomOrderCheck::indicator:checked {
+QCheckBox::indicator:checked {
     background-color: #6366f1;
     border-color: #6366f1;
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'></polyline></svg>");
-}
-
-QCheckBox#partialScoreCheck:hover {
-    border-color: #10b981;
-    background-color: #ecfdf5;
-}
-QCheckBox#partialScoreCheck::indicator {
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
-    border: 2px solid #cbd5e1;
-    background-color: #ffffff;
-}
-QCheckBox#partialScoreCheck::indicator:checked {
-    background-color: #10b981;
-    border-color: #10b981;
     image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'></polyline></svg>");
 }
 
