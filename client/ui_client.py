@@ -1021,6 +1021,11 @@ class StudentWindow(QMainWindow):
         if getattr(self, "_test_finished", False):
             return
 
+        # Дебаунс: системные уведомления и быстрые перерисовки рабочего стола
+        # могут на 100-300 мс срабатывать несколько раз подряд.
+        if getattr(self, "_focus_loss_debounce", False):
+            return
+
         self._focus_loss_count = getattr(self, "_focus_loss_count", 0) + 1
 
         # Отправляем предупреждение на сервер
@@ -1049,3 +1054,4 @@ class StudentWindow(QMainWindow):
             # Принудительно возвращаем фокус и разворачиваем обратно
             self.showFullScreen()
             self.activateWindow()
+            self._focus_loss_debounce = True

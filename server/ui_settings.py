@@ -565,6 +565,7 @@ class SettingsMixin:
                             version_tag=version_tag,
                             client_version=client_ver,
                             progress_cb=_make_cb(sock),
+                            apply_immediately=False,
                         )
                     except Exception as e:
                         self.client_update_progress_signal.emit(sock, 100, f"Ошибка: {e}")

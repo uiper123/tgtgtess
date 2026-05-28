@@ -727,6 +727,16 @@ class StudentClient(QObject):
         except OSError as exc:
             self.log_message.emit(f"⚠️ Не удалось записать sidecar-файлы: {exc}")
 
+        # apply=False означает «просто скачайте, перезагрузит позже»: преподаватель
+        # делает это руками из «Скачать обновления». В этом случае мы НЕ запускаем
+        # _run_updater сразу — это нормальный путь, .new ждёт команды update_apply.
+        should_apply = (packet or {}).get('apply', True)
+        if not should_apply:
+            self.log_message.emit(
+                "✅ Обновление загружено, ждём команды от преподавателя для применения."
+            )
+            return
+
         self._run_updater()
 
     @property
