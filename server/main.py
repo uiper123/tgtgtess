@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from shared.parser import parse_test_file, questions_to_network_payload, calculate_score
 from shared.protocol import pack_message
 from shared.version import VERSION, GITHUB_REPO
+from shared.security import load_private_key, sign_bytes, sha256_hex
 
 try:
     from .storage import project_root, results_path, safe_test_filename
@@ -32,9 +33,32 @@ except ImportError:
     from storage import project_root, results_path, safe_test_filename
 
 
+def _verified_ssl_context():
+    """
+    Возвращает SSL-контекст для urllib, который **всегда** проверяет
+    сертификаты. До 1.3.7 здесь использовался ``ssl._create_unverified_context``,
+    что отключало TLS-проверку при обращении к GitHub API и оставляло
+    дверь открытой для MITM. Теперь:
+      1) пытаемся использовать корневой store из пакета ``certifi`` —
+         это надёжно работает и на «голом» Windows без обновлённых
+         системных сертификатов;
+      2) если ``certifi`` нет — берём дефолтный системный контекст;
+         он тоже проверяет, просто полагается на то, что в ОС не сломан
+         CA-bundle.
+    """
+    import ssl
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
 # ---------------------------------------------------------------------------
 
-MAX_MESSAGE_SIZE = 500 * 1024 * 1024
+MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 МБ. До 1.3.7 было 500 МБ — это открывало
+                                     # дверь DoS-атакам (memory exhaustion) на сервер
+                                     # и клиент. Реальные тесты и обновления влезают.
 UPDATE_CHUNK_SIZE = 10 * 1024 * 1024  # 10 MB бинарных данных на чанк
 OLD_CLIENT_MAX_SIZE = 45 * 1024 * 1024  # Лимит для старых клиентов (< v1.3.5)
 
@@ -712,10 +736,7 @@ class ExamServer(QObject):
         import ssl
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         try:
-            try:
-                ssl_context = ssl._create_unverified_context()
-            except AttributeError:
-                ssl_context = None
+            ssl_context = _verified_ssl_context()
                 
             req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
             with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
@@ -743,10 +764,7 @@ class ExamServer(QObject):
         import urllib.request
         import ssl
         try:
-            try:
-                ssl_context = ssl._create_unverified_context()
-            except AttributeError:
-                ssl_context = None
+            ssl_context = _verified_ssl_context()
                 
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
@@ -778,39 +796,103 @@ class ExamServer(QObject):
         file_size = os.path.getsize(upd_file)
         total_chunks = (file_size + UPDATE_CHUNK_SIZE - 1) // UPDATE_CHUNK_SIZE
 
+        # Считаем хэш и подпись всего бинарника. Клиент сверит хэш после
+        # последнего чанка и подпись до запуска обновления — это закрывает
+        # подмену сервера в LAN (см. SECURITY.md).
+        with open(upd_file, 'rb') as f:
+            file_bytes = f.read()
+        file_hash = sha256_hex(file_bytes)
+        signature_b64 = self._sign_update_bytes(upd_file, file_bytes)
+
         # 1. Отправляем start-пакет с метаданными
         start_packet = {
             'status': 'update_start',
             'version': VERSION,
             'filename': os.path.basename(upd_file),
             'total_chunks': total_chunks,
-            'file_size': file_size
+            'file_size': file_size,
+            'sha256': file_hash,
+            'signature': signature_b64,   # None если подпись недоступна
+            'sig_algo': 'ed25519' if signature_b64 else None,
         }
         sock.write(pack_message(start_packet))
         sock.flush()
 
         # 2. Отправляем чанки
-        with open(upd_file, 'rb') as f:
-            for i in range(total_chunks):
-                chunk = f.read(UPDATE_CHUNK_SIZE)
-                chunk_b64 = base64.b64encode(chunk).decode()
-                chunk_packet = {
-                    'status': 'update_chunk',
-                    'chunk_index': i,
-                    'payload': chunk_b64
-                }
-                sock.write(pack_message(chunk_packet))
-                sock.flush()
+        offset = 0
+        for i in range(total_chunks):
+            chunk = file_bytes[offset:offset + UPDATE_CHUNK_SIZE]
+            offset += UPDATE_CHUNK_SIZE
+            chunk_b64 = base64.b64encode(chunk).decode()
+            chunk_packet = {
+                'status': 'update_chunk',
+                'chunk_index': i,
+                'payload': chunk_b64,
+            }
+            sock.write(pack_message(chunk_packet))
+            sock.flush()
 
-        # 3. Отправляем complete-пакет
-        complete_packet = {'status': 'update_complete'}
+        # 3. Отправляем complete-пакет (с дублирующим хэшем — защита от
+        # пропавшего start-пакета у старых клиентов).
+        complete_packet = {
+            'status': 'update_complete',
+            'sha256': file_hash,
+            'signature': signature_b64,
+            'sig_algo': 'ed25519' if signature_b64 else None,
+        }
         sock.write(pack_message(complete_packet))
         sock.flush()
 
         self.log_message.emit(
             f"Отправлено чанковое обновление клиенту {name} ({client_os}): "
-            f"{total_chunks} чанков, {file_size // 1024 // 1024} МБ"
+            f"{total_chunks} чанков, {file_size // 1024 // 1024} МБ, "
+            f"подпись={'есть' if signature_b64 else 'НЕТ — клиент откажется ставить'}"
         )
+
+    # -----------------------------------------------------------------
+    # Поиск приватного ключа подписи обновлений.
+    # -----------------------------------------------------------------
+    def _sign_update_bytes(self, upd_file: str, payload: bytes) -> Optional[str]:
+        """
+        Возвращает base64-подпись Ed25519 для бинарника обновления.
+
+        Источники подписи (в порядке приоритета):
+          1) Сосед `<upd_file>.sig` — например, создан `scripts/sign_update.py`
+             в CI и положен рядом с .exe/.bin. Это рекомендуемый путь.
+          2) Приватный ключ из env `EDUTEST_PRIVATE_KEY`.
+          3) `~/.edutest/update_private_key.pem`.
+
+        Если ничего не нашли — возвращаем None и пишем предупреждение в лог.
+        Клиент в таком случае откажется применять обновление.
+        """
+        sig_path = upd_file + ".sig"
+        if os.path.isfile(sig_path):
+            try:
+                return open(sig_path, 'r', encoding='utf-8').read().strip() or None
+            except OSError as exc:
+                self.log_message.emit(f"Не удалось прочитать {sig_path}: {exc}")
+
+        key_candidates = []
+        env_key = os.environ.get("EDUTEST_PRIVATE_KEY")
+        if env_key:
+            key_candidates.append(env_key)
+        key_candidates.append(os.path.expanduser("~/.edutest/update_private_key.pem"))
+
+        for kp in key_candidates:
+            if os.path.isfile(kp):
+                try:
+                    pk = load_private_key(kp)
+                    return sign_bytes(pk, payload)
+                except Exception as exc:
+                    self.log_message.emit(
+                        f"Не удалось подписать обновление ключом {kp}: {exc}"
+                    )
+
+        self.log_message.emit(
+            "⚠️ Приватный ключ подписи не найден. Обновление НЕ будет подписано — "
+            "клиенты с публичным ключом его отклонят. Подробнее: SECURITY.md."
+        )
+        return None
 
     def get_updates_dir(self):
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "updates")
@@ -849,12 +931,18 @@ class ExamServer(QObject):
                     # Маленький файл — одним пакетом (совместимость)
                     import base64
                     with open(upd_file, 'rb') as rb:
-                        file_data = base64.b64encode(rb.read()).decode()
+                        raw_bytes = rb.read()
+                    file_data = base64.b64encode(raw_bytes).decode()
+                    file_hash = sha256_hex(raw_bytes)
+                    signature_b64 = self._sign_update_bytes(upd_file, raw_bytes)
                     packet = {
                         'status': 'update_available',
                         'version': VERSION,
                         'filename': os.path.basename(upd_file),
-                        'payload': file_data
+                        'payload': file_data,
+                        'sha256': file_hash,
+                        'signature': signature_b64,
+                        'sig_algo': 'ed25519' if signature_b64 else None,
                     }
                     sock.write(pack_message(packet))
                     sock.flush()

@@ -1,0 +1,13 @@
+# Runtime dependencies for EduTest Pro (server + client).
+# Pinned to known-working ranges; update with care.
+
+PySide6>=6.4,<7.0
+Pillow>=10.0,<12.0
+
+# Used by shared/security.py for Ed25519 update-signature verification.
+# Pure-python wheels available for Windows, Linux and macOS.
+cryptography>=41,<46
+
+# Used by shared/security.py and update_check() to make verified HTTPS
+# requests to GitHub without falling back to an unverified SSL context.
+certifi>=2023.7.22

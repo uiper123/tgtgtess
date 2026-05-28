@@ -197,3 +197,38 @@ python build_all.py
 * **ОС**: Windows 10/11, Ubuntu 20.04+ (или любой другой современный Linux-дистрибутив).
 * **Сеть**: Локальная сеть Ethernet/Wi-Fi с открытым портом TCP `9876`.
 * **Зависимости для исходного кода**: Python 3.10+, PySide6 6.4+.
+
+---
+
+## 🔐 Безопасность
+
+Подробности — в [`SECURITY.md`](SECURITY.md). Кратко:
+
+* Авто-обновления подписываются Ed25519, клиент **отказывается** запускать
+  бинарник с невалидной или отсутствующей подписью.
+* Парсер тестов защищён от path-traversal через `@image:`.
+* TLS-запросы к GitHub API больше не отключают проверку сертификата —
+  используется корневой store из пакета `certifi`.
+* `MAX_MESSAGE_SIZE` снижен до 64 МБ, чтобы закрыть DoS-вектор.
+
+### Как развернуть подпись обновлений
+```bash
+# Один раз
+python scripts/generate_signing_keys.py
+git add shared/update_public_key.pem
+# приватный ключ → НЕ в репозиторий, держать вне git.
+
+# При каждом релизе:
+python scripts/sign_update.py dist/student/TTGTiSO-Test-student.exe
+```
+
+## 🧪 Разработка и тесты
+
+```bash
+pip install -r requirements-dev.txt
+pytest                  # 42 теста, должны все проходить
+ruff check .            # линт
+```
+
+CI на GitHub Actions (`.github/workflows/ci.yml`) прогоняет это автоматически
+на каждый PR под Python 3.10, 3.11 и 3.12.

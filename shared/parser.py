@@ -216,8 +216,17 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
         match_img = _IMAGE_RE.match(stripped)
         if match_img:
             image_filename = match_img.group(1).strip()
-            image_path = os.path.join(test_dir, image_filename)
-            current['image_data'] = _read_image_as_base64(image_path)
+            # Защита от path traversal: @image:../../etc/passwd не должен сработать.
+            # Разрешаем только пути, которые после нормализации остаются внутри test_dir.
+            candidate = os.path.normpath(os.path.join(test_dir, image_filename))
+            test_dir_norm = os.path.normpath(test_dir)
+            if not (candidate == test_dir_norm or candidate.startswith(test_dir_norm + os.sep)):
+                print(
+                    f"[parser] Отклонён @image вне директории теста: {image_filename!r}"
+                )
+                current['image_data'] = None
+            else:
+                current['image_data'] = _read_image_as_base64(candidate)
             continue
 
         # Проверяем маркер base64 изображения
