@@ -789,57 +789,127 @@ class ExamServer(QObject):
             return False
 
     def _send_chunked_update(self, sock: QTcpSocket, upd_file: str, name: str, client_os: str):
-        """Отправляет файл обновления чанками для клиентов >= v1.3.5."""
+        """Совместимый алиас — вся логика теперь в send_update_to_socket."""
+        return self.send_update_to_socket(sock, upd_file, name, client_os)
+
+    def send_update_to_socket(
+        self,
+        sock: QTcpSocket,
+        upd_file: str,
+        name: str,
+        client_os: str,
+        version_tag: str = "",
+        client_version: tuple = (1, 3, 5),
+        progress_cb=None,
+    ):
+        """
+        Унифицированная отправка обновления одному клиенту.
+
+        Используется обоими путями — `broadcast_update` (server/main.py)
+        и кнопкой «Обновить клиентов» из UI настроек (server/ui_settings.py).
+
+        Выбирает single-packet или chunked в зависимости от размера файла
+        и версии клиента. Подписывает payload Ed25519, считает SHA-256.
+        Если передан progress_cb(pct: int, text: str) — вызывает его на
+        каждом этапе для отображения в UI.
+        """
         import base64
         file_size = os.path.getsize(upd_file)
-        total_chunks = (file_size + UPDATE_CHUNK_SIZE - 1) // UPDATE_CHUNK_SIZE
+        version_field = version_tag or VERSION
+
+        def _progress(pct: int, text: str):
+            if progress_cb:
+                try:
+                    progress_cb(pct, text)
+                except Exception:
+                    pass
+
+        _progress(0, "Чтение файла...")
+        with open(upd_file, 'rb') as f:
+            file_bytes = f.read()
 
         # Считаем хэш и подпись всего бинарника. Клиент сверит хэш после
         # последнего чанка и подпись до запуска обновления — это закрывает
         # подмену сервера в LAN (см. SECURITY.md).
-        with open(upd_file, 'rb') as f:
-            file_bytes = f.read()
         file_hash = sha256_hex(file_bytes)
         signature_b64 = self._sign_update_bytes(upd_file, file_bytes)
 
-        # 1. Отправляем start-пакет с метаданными
+        estimated_b64_size = int(file_size * 1.37) + 1024
+        use_single_packet = (
+            estimated_b64_size <= OLD_CLIENT_MAX_SIZE
+            and (client_version < (1, 3, 5) or estimated_b64_size <= UPDATE_CHUNK_SIZE)
+        )
+
+        # --- Ветка 1: одним пакетом (маленькие файлы / совместимость со старым клиентом) ---
+        if use_single_packet:
+            _progress(20, "Кодирование (base64)...")
+            payload_b64 = base64.b64encode(file_bytes).decode()
+            packet = {
+                'status': 'update_download',
+                'version': version_field,
+                'filename': os.path.basename(upd_file),
+                'payload': payload_b64,
+                'sha256': file_hash,
+                'signature': signature_b64,
+                'sig_algo': 'ed25519' if signature_b64 else None,
+            }
+            _progress(60, "Отправка пакета...")
+            sock.write(pack_message(packet))
+            sock.flush()
+            _progress(100, "Передача завершена!")
+            self.log_message.emit(
+                f"Отправлено обновление одним пакетом клиенту {name} ({client_os}): "
+                f"{file_size // 1024} КБ, подпись={'есть' if signature_b64 else 'НЕТ'}"
+            )
+            return
+
+        # --- Ветка 2: чанковая отправка (большой файл + современный клиент) ---
+        if client_version < (1, 3, 5):
+            _progress(100, f"⚠️ Пропущено: v{'.'.join(map(str, client_version))} не поддерживает chunked")
+            self.log_message.emit(
+                f"⚠️ Пропущено обновление для {name}: версия {client_version} "
+                f"не поддерживает чанковую загрузку, файл слишком велик для legacy-пакета."
+            )
+            return
+
+        total_chunks = (file_size + UPDATE_CHUNK_SIZE - 1) // UPDATE_CHUNK_SIZE
+
         start_packet = {
             'status': 'update_start',
-            'version': VERSION,
+            'version': version_field,
             'filename': os.path.basename(upd_file),
             'total_chunks': total_chunks,
             'file_size': file_size,
             'sha256': file_hash,
-            'signature': signature_b64,   # None если подпись недоступна
+            'signature': signature_b64,
             'sig_algo': 'ed25519' if signature_b64 else None,
         }
         sock.write(pack_message(start_packet))
         sock.flush()
 
-        # 2. Отправляем чанки
         offset = 0
+        mb_total = file_size / (1024 * 1024)
         for i in range(total_chunks):
             chunk = file_bytes[offset:offset + UPDATE_CHUNK_SIZE]
             offset += UPDATE_CHUNK_SIZE
-            chunk_b64 = base64.b64encode(chunk).decode()
-            chunk_packet = {
+            sock.write(pack_message({
                 'status': 'update_chunk',
                 'chunk_index': i,
-                'payload': chunk_b64,
-            }
-            sock.write(pack_message(chunk_packet))
+                'payload': base64.b64encode(chunk).decode(),
+            }))
             sock.flush()
+            pct = int(((i + 1) / total_chunks) * 100)
+            mb_sent = min((i + 1) * UPDATE_CHUNK_SIZE, file_size) / (1024 * 1024)
+            _progress(pct, f"Передача: {pct}% ({mb_sent:.1f} / {mb_total:.1f} МБ)")
 
-        # 3. Отправляем complete-пакет (с дублирующим хэшем — защита от
-        # пропавшего start-пакета у старых клиентов).
-        complete_packet = {
+        sock.write(pack_message({
             'status': 'update_complete',
             'sha256': file_hash,
             'signature': signature_b64,
             'sig_algo': 'ed25519' if signature_b64 else None,
-        }
-        sock.write(pack_message(complete_packet))
+        }))
         sock.flush()
+        _progress(100, "Передача завершена!")
 
         self.log_message.emit(
             f"Отправлено чанковое обновление клиенту {name} ({client_os}): "
