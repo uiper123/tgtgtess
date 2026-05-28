@@ -186,7 +186,7 @@ class ExamServer(QObject):
         self.log_message.emit(f"Загружен тест: {os.path.basename(filepath)} ({count} вопросов)")
         return count
 
-    def start_exam(self, group: str, duration: int, questions: list, title: str, section: str, test_name: str, port: int = None, partial_multiple: bool = True, random_order: bool = False, max_attempts: int = 1, questions_limit: int = None):
+    def start_exam(self, group: str, duration: int, questions: list, title: str, section: str, test_name: str, port: int = None, partial_multiple: bool = True, random_order: bool = False, max_attempts: int = 1, questions_limit: int = None, cheat_warning_limit: int = 3):
         """Запускает экзамен для конкретной группы: открывает TCP-порт и добавляет в список активных."""
         if not questions:
             self.server_error.emit("Сначала загрузите или выберите файл теста!")
@@ -206,6 +206,7 @@ class ExamServer(QObject):
             'max_attempts': max(1, int(max_attempts)),
             'attempts': {},
             'questions_limit': questions_limit,
+            'cheat_warning_limit': cheat_warning_limit,
         }
 
         self._allowed_group = group.strip()
@@ -605,7 +606,8 @@ class ExamServer(QObject):
             'exam_start_time': student.exam_start_time.isoformat(),
             'title': exam['title'],
             'section': exam['section'],
-            'test_name': exam.get('test_name', 'Тест')
+            'test_name': exam.get('test_name', 'Тест'),
+            'cheat_warning_limit': exam.get('cheat_warning_limit', 3),
         }
         sock.write(pack_message(response))
         sock.flush()

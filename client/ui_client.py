@@ -171,7 +171,8 @@ class StudentWindow(QMainWindow):
 
         card = QFrame()
         card.setObjectName("loginCard")
-        card.setFixedWidth(420)
+        card.setMinimumWidth(380)
+        card.setMaximumWidth(500)
         cl = QVBoxLayout(card)
         cl.setSpacing(12)
         cl.setContentsMargins(32, 24, 32, 24)
@@ -256,7 +257,9 @@ class StudentWindow(QMainWindow):
         scroll_content.setObjectName("scrollContent")
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setAlignment(Qt.AlignCenter)
+        scroll_layout.addStretch(1)
         scroll_layout.addWidget(card)
+        scroll_layout.addStretch(1)
 
         scroll.setWidget(scroll_content)
         outer.addWidget(scroll)
@@ -637,7 +640,7 @@ class StudentWindow(QMainWindow):
         self.client.connect_to_server(ip, port, name, group)
 
     @Slot(list, int, str, str, str)
-    def _on_connected_ok(self, questions, duration, title, section, test_name, remaining_seconds):
+    def _on_connected_ok(self, questions, duration, title, section, test_name, remaining_seconds, cheat_warning_limit=3):
         self._questions = questions
         self._duration = duration
         # remaining_seconds приходит от сервера. При первом подключении это
@@ -1035,12 +1038,12 @@ class StudentWindow(QMainWindow):
         warning_desc = f"Потеря фокуса / Переключение рабочего стола (Предупреждение {self._focus_loss_count})"
         self.client.send_cheat_warning(warning_desc)
 
-        if self._focus_loss_count >= 3:
+        if self._focus_loss_count >= self._cheat_warning_limit:
             self._timer.stop()
             self._test_finished = True
             QMessageBox.critical(
                 self, "ТЕСТ БЛОКИРОВАН",
-                "Превышено допустимое количество попыток сворачивания окна (3/3)!\n"
+                "Превышено допустимое количество попыток сворачивания окна ({self._focus_loss_count}/{self._cheat_warning_limit})!\n"
                 "Ваш тест автоматически завершен с сохранением текущих ответов и заблокирован за нарушение правил.",
                 QMessageBox.Ok
             )
@@ -1050,7 +1053,7 @@ class StudentWindow(QMainWindow):
                 self, "ВНИМАНИЕ — ПОПЫТКА СПИСАТЬ",
                 f"Обнаружен выход из полноэкранного режима или переключение рабочего стола!\n"
                 f"Во время тестирования запрещено переключать окна и рабочие столы.\n\n"
-                f"Предупреждение {self._focus_loss_count} из 3.\n"
+                f"Предупреждение {self._focus_loss_count} из {self._cheat_warning_limit}.\n"
                 f"При достижении 3 предупреждений ваш тест будет автоматически заблокирован!",
                 QMessageBox.Ok
             )

@@ -125,7 +125,7 @@ class StudentClient(QObject):
         log_message(str)
     """
 
-    connected_ok = Signal(list, int, str, str, str, int)    # questions, duration, title, section, test_name, remaining_seconds
+    connected_ok = Signal(list, int, str, str, str, int, int)  # questions, duration, title, section, test_name, remaining_seconds, cheat_warning_limit
     connection_error = Signal(str)           # message
     result_sent = Signal(str)                # score calculated by server
     force_stopped = Signal()                 # force stopped by teacher

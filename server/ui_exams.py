@@ -116,6 +116,19 @@ class ExamsMixin:
         attempts_col.addWidget(self._attempts_limit_spin)
         inputs_layout.addLayout(attempts_col, 1)
 
+        # Лимит нарушений прокторинга (после превышения студент блокируется)
+        cheat_col = QVBoxLayout()
+        cheat_label = QLabel("Нарушений")
+        cheat_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        cheat_col.addWidget(cheat_label)
+        self._cheat_warning_spin = QSpinBox()
+        self._cheat_warning_spin.setRange(1, 20)
+        self._cheat_warning_spin.setValue(self._settings.value("default_cheat_warning_limit", 3, type=int))
+        self._cheat_warning_spin.setButtonSymbols(QSpinBox.NoButtons)
+        self._cheat_warning_spin.setToolTip("Сколько раз можно свернуть окно теста до автоблокировки")
+        cheat_col.addWidget(self._cheat_warning_spin)
+        inputs_layout.addLayout(cheat_col, 1)
+
         sc_layout.addLayout(inputs_layout)
 
         # Row 1: Checkboxes and Action Button
@@ -331,6 +344,7 @@ class ExamsMixin:
             partial_multiple=self._partial_multiple_cb.isChecked(),
             random_order=self._random_order_cb.isChecked(),
             max_attempts=self._attempts_limit_spin.value(),
+            cheat_warning_limit=self._cheat_warning_spin.value(),
             questions_limit=limit,
         )
 

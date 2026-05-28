@@ -25,12 +25,14 @@ from PySide6.QtWidgets import (
 
 try:
     from shared.parser import get_grade_details
+    from shared.styles import get_scaled_qss
 
-    from .styles import GLOBAL_QSS, get_scaled_qss
+    from .styles import GLOBAL_QSS
 except ImportError:
-    from styles import GLOBAL_QSS, get_scaled_qss
+    from styles import GLOBAL_QSS
 
     from shared.parser import get_grade_details
+    from shared.styles import get_scaled_qss
 
 def apply_dialog_scaling(dialog, parent, base_w, base_h):
     scale_factor = 1.0

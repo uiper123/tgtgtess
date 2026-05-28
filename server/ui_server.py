@@ -20,10 +20,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.styles import get_scaled_qss
 from shared.version import VERSION
 
 try:
-    from .styles import GLOBAL_QSS, get_scaled_qss
+    from .styles import GLOBAL_QSS
     from .ui_dashboard import DashboardMixin
     from .ui_dialogs import (
         DropZoneWidget,
@@ -39,7 +40,7 @@ try:
     from .ui_settings import SettingsMixin
     from .ui_toasts import ToastNotification
 except ImportError:
-    from styles import GLOBAL_QSS, get_scaled_qss
+    from styles import GLOBAL_QSS
     from ui_dashboard import DashboardMixin
     from ui_exams import ExamsMixin
     from ui_logs import LogsMixin
@@ -218,9 +219,11 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
 
         # Плашка версии — чтобы преподаватель сразу видел,
         # какая сборка запущена (важно при поддержке/обновлении).
-        version_lbl = QLabel(f"v{VERSION}")
-        version_lbl.setFixedSize(100, 20)
-        version_lbl.setStyleSheet("background-color: #f1f5f9; color: #64748b; font-size: 10px; border-radius: 4px;")
+        version_lbl = QLabel(f"EduTest Pro · v{VERSION}")
+        version_lbl.setAlignment(Qt.AlignCenter)
+        version_lbl.setStyleSheet(
+            "background-color: #1e293b; color: #94a3b8; font-size: 10px; border-radius: 4px; padding: 8px;"
+        )
         sb_layout.addWidget(version_lbl)
 
         root_layout.addWidget(self.sidebar)
@@ -376,8 +379,8 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         elif saved_scale == "200%":
             scale_factor = 2.0
 
-        base_min_w = 1200
-        base_min_h = 750
+        base_min_w = 980
+        base_min_h = 640
         base_w = 1300
         base_h = 850
 
