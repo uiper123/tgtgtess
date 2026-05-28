@@ -3,17 +3,22 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# ---------------------------------------------------------------------------
+# EduTest Pro — Student Client UI styles
+# Design system matches the server side (see server/styles.py for tokens).
+# ---------------------------------------------------------------------------
+
 CLIENT_QSS = """
 * {
-    font-family: "Segoe UI", "Inter", "Outfit", "Roboto", sans-serif;
+    font-family: "Inter", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
 }
 
 QMainWindow, QWidget#centralWidget, QWidget#scrollContent, QScrollArea#mainScroll {
-    background-color: #f8fafc;
+    background-color: #fafaf9;
     border: none;
 }
 
-/* --- Премиальные скроллбары --- */
+/* --- Scrollbars --- */
 QScrollBar:vertical {
     border: none;
     background: transparent;
@@ -21,21 +26,17 @@ QScrollBar:vertical {
     margin: 0px;
 }
 QScrollBar::handle:vertical {
-    background-color: #cbd5e1;
-    min-height: 20px;
+    background-color: #d6d3d1;
+    min-height: 24px;
     border-radius: 4px;
 }
-QScrollBar::handle:vertical:hover {
-    background-color: #94a3b8;
-}
+QScrollBar::handle:vertical:hover { background-color: #a8a29e; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     border: none;
     background: none;
     height: 0px;
 }
-QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-    background: none;
-}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
 
 QScrollBar:horizontal {
     border: none;
@@ -44,21 +45,17 @@ QScrollBar:horizontal {
     margin: 0px;
 }
 QScrollBar::handle:horizontal {
-    background-color: #cbd5e1;
-    min-width: 20px;
+    background-color: #d6d3d1;
+    min-width: 24px;
     border-radius: 4px;
 }
-QScrollBar::handle:horizontal:hover {
-    background-color: #94a3b8;
-}
+QScrollBar::handle:horizontal:hover { background-color: #a8a29e; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
     border: none;
     background: none;
     width: 0px;
 }
-QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-    background: none;
-}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: none; }
 QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical,
 QScrollBar::up-arrow:horizontal, QScrollBar::down-arrow:horizontal,
 QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal {
@@ -69,29 +66,30 @@ QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal {
 }
 
 
-/* --- Входная карточка --- */
+/* --- Login card --- */
 QFrame#loginCard {
     background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 20px;
-    padding: 35px;
+    border: 1px solid #e7e5e4;
+    border-radius: 14px;
+    padding: 30px;
 }
 
-/* --- Ввод текста и селекторы --- */
+/* --- Inputs --- */
 QLineEdit, QComboBox {
     background-color: #ffffff;
-    border: 2px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 11px 14px;
+    border: 1px solid #e7e5e4;
+    border-radius: 8px;
+    padding: 10px 13px;
     font-size: 14px;
-    color: #0f172a;
+    color: #1c1917;
 }
 QComboBox {
-    padding-right: 40px;
+    padding-right: 36px;
     min-height: 24px;
 }
+QLineEdit:hover, QComboBox:hover { border-color: #d6d3d1; }
 QLineEdit:focus, QComboBox:focus {
-    border: 2px solid #6366f1;
+    border: 1px solid #2563eb;
 }
 QComboBox QLineEdit {
     background: transparent;
@@ -100,19 +98,18 @@ QComboBox QLineEdit {
     margin: 0px;
 }
 QComboBox::drop-down {
-    width: 36px;
+    width: 32px;
     border: none;
-    border-left: 1px solid #e2e8f0;
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
 }
 QComboBox::down-arrow {
     image: url({ICON:chevron-down});
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
 }
 QComboBox QFrame {
-    border: 1px solid #cbd5e1;
+    border: 1px solid #e7e5e4;
     border-radius: 8px;
     background-color: #ffffff;
 }
@@ -120,244 +117,241 @@ QComboBox QAbstractItemView {
     background-color: #ffffff;
     border: none;
     padding: 6px;
-    selection-background-color: #eff6ff;
-    selection-color: #6366f1;
+    selection-background-color: #f5f5f4;
+    selection-color: #1c1917;
     outline: 0px;
 }
 QComboBox QAbstractItemView::item {
-    min-height: 32px;
+    min-height: 30px;
     padding: 6px 12px;
 }
 
-/* --- Премиальные Кнопки --- */
+/* --- Buttons --- */
 QPushButton#connectBtn {
-    background-color: #6366f1;
+    background-color: #2563eb;
     color: #ffffff;
-    font-weight: bold;
-    font-size: 15px;
-    padding: 14px;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 12px;
     border: none;
-    border-radius: 12px;
+    border-radius: 8px;
     min-height: 24px;
 }
-QPushButton#connectBtn:hover {
-    background-color: #4f46e5;
-}
+QPushButton#connectBtn:hover { background-color: #1d4ed8; }
 QPushButton#connectBtn:disabled {
-    background-color: #94a3b8;
+    background-color: #d6d3d1;
+    color: #ffffff;
 }
 
 QPushButton#refreshGroupsBtn {
     background-color: #ffffff;
-    color: #6366f1;
-    font-weight: bold;
+    color: #44403c;
+    font-weight: 600;
     font-size: 13px;
-    padding: 10px 14px;
-    border: 2px solid #c7d2fe;
-    border-radius: 10px;
+    padding: 9px 12px;
+    border: 1px solid #e7e5e4;
+    border-radius: 8px;
     min-height: 22px;
 }
 QPushButton#refreshGroupsBtn:hover {
-    background-color: #eff6ff;
-    border-color: #6366f1;
+    background-color: #fafaf9;
+    border-color: #d6d3d1;
 }
 
 QPushButton#nextBtn, QPushButton[class="nextBtn"] {
-    background-color: #6366f1;
+    background-color: #2563eb;
     color: #ffffff;
-    font-weight: bold;
+    font-weight: 600;
     font-size: 14px;
-    padding: 12px 34px;
+    padding: 11px 28px;
     border: none;
-    border-radius: 12px;
+    border-radius: 8px;
     min-height: 20px;
 }
 QPushButton#nextBtn:hover, QPushButton[class="nextBtn"]:hover {
-    background-color: #4f46e5;
+    background-color: #1d4ed8;
 }
 
 QPushButton#finishBtn, QPushButton[class="finishBtn"] {
-    background-color: #10b981;
+    background-color: #16a34a;
     color: #ffffff;
-    font-weight: bold;
+    font-weight: 600;
     font-size: 14px;
-    padding: 12px 34px;
+    padding: 11px 28px;
     border: none;
-    border-radius: 12px;
+    border-radius: 8px;
     min-height: 20px;
 }
 QPushButton#finishBtn:hover, QPushButton[class="finishBtn"]:hover {
-    background-color: #059669;
+    background-color: #15803d;
 }
 
 QPushButton#prevBtn, QPushButton[class="secondaryBtn"] {
     background-color: #ffffff;
-    color: #475569;
-    font-weight: bold;
+    color: #44403c;
+    font-weight: 600;
     font-size: 14px;
-    padding: 12px 34px;
-    border: 2px solid #cbd5e1;
-    border-radius: 12px;
+    padding: 11px 28px;
+    border: 1px solid #e7e5e4;
+    border-radius: 8px;
     min-height: 20px;
 }
 QPushButton#prevBtn:hover, QPushButton[class="secondaryBtn"]:hover {
-    background-color: #f8fafc;
-    border-color: #94a3b8;
+    background-color: #fafaf9;
+    border-color: #d6d3d1;
 }
 
 QPushButton[class="primaryBtn"] {
-    background-color: #6366f1;
+    background-color: #2563eb;
     color: #ffffff;
-    font-weight: bold;
-    font-size: 14px;
-    padding: 12px 34px;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 9px 18px;
     border: none;
-    border-radius: 12px;
+    border-radius: 8px;
 }
-QPushButton[class="primaryBtn"]:hover {
-    background-color: #4f46e5;
-}
+QPushButton[class="primaryBtn"]:hover { background-color: #1d4ed8; }
 
-/* --- Карточка Вопроса --- */
+/* --- Question card --- */
 QFrame#questionCard {
     background-color: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 18px;
+    border: 1px solid #e7e5e4;
+    border-radius: 12px;
 }
 
-/* --- Радио-кнопки и Чекбоксы (Адаптивные интерактивные кнопки) --- */
+/* --- Radio/Check answer chips --- */
 QRadioButton, QCheckBox {
-    padding: 14px 20px;
+    padding: 14px 18px;
     font-size: 14px;
-    color: #334155;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
+    color: #1c1917;
+    border: 1px solid #d6d3d1;
+    border-radius: 10px;
     background-color: #ffffff;
-    margin-left: 20px;
+    margin-left: 0px;
 }
 QRadioButton:hover, QCheckBox:hover {
-    background-color: #eff6ff;
-    border-color: #6366f1;
+    background-color: #fafaf9;
+    border-color: #a8a29e;
 }
 QRadioButton:checked, QCheckBox:checked {
-    background-color: #f0f7ff;
-    border-color: #6366f1;
+    background-color: #eff6ff;
+    border-color: #2563eb;
 }
 
 QRadioButton::indicator {
-    width: 20px;
-    height: 20px;
-    border-radius: 11px;
-    border: 2px solid #cbd5e1;
+    width: 18px;
+    height: 18px;
+    border-radius: 10px;
+    border: 1px solid #d6d3d1;
     background-color: #ffffff;
 }
 QRadioButton::indicator:checked {
-    background-color: #6366f1;
-    border: 2px solid #6366f1;
+    background-color: #2563eb;
+    border: 1px solid #2563eb;
     image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nd2hpdGUnPjxjaXJjbGUgY3g9JzEyJyBjeT0nMTInIHI9JzYnLz48L3N2Zz4=");
 }
-QRadioButton::indicator:hover {
-    border-color: #6366f1;
-}
+QRadioButton::indicator:hover { border-color: #2563eb; }
 
 QCheckBox::indicator {
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
-    border: 2px solid #cbd5e1;
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1px solid #d6d3d1;
     background-color: #ffffff;
 }
 QCheckBox::indicator:checked {
-    background-color: #10b981;
-    border: 2px solid #10b981;
+    background-color: #2563eb;
+    border: 1px solid #2563eb;
     image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPSc0JyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxwb2x5bGluZSBwb2ludHM9JzIwIDYgOSAxNyA0IDEyJz48L3BvbHlsaW5lPjwvc3ZnPg==");
 }
-QCheckBox::indicator:hover {
-    border-color: #10b981;
-}
+QCheckBox::indicator:hover { border-color: #2563eb; }
 
-/* --- Прогресс-бар --- */
+/* --- Progress bar --- */
 QProgressBar {
-    background-color: #e2e8f0;
+    background-color: #e7e5e4;
     border: none;
-    border-radius: 6px;
-    height: 12px;
+    border-radius: 4px;
+    height: 6px;
     text-align: center;
     color: transparent;
 }
 QProgressBar::chunk {
-    background-color: #10b981;
-    border-radius: 6px;
+    background-color: #2563eb;
+    border-radius: 4px;
 }
 
-/* --- Таймер --- */
+/* --- Timer --- */
 QLabel#timerLabel {
-    font-family: "Consolas", "Courier New", monospace;
-    font-size: 28px;
-    font-weight: bold;
-    color: #0f172a;
+    font-family: "JetBrains Mono", "Consolas", monospace;
+    font-size: 26px;
+    font-weight: 600;
+    color: #1c1917;
+    letter-spacing: -0.5px;
 }
 
-/* --- Заголовки разделов --- */
+/* --- Section headings --- */
 QLabel.qTitle {
-    font-size: 19px;
-    font-weight: 800;
-    color: #0f172a;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1c1917;
+    letter-spacing: -0.3px;
 }
 QLabel.qText {
     font-size: 15px;
-    color: #334155;
+    color: #44403c;
     line-height: 1.6;
 }
 QLabel.qCounter {
-    font-size: 13px;
-    color: #64748b;
-    font-weight: bold;
+    font-size: 12px;
+    color: #78716c;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
 }
 
-/* --- Диалоги и Системные уведомления --- */
+/* --- Dialogs --- */
 QDialog {
-    background-color: #f8fafc;
+    background-color: #fafaf9;
 }
 QMessageBox {
     background-color: #ffffff;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #e7e5e4;
 }
 QMessageBox QLabel {
-    color: #0f172a;
-    font-size: 14px;
+    color: #1c1917;
+    font-size: 13.5px;
 }
 QMessageBox QPushButton {
-    background-color: #6366f1;
+    background-color: #2563eb;
     color: #ffffff;
-    font-weight: bold;
+    font-weight: 600;
     font-size: 12px;
     padding: 8px 18px;
     border: none;
     border-radius: 8px;
 }
-QMessageBox QPushButton:hover {
-    background-color: #4f46e5;
-}
-/* --- Контекстные меню --- */
+QMessageBox QPushButton:hover { background-color: #1d4ed8; }
+
+/* --- Menus --- */
 QMenu {
     background-color: #ffffff;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #e7e5e4;
     border-radius: 8px;
     padding: 6px;
 }
 QMenu::item {
-    padding: 8px 24px 8px 16px;
+    padding: 8px 24px 8px 14px;
     border-radius: 6px;
-    color: #0f172a;
+    color: #1c1917;
+    font-size: 13px;
 }
 QMenu::item:selected {
-    background-color: #eef2ff;
-    color: #4f46e5;
+    background-color: #f5f5f4;
+    color: #1c1917;
 }
 QMenu::separator {
     height: 1px;
-    background: #e2e8f0;
-    margin: 4px 8px;
+    background: #e7e5e4;
+    margin: 4px 6px;
 }
 """

@@ -74,3 +74,6 @@ tests/*.json
 # Private signing key — НИКОГДА не коммитить!
 update_private_key.pem
 *.private.pem
+
+# Local screenshot harness output
+_screens/

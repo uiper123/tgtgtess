@@ -39,12 +39,12 @@ class ToastNotification(QWidget):
         if self.type == "success":
             icon_lbl.setText("✓")
             bg_color = "#ecfdf5"
-            border_color = "#10b981"
-            text_color = "#065f46"
+            border_color = "#16a34a"
+            text_color = "#14532d"
         elif self.type == "info":
             icon_lbl.setText("ℹ")
             bg_color = "#eff6ff"
-            border_color = "#3b82f6"
+            border_color = "#2563eb"
             text_color = "#1e40af"
         elif self.type == "warning":
             icon_lbl.setText("⚠️")
@@ -54,13 +54,13 @@ class ToastNotification(QWidget):
         elif self.type == "error":
             icon_lbl.setText("✕")
             bg_color = "#fef2f2"
-            border_color = "#ef4444"
+            border_color = "#dc2626"
             text_color = "#991b1b"
         else:
             icon_lbl.setText("•")
             bg_color = "#ffffff"
-            border_color = "#cbd5e1"
-            text_color = "#334155"
+            border_color = "#d6d3d1"
+            text_color = "#44403c"
 
         icon_lbl.setStyleSheet(f"color: {text_color}; font-size: 16px; font-weight: bold; background: transparent;")
         layout.addWidget(icon_lbl)

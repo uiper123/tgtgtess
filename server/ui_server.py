@@ -150,19 +150,19 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.collapse_sidebar_btn = QPushButton("◀")
         self.collapse_sidebar_btn.setObjectName("collapseSidebarBtn")
         self.collapse_sidebar_btn.setCursor(Qt.PointingHandCursor)
-        self.collapse_sidebar_btn.setFixedSize(30, 30)
+        self.collapse_sidebar_btn.setFixedSize(28, 28)
         self.collapse_sidebar_btn.setStyleSheet(
             "QPushButton {"
-            "  background-color: rgba(255, 255, 255, 0.08);"
-            "  color: #94a3b8;"
+            "  background-color: rgba(255, 255, 255, 0.04);"
+            "  color: #a8a29e;"
             "  border: none;"
             "  border-radius: 6px;"
-            "  font-size: 12px;"
+            "  font-size: 11px;"
             "  margin-right: 14px;"
             "}"
             "QPushButton:hover {"
-            "  background-color: rgba(255, 255, 255, 0.15);"
-            "  color: #ffffff;"
+            "  background-color: rgba(255, 255, 255, 0.10);"
+            "  color: #fafaf9;"
             "}"
         )
         self.collapse_sidebar_btn.clicked.connect(self.toggle_sidebar)
@@ -178,14 +178,14 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.selected_test_sidebar_lbl.setObjectName("sidebarSelectedTest")
         self.selected_test_sidebar_lbl.setStyleSheet(
             "QLabel {"
-            "  color: #34d399;"
-            "  font-size: 12px;"
-            "  font-weight: bold;"
-            "  margin: 4px 16px 12px 16px;"
+            "  color: #d6d3d1;"
+            "  font-size: 11.5px;"
+            "  font-weight: 500;"
+            "  margin: 2px 14px 14px 14px;"
             "  padding: 8px 12px;"
-            "  background-color: rgba(52, 211, 153, 0.1);"
+            "  background-color: rgba(255, 255, 255, 0.04);"
             "  border-radius: 6px;"
-            "  border: 1px solid rgba(52, 211, 153, 0.2);"
+            "  border: 1px solid rgba(255, 255, 255, 0.06);"
             "}"
         )
         sb_layout.addWidget(self.selected_test_sidebar_lbl)
@@ -222,7 +222,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         version_lbl = QLabel(f"EduTest Pro · v{VERSION}")
         version_lbl.setAlignment(Qt.AlignCenter)
         version_lbl.setStyleSheet(
-            "background-color: #1e293b; color: #94a3b8; font-size: 10px; border-radius: 4px; padding: 8px;"
+            "background-color: transparent; color: #78716c; font-size: 10.5px; padding: 10px 12px; border-top: 1px solid #292524;"
         )
         sb_layout.addWidget(version_lbl)
 
@@ -240,7 +240,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.top_bar.setStyleSheet(
             "QWidget#topBar {"
             "  background-color: #ffffff;"
-            "  border-bottom: 1px solid #e2e8f0;"
+            "  border-bottom: 1px solid #e7e5e4;"
             "}"
         )
         self.top_bar.setFixedHeight(50)
@@ -252,25 +252,26 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.expand_sidebar_btn = QPushButton("☰")
         self.expand_sidebar_btn.setObjectName("expandSidebarBtn")
         self.expand_sidebar_btn.setCursor(Qt.PointingHandCursor)
-        self.expand_sidebar_btn.setFixedSize(36, 36)
+        self.expand_sidebar_btn.setFixedSize(34, 34)
         self.expand_sidebar_btn.setStyleSheet(
             "QPushButton {"
-            "  background-color: #f1f5f9;"
-            "  color: #0f172a;"
-            "  border: 1px solid #cbd5e1;"
+            "  background-color: #ffffff;"
+            "  color: #1c1917;"
+            "  border: 1px solid #e7e5e4;"
             "  border-radius: 8px;"
-            "  font-size: 16px;"
-            "  font-weight: bold;"
+            "  font-size: 14px;"
+            "  font-weight: 600;"
             "}"
             "QPushButton:hover {"
-            "  background-color: #e2e8f0;"
+            "  background-color: #fafaf9;"
+            "  border-color: #d6d3d1;"
             "}"
         )
         self.expand_sidebar_btn.clicked.connect(self.toggle_sidebar)
         top_bar_layout.addWidget(self.expand_sidebar_btn)
 
         self.top_bar_title = QLabel("TTGTiSO-Test — Панель управления")
-        self.top_bar_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #0f172a; border: none; background: transparent;")
+        self.top_bar_title.setStyleSheet("font-size: 14px; font-weight: 600; color: #1c1917; border: none; background: transparent;")
         top_bar_layout.addWidget(self.top_bar_title)
 
         top_bar_layout.addStretch()
@@ -343,22 +344,51 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
     def _append_log(self, msg: str):
         ts = datetime.now().strftime('%H:%M:%S')
 
-        # Определение цвета в зависимости от ключевых слов
-        color = "#334155" # Default slate-700 (Обычный)
+        # Determine colour + severity bucket from keywords.
+        color = "#44403c"  # default
         msg_lower = msg.lower()
-
+        severity = "info"
         if any(w in msg_lower for w in ["ошибка", "error", "отклонён", "отключился", "отменено", "не найден"]):
-            color = "#dc2626" # Red
+            color = "#dc2626"
+            severity = "error"
         elif any(w in msg_lower for w in ["успешно", "завершен", "подключился", "success", "сохранен"]):
-            color = "#10b981" # Green
+            color = "#16a34a"
+            severity = "success"
         elif any(w in msg_lower for w in ["внимание", "пропущено", "предупреждение", "не активен", "ожидание"]):
-            color = "#d97706" # Orange
+            color = "#d97706"
+            severity = "warning"
         elif any(w in msg_lower for w in ["скачивание", "передача", "загрузка", "обновления"]):
-            color = "#2563eb" # Blue
+            color = "#2563eb"
+            severity = "network"
 
-        # Форматируем строку как HTML
-        formatted_msg = f'<span style="color: #94a3b8;">[{ts}]</span> <strong style="color: {color};">{msg}</strong>'
-        self._log.append(formatted_msg)
+        formatted_msg = (
+            f'<span style="color: #a8a29e;">[{ts}]</span> '
+            f'<strong style="color: {color};">{msg}</strong>'
+        )
+
+        # Push to persistent buffer so filter toggles can re-render.
+        if not hasattr(self, "_log_entries"):
+            self._log_entries = []
+        self._log_entries.append({
+            "ts": ts,
+            "text": msg,
+            "severity": severity,
+            "html": formatted_msg,
+        })
+
+        # Honour the active filter — only append to the visible area when
+        # the entry matches. If filters aren't built yet, just append.
+        show = True
+        if hasattr(self, "_log_search") and hasattr(self, "_log_severity"):
+            query = self._log_search.text().strip().lower()
+            if query and query not in msg_lower:
+                show = False
+            else:
+                wanted = self._severity_for_filter_index(self._log_severity.currentIndex())
+                if wanted and wanted != severity:
+                    show = False
+        if show:
+            self._log.append(formatted_msg)
 
     @Slot(str)
     def _show_error(self, msg: str):
@@ -401,7 +431,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
 
         if hasattr(self, "tests_table"):
             self.tests_table.setColumnWidth(0, int(450 * scale_factor))
-            self.tests_table.setColumnWidth(1, int(200 * scale_factor))
+            self.tests_table.setColumnWidth(1, int(230 * scale_factor))
             self.tests_table.setColumnWidth(2, int(150 * scale_factor))
 
         if hasattr(self, "q_table"):
@@ -413,6 +443,6 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         if hasattr(self, "r_table"):
             self.r_table.setColumnWidth(0, int(300 * scale_factor))
             self.r_table.setColumnWidth(1, int(120 * scale_factor))
-            self.r_table.setColumnWidth(2, int(150 * scale_factor))
-            self.r_table.setColumnWidth(3, int(120 * scale_factor))
-            self.r_table.setColumnWidth(4, int(200 * scale_factor))
+            self.r_table.setColumnWidth(2, int(190 * scale_factor))
+            self.r_table.setColumnWidth(3, int(190 * scale_factor))
+            self.r_table.setColumnWidth(4, int(110 * scale_factor))

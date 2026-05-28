@@ -66,24 +66,88 @@ EduTest Pro — настольный комплекс для проведени�
 
 ## 📸 Скриншоты
 
+### Сервер преподавателя
+
 <table>
   <tr>
-    <td align="center"><b>Логин клиента</b></td>
-    <td align="center"><b>Дашборд сервера</b></td>
+    <td align="center" width="50%"><b>Дашборд — список тестов</b></td>
+    <td align="center" width="50%"><b>Список вопросов <sub>(новый фильтр)</sub></b></td>
   </tr>
   <tr>
-    <td><img src="docs/img/client-login.png" alt="Login" /></td>
-    <td><img src="docs/img/server-dashboard.png" alt="Dashboard" /></td>
+    <td><img src="docs/img/server-dashboard.png" alt="Server dashboard" /></td>
+    <td><img src="docs/img/server-questions.png" alt="Questions with filter" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Активные тестирования</b></td>
+    <td align="center"><b>Результаты студентов</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/img/server-exams.png" alt="Active exams" /></td>
+    <td><img src="docs/img/server-results.png" alt="Results" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Логи <sub>(новый фильтр по уровню)</sub></b></td>
+    <td align="center"><b>Логи — выбран фильтр «Ошибки»</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/img/server-logs.png" alt="Logs" /></td>
+    <td><img src="docs/img/server-logs-filtered.png" alt="Logs filtered" /></td>
   </tr>
   <tr>
     <td align="center"><b>Настройки</b></td>
-    <td align="center"><b>Таблица результатов</b></td>
+    <td align="center"><b>Редактирование вопроса</b></td>
   </tr>
   <tr>
     <td><img src="docs/img/server-settings.png" alt="Settings" /></td>
-    <td><img src="docs/img/server-results.png" alt="Results" /></td>
+    <td><img src="docs/img/dialog-edit-question.png" alt="Edit question dialog" /></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><b>Мониторинг тестирования в реальном времени</b></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/img/dialog-monitoring.png" alt="Monitoring dialog" /></td>
   </tr>
 </table>
+
+### Клиент-киоск студента
+
+<table>
+  <tr>
+    <td align="center" width="50%"><b>Подключение к серверу</b></td>
+    <td align="center" width="50%"><b>Прохождение теста</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/img/client-login.png" alt="Client login" /></td>
+    <td><img src="docs/img/client-test.png" alt="Client test" /></td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2"><b>Экран результата</b></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="docs/img/client-result.png" alt="Client result" width="600" /></td>
+  </tr>
+</table>
+
+---
+
+## 🎨 Что нового в дизайне v1.4.0
+
+Полный редизайн UI — без градиентов, без декоративных кнопок, с единой плоской дизайн-системой.
+
+**Дизайн-токены**
+- Палитра — тёплые stone-нейтрали + единственный спокойный акцент **blue-600** `#2563eb`
+- Сайдбар в угольном `#1c1917`, активная навигация — только мягкой подсветкой (без полосок-индикаторов)
+- 0 градиентов
+- Радиусы: карточки **12 px**, кнопки и поля ввода **8 px**
+- Типографика: **Inter** (с fallback'ами Segoe UI / Roboto), веса **500 / 600** вместо «жирного» 700/800
+- Все 7 диалогов прошли по одному паттерну: семантические классы кнопок (`primaryBtn` / `secondaryBtn` / `dangerBtn`), единые хелперы заголовков, общий QSS через `apply_dialog_scaling`
+
+**UX-улучшения**
+- ✅ **Поиск + фильтр по типу** на странице «Список вопросов» — было пусто
+- ✅ **Поиск + фильтр по уровню** в логах (Все / Ошибки / Предупреждения / Успехи / Сеть-обновления / Информация). Буфер хранится отдельно — переключение фильтра ничего не теряет
+- ✅ **Экран результата у студента**: убрал «X из Y» и слово «оценка», оставил один большой процент, цвет меняется по порогу (зелёный ≥90%, синий ≥70%, оранжевый ≥50%, красный <50%)
+- ✅ Расширены диалоги мониторинга и подключённых клиентов — заголовки колонок больше не обрезаются
+- ✅ Кастомные тонкие шевроны вместо нативных «зарубок» в `QSpinBox`
 
 ---
 

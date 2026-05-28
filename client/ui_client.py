@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from shared.parser import get_grade_details
 from shared.version import VERSION
+from shared.styles import inject_icon_paths
 
 try:
     from .styles import CLIENT_QSS
@@ -42,30 +43,26 @@ class ClientUpdateDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Обновление системы")
-        self.resize(400, 150)
+        self.resize(440, 170)
         self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
         self.setModal(True)
-        self.setStyleSheet("""
-            QDialog { background-color: #f8fafc; }
-            QLabel { color: #0f172a; font-family: 'Segoe UI', Arial, sans-serif; }
-            QProgressBar {
-                border: 1px solid #cbd5e1; border-radius: 6px;
-                background-color: #e2e8f0; text-align: center;
-                color: #0f172a; font-weight: bold; height: 18px;
-            }
-            QProgressBar::chunk { background-color: #3b82f6; border-radius: 5px; }
-        """)
+        self.setStyleSheet(inject_icon_paths(CLIENT_QSS))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        self.title_lbl = QLabel("Скачивание обновления...")
-        self.title_lbl.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.title_lbl = QLabel("Скачивание обновления…")
+        self.title_lbl.setStyleSheet(
+            "font-size: 16px; font-weight: 600; color: #1c1917;"
+            " border: none; background: transparent;"
+        )
         layout.addWidget(self.title_lbl)
 
         current_lbl = QLabel(f"Текущая версия: v{VERSION}")
-        current_lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+        current_lbl.setStyleSheet(
+            "font-size: 11px; color: #78716c; border: none; background: transparent;"
+        )
         layout.addWidget(current_lbl)
 
         self.progress = QProgressBar()
@@ -73,8 +70,10 @@ class ClientUpdateDialog(QDialog):
         self.progress.setValue(0)
         layout.addWidget(self.progress)
 
-        self.status_lbl = QLabel("Ожидание...")
-        self.status_lbl.setStyleSheet("font-size: 11px; color: #64748b;")
+        self.status_lbl = QLabel("Ожидание…")
+        self.status_lbl.setStyleSheet(
+            "font-size: 11px; color: #78716c; border: none; background: transparent;"
+        )
         layout.addWidget(self.status_lbl)
 
     def update_progress(self, percent, text):
@@ -102,7 +101,6 @@ class StudentWindow(QMainWindow):
 
         self.setMinimumSize(800, 600)
         self.resize(900, 650)
-        from shared.styles import inject_icon_paths
         self.setStyleSheet(inject_icon_paths(CLIENT_QSS))
         self._settings = QSettings("EduTest", "StudentClient")
         self._login_geometry = None
@@ -180,18 +178,18 @@ class StudentWindow(QMainWindow):
 
         title = QLabel("TTGTiSO-Test")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #1e293b; border: none;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #292524; border: none;")
         cl.addWidget(title)
 
         sub = QLabel(f"Клиент студента · версия {VERSION}")
         sub.setAlignment(Qt.AlignCenter)
-        sub.setStyleSheet("font-size: 13px; color: #64748b; border: none;")
+        sub.setStyleSheet("font-size: 13px; color: #78716c; border: none;")
         cl.addWidget(sub)
 
         cl.addSpacing(8)
 
         lbl1 = QLabel("ФИО студента")
-        lbl1.setStyleSheet("font-size: 12px; font-weight: bold; color: #64748b; border: none;")
+        lbl1.setStyleSheet("font-size: 12px; font-weight: bold; color: #78716c; border: none;")
         cl.addWidget(lbl1)
         self._name_input = QLineEdit()
         self._name_input.setPlaceholderText("Иванов Иван Иванович")
@@ -200,7 +198,7 @@ class StudentWindow(QMainWindow):
         self._name_input.textChanged.connect(self._on_inputs_for_attempts_changed)
 
         lbl2 = QLabel("Группа")
-        lbl2.setStyleSheet("font-size: 12px; font-weight: bold; color: #64748b; border: none;")
+        lbl2.setStyleSheet("font-size: 12px; font-weight: bold; color: #78716c; border: none;")
         cl.addWidget(lbl2)
         self._group_input = QComboBox()
         self._group_input.setEditable(True)
@@ -214,7 +212,7 @@ class StudentWindow(QMainWindow):
         cl.addWidget(self._refresh_groups_btn)
 
         lbl3 = QLabel("IP-адрес сервера")
-        lbl3.setStyleSheet("font-size: 12px; font-weight: bold; color: #64748b; border: none;")
+        lbl3.setStyleSheet("font-size: 12px; font-weight: bold; color: #78716c; border: none;")
         cl.addWidget(lbl3)
         self._ip_input = QLineEdit()
         self._ip_input.setPlaceholderText("192.168.1.100")
@@ -222,7 +220,7 @@ class StudentWindow(QMainWindow):
         cl.addWidget(self._ip_input)
 
         ip_hint = QLabel("IP-адрес отображается внизу окна на компьютере преподавателя")
-        ip_hint.setStyleSheet("font-size: 10px; color: #94a3b8; border: none;")
+        ip_hint.setStyleSheet("font-size: 10px; color: #a8a29e; border: none;")
         ip_hint.setWordWrap(True)
         cl.addWidget(ip_hint)
 
@@ -244,7 +242,7 @@ class StudentWindow(QMainWindow):
 
         self._login_error = QLabel("")
         self._login_error.setAlignment(Qt.AlignCenter)
-        self._login_error.setStyleSheet("color: #ef4444; font-size: 12px; border: none;")
+        self._login_error.setStyleSheet("color: #dc2626; font-size: 12px; border: none;")
         self._login_error.hide()
         cl.addWidget(self._login_error)
 
@@ -269,7 +267,7 @@ class StudentWindow(QMainWindow):
         # сразу было видно, какая сборка запущена на конкретной машине.
         version_footer = QLabel(f"EduTest Pro · клиент v{VERSION}")
         version_footer.setAlignment(Qt.AlignCenter)
-        version_footer.setStyleSheet("font-size: 11px; color: #94a3b8; border: none;")
+        version_footer.setStyleSheet("font-size: 11px; color: #a8a29e; border: none;")
         outer.addWidget(version_footer)
         self._stack.addWidget(page)
 
@@ -284,7 +282,7 @@ class StudentWindow(QMainWindow):
         # Top bar: Left (User Info), Center (Progress), Right (Timer)
         # ----------------------------------------------------
         top_bar = QWidget()
-        top_bar.setStyleSheet("background-color: #ffffff; border-bottom: 1px solid #e2e8f0;")
+        top_bar.setStyleSheet("background-color: #ffffff; border-bottom: 1px solid #e7e5e4;")
         tb_layout = QHBoxLayout(top_bar)
         tb_layout.setContentsMargins(32, 14, 32, 14)
         tb_layout.setSpacing(24)
@@ -296,9 +294,9 @@ class StudentWindow(QMainWindow):
         ui_layout.setSpacing(2)
 
         self._student_name_label = QLabel("Имя Фамилия")
-        self._student_name_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b; border: none;")
+        self._student_name_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #292524; border: none;")
         self._student_group_label = QLabel("Группа: ---")
-        self._student_group_label.setStyleSheet("font-size: 11px; color: #64748b; border: none;")
+        self._student_group_label.setStyleSheet("font-size: 11px; color: #78716c; border: none;")
         ui_layout.addWidget(self._student_name_label)
         ui_layout.addWidget(self._student_group_label)
         tb_layout.addWidget(user_info)
@@ -311,9 +309,9 @@ class StudentWindow(QMainWindow):
 
         info_layout = QHBoxLayout()
         self._q_counter = QLabel("Вопрос 1 из 1")
-        self._q_counter.setStyleSheet("font-size: 12px; font-weight: bold; color: #475569; border: none;")
+        self._q_counter.setStyleSheet("font-size: 12px; font-weight: bold; color: #57534e; border: none;")
         self._percent_label = QLabel("0%")
-        self._percent_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #64748b; border: none;")
+        self._percent_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #78716c; border: none;")
         info_layout.addWidget(self._q_counter)
         info_layout.addStretch()
         info_layout.addWidget(self._percent_label)
@@ -325,8 +323,8 @@ class StudentWindow(QMainWindow):
         self._progress.setFixedHeight(8)
         self._progress.setTextVisible(False)
         self._progress.setStyleSheet(
-            "QProgressBar { background-color: #e2e8f0; border: none; border-radius: 4px; }"
-            "QProgressBar::chunk { background-color: #10b981; border-radius: 4px; }"
+            "QProgressBar { background-color: #e7e5e4; border: none; border-radius: 4px; }"
+            "QProgressBar::chunk { background-color: #2563eb; border-radius: 4px; }"
         )
         pc_layout.addWidget(self._progress)
 
@@ -336,8 +334,8 @@ class StudentWindow(QMainWindow):
         self._timer_label = QLabel("60:00")
         self._timer_label.setObjectName("timerLabel")
         self._timer_label.setStyleSheet(
-            "font-family: 'Consolas', 'Courier New', monospace; "
-            "font-size: 22px; font-weight: bold; color: #ef4444; border: none;"
+            "font-family: 'JetBrains Mono', 'Consolas', monospace; "
+            "font-size: 22px; font-weight: 600; color: #1c1917; border: none; letter-spacing: -0.5px;"
         )
         tb_layout.addWidget(self._timer_label)
 
@@ -347,15 +345,15 @@ class StudentWindow(QMainWindow):
         # Main Title Section
         # ----------------------------------------------------
         title_section = QWidget()
-        title_section.setStyleSheet("background-color: #f8fafc; border: none;")
+        title_section.setStyleSheet("background-color: #fafaf9; border: none;")
         ts_layout = QHBoxLayout(title_section)
         ts_layout.setContentsMargins(40, 24, 40, 0)
 
         title_text_layout = QVBoxLayout()
         self._test_title = QLabel("Итоговое тестирование")
-        self._test_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #0f172a; border: none;")
+        self._test_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #1c1917; border: none;")
         self._test_subtitle = QLabel("Раздел: Основная часть")
-        self._test_subtitle.setStyleSheet("font-size: 13px; color: #64748b; border: none;")
+        self._test_subtitle.setStyleSheet("font-size: 13px; color: #78716c; border: none;")
         title_text_layout.addWidget(self._test_title)
         title_text_layout.addWidget(self._test_subtitle)
         ts_layout.addLayout(title_text_layout)
@@ -368,10 +366,10 @@ class StudentWindow(QMainWindow):
         # ----------------------------------------------------
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("border: none; background-color: #f8fafc;")
+        scroll.setStyleSheet("border: none; background-color: #fafaf9;")
 
         self._q_container = QWidget()
-        self._q_container.setStyleSheet("background-color: #f8fafc;")
+        self._q_container.setStyleSheet("background-color: #fafaf9;")
         self._q_layout = QVBoxLayout(self._q_container)
         self._q_layout.setContentsMargins(40, 16, 40, 16)
         self._q_layout.setSpacing(16)
@@ -384,7 +382,7 @@ class StudentWindow(QMainWindow):
         # ----------------------------------------------------
         bottom = QWidget()
         bottom.setObjectName("bottomBar")
-        bottom.setStyleSheet("#bottomBar { background-color: #ffffff; border-top: 1px solid #e2e8f0; }")
+        bottom.setStyleSheet("#bottomBar { background-color: #ffffff; border-top: 1px solid #e7e5e4; }")
         bb = QHBoxLayout(bottom)
         bb.setContentsMargins(40, 16, 40, 16)
         bb.setSpacing(16)
@@ -401,7 +399,7 @@ class StudentWindow(QMainWindow):
 
         # Center: Progress saving indicator
         self._saving_status = QLabel("")
-        self._saving_status.setStyleSheet("font-size: 12px; color: #94a3b8; border: none;")
+        self._saving_status.setStyleSheet("font-size: 12px; color: #a8a29e; border: none;")
         bb.addWidget(self._saving_status)
 
         bb.addStretch()
@@ -430,35 +428,36 @@ class StudentWindow(QMainWindow):
         card.setMinimumWidth(550)
         card.setMaximumWidth(700)
         cl = QVBoxLayout(card)
-        cl.setSpacing(12)
+        cl.setSpacing(14)
         cl.setContentsMargins(32, 40, 32, 40)
         cl.setAlignment(Qt.AlignCenter)
 
-        icon = QLabel("Успешно")
-        icon.setAlignment(Qt.AlignCenter)
-        icon.setStyleSheet("font-size: 24px; color: #10b981; font-weight: bold; border: none;")
-        cl.addWidget(icon)
-
-        title = QLabel("Тест завершён!")
+        title = QLabel("Тест завершён")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #1e293b; border: none;")
+        title.setStyleSheet(
+            "font-size: 22px; font-weight: 600; color: #292524; border: none;"
+        )
         cl.addWidget(title)
 
-        self._result_score = QLabel("0/0")
-        self._result_score.setAlignment(Qt.AlignCenter)
-        self._result_score.setStyleSheet("font-size: 36px; font-weight: bold; color: #3b82f6; border: none;")
-        cl.addWidget(self._result_score)
+        cl.addSpacing(8)
 
-        self._result_grade = QLabel("")
-        self._result_grade.setAlignment(Qt.AlignCenter)
-        cl.addWidget(self._result_grade)
+        # Big percent number — only metric we show
+        self._result_score = QLabel("0%")
+        self._result_score.setAlignment(Qt.AlignCenter)
+        self._result_score.setStyleSheet(
+            "font-size: 56px; font-weight: 700; color: #1c1917;"
+            " border: none; letter-spacing: -2px;"
+        )
+        cl.addWidget(self._result_score)
 
         self._result_sub = QLabel("Результат отправлен преподавателю")
         self._result_sub.setAlignment(Qt.AlignCenter)
-        self._result_sub.setStyleSheet("font-size: 13px; color: #64748b; border: none;")
+        self._result_sub.setStyleSheet(
+            "font-size: 13px; color: #78716c; border: none;"
+        )
         cl.addWidget(self._result_sub)
 
-        cl.addSpacing(12)
+        cl.addSpacing(16)
 
         ok_btn = QPushButton("Вернуться на экран входа")
         ok_btn.setProperty("class", "primaryBtn")
@@ -542,12 +541,12 @@ class StudentWindow(QMainWindow):
         if max_att == 0:
             self._attempts_lbl.setText("Тестирование для группы не активно")
             self._attempts_lbl.setStyleSheet(
-                "font-size: 13px; font-weight: bold; color: #64748b; border: none; margin: 4px; padding: 4px; background-color: #f1f5f9; border-radius: 6px;"
+                "font-size: 13px; font-weight: bold; color: #78716c; border: none; margin: 4px; padding: 4px; background-color: #f5f5f4; border-radius: 6px;"
             )
         elif left > 0:
             self._attempts_lbl.setText(f"Доступно попыток: {left} из {max_att}")
             self._attempts_lbl.setStyleSheet(
-                "font-size: 13px; font-weight: bold; color: #059669; border: none; margin: 4px; padding: 4px; background-color: #ecfdf5; border-radius: 6px;"
+                "font-size: 13px; font-weight: bold; color: #15803d; border: none; margin: 4px; padding: 4px; background-color: #ecfdf5; border-radius: 6px;"
             )
         else:
             self._attempts_lbl.setText(f"Доступно попыток: 0 из {max_att} (Лимит исчерпан!)")
@@ -687,21 +686,14 @@ class StudentWindow(QMainWindow):
 
     @Slot(str)
     def _on_result_sent(self, score):
-        self._result_score.setText(score)
-        self._result_sub.setText("Результат отправлен преподавателю")
-        grade_text, grade_color = get_grade_details(score)
-        self._result_grade.setText(f"Процент прохождения: {grade_text}")
-
-        # Convert hex color to rgba for clean background
-        hex_color = grade_color.lstrip('#')
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-
-        self._result_grade.setStyleSheet(
-            f"font-size: 20px; font-weight: bold; color: {grade_color}; "
-            f"background-color: rgba({r}, {g}, {b}, 0.12); padding: 12px 24px; border-radius: 8px; border: none;"
+        # `score` arrives as "X/Y"; we only display percent now.
+        percent_str, color = get_grade_details(score)
+        self._result_score.setText(percent_str)
+        self._result_score.setStyleSheet(
+            f"font-size: 56px; font-weight: 700; color: {color};"
+            " border: none; letter-spacing: -2px;"
         )
+        self._result_sub.setText("Результат отправлен преподавателю")
 
     @Slot()
     def _on_force_stopped(self):
@@ -756,6 +748,13 @@ class StudentWindow(QMainWindow):
         # Question card
         card = QFrame()
         card.setObjectName("questionCard")
+        card.setStyleSheet(
+            "QFrame#questionCard {"
+            "  background-color: #ffffff;"
+            "  border: 1px solid #e7e5e4;"
+            "  border-radius: 12px;"
+            "}"
+        )
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(32, 32, 32, 32)
         card_layout.setSpacing(20)
@@ -768,7 +767,7 @@ class StudentWindow(QMainWindow):
         # Question number badge
         badge = QLabel(str(index + 1))
         badge.setStyleSheet(
-            "background-color: #f1f5f9; color: #475569; font-weight: bold; "
+            "background-color: #f5f5f4; color: #57534e; font-weight: bold; "
             "font-size: 14px; padding: 8px 12px; border-radius: 6px; border: none;"
         )
         badge.setAlignment(Qt.AlignCenter)
@@ -779,14 +778,14 @@ class StudentWindow(QMainWindow):
         q_text = QLabel(q.get('text', ''))
         q_text.setWordWrap(True)
         q_text.setProperty("class", "qText")
-        q_text.setStyleSheet("font-size: 18px; font-weight: bold; color: #0f172a; border: none;")
+        q_text.setStyleSheet("font-size: 18px; font-weight: bold; color: #1c1917; border: none;")
         header_layout.addWidget(q_text, 1)
 
         card_layout.addLayout(header_layout)
 
         if q.get('written'):
             hint = QLabel("Письменный ответ — введите ваш ответ в поле ниже")
-            hint.setStyleSheet("color: #3b82f6; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
+            hint.setStyleSheet("color: #2563eb; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
             card_layout.addWidget(hint)
         elif q.get('multiple'):
             hint = QLabel("Множественный выбор — выберите все правильные варианты")
@@ -798,7 +797,7 @@ class StudentWindow(QMainWindow):
         if image_data:
             img_label = QLabel()
             img_label.setAlignment(Qt.AlignCenter)
-            img_label.setStyleSheet("border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; margin-left: 52px;")
+            img_label.setStyleSheet("border: 1px solid #e7e5e4; border-radius: 8px; padding: 8px; margin-left: 52px;")
             try:
                 pixmap = QPixmap()
                 pixmap.loadFromData(QByteArray(base64.b64decode(image_data, validate=True)))
@@ -818,6 +817,36 @@ class StudentWindow(QMainWindow):
         q_num = q.get('number', index + 1)
         previous_answers = self._answers.get(q_num, [])
 
+        chip_qss = (
+            "QRadioButton, QCheckBox {"
+            "  padding: 14px 18px;"
+            "  font-size: 14px;"
+            "  color: #1c1917;"
+            "  border: 1px solid #e7e5e4;"
+            "  border-radius: 10px;"
+            "  background-color: #fafaf9;"
+            "  spacing: 12px;"
+            "}"
+            "QRadioButton:hover, QCheckBox:hover {"
+            "  background-color: #f5f5f4;"
+            "  border-color: #d6d3d1;"
+            "}"
+            "QRadioButton:checked, QCheckBox:checked {"
+            "  background-color: #eff6ff;"
+            "  border-color: #2563eb;"
+            "  color: #1e3a8a;"
+            "  font-weight: 600;"
+            "}"
+            "QRadioButton::indicator { width: 18px; height: 18px; border-radius: 10px; border: 1px solid #d6d3d1; background-color: #ffffff; }"
+            "QRadioButton::indicator:checked { background-color: #2563eb; border: 1px solid #2563eb;"
+            " image: url(\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nd2hpdGUnPjxjaXJjbGUgY3g9JzEyJyBjeT0nMTInIHI9JzYnLz48L3N2Zz4=\");"
+            "}"
+            "QCheckBox::indicator { width: 18px; height: 18px; border-radius: 5px; border: 1px solid #d6d3d1; background-color: #ffffff; }"
+            "QCheckBox::indicator:checked { background-color: #2563eb; border: 1px solid #2563eb;"
+            " image: url(\"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPSc0JyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxwb2x5bGluZSBwb2ludHM9JzIwIDYgOSAxNyA0IDEyJz48L3BvbHlsaW5lPjwvc3ZnPg==\");"
+            "}"
+        )
+
         if q.get('written'):
             ans_input = QLineEdit()
             ans_input.setPlaceholderText("Введите ваш ответ здесь...")
@@ -826,16 +855,16 @@ class StudentWindow(QMainWindow):
             ans_input.setStyleSheet(
                 "QLineEdit {"
                 "  background-color: #ffffff;"
-                "  border: 2px solid #cbd5e1;"
+                "  border: 2px solid #d6d3d1;"
                 "  border-radius: 10px;"
                 "  padding: 12px 16px;"
                 "  font-size: 15px;"
-                "  color: #0f172a;"
+                "  color: #1c1917;"
                 "  margin-left: 52px;"
                 "  min-height: 24px;"
                 "}"
                 "QLineEdit:focus {"
-                "  border-color: #3b82f6;"
+                "  border-color: #2563eb;"
                 "}"
             )
             ans_input.textChanged.connect(self._on_answer_changed)
@@ -845,6 +874,7 @@ class StudentWindow(QMainWindow):
             for ans_text in answers:
                 cb = QCheckBox(ans_text)
                 cb.setCursor(Qt.PointingHandCursor)
+                cb.setStyleSheet(chip_qss)
                 if ans_text in previous_answers:
                     cb.setChecked(True)
                 cb.stateChanged.connect(self._on_answer_changed)
@@ -856,6 +886,7 @@ class StudentWindow(QMainWindow):
             for i, ans_text in enumerate(answers):
                 rb = QRadioButton(ans_text)
                 rb.setCursor(Qt.PointingHandCursor)
+                rb.setStyleSheet(chip_qss)
                 if ans_text in previous_answers:
                     rb.setChecked(True)
                 rb.toggled.connect(self._on_answer_changed)
@@ -891,10 +922,10 @@ class StudentWindow(QMainWindow):
         now_str = datetime.now().strftime("%H:%M:%S")
         if self.client.get_socket_state() == QAbstractSocket.ConnectedState:
             self._saving_status.setText(f"✓ Прогресс сохранен в {now_str}")
-            self._saving_status.setStyleSheet("font-size: 12px; color: #10b981; font-weight: bold; border: none;")
+            self._saving_status.setStyleSheet("font-size: 12px; color: #16a34a; font-weight: bold; border: none;")
         else:
             self._saving_status.setText(f"⚠️ Офлайн-режим: прогресс сохранен в {now_str}")
-            self._saving_status.setStyleSheet("font-size: 12px; color: #ef4444; font-weight: bold; border: none;")
+            self._saving_status.setStyleSheet("font-size: 12px; color: #dc2626; font-weight: bold; border: none;")
 
     def _collect_current_answer(self):
         """Сохраняет ответ на текущий вопрос."""
@@ -958,7 +989,6 @@ class StudentWindow(QMainWindow):
             self._result_sub.setText(f"Результат отправлен на сервер.\nСоздана локальная резервная копия: резервная копия/{backup_filename}")
         else:
             self._result_score.setText("Не отправлено")
-            self._result_grade.setText("")
             self._result_sub.setText(f"Соединение с сервером потеряно.\nЛокальная копия сохранена в: резервная копия/{backup_filename}")
 
         # Deactivate kiosk
@@ -986,7 +1016,7 @@ class StudentWindow(QMainWindow):
         if self._remaining < 120:
             self._timer_label.setStyleSheet(
                 "font-family: 'Consolas', 'Courier New', monospace; "
-                "font-size: 28px; font-weight: bold; color: #ef4444;"
+                "font-size: 28px; font-weight: bold; color: #dc2626;"
             )
 
     # ========================== KIOSK PROTECTION ==========================

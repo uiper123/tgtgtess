@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -70,7 +71,7 @@ class QuestionsMixin:
         top_row.addStretch()
 
         self.active_test_lbl = QLabel("Активный тест: Новый тест")
-        self.active_test_lbl.setStyleSheet("color: #475569; font-size: 13px; font-weight: bold; padding: 6px 12px; background-color: #e2e8f0; border-radius: 6px; border: none;")
+        self.active_test_lbl.setStyleSheet("color: #57534e; font-size: 13px; font-weight: bold; padding: 6px 12px; background-color: #e7e5e4; border-radius: 6px; border: none;")
         top_row.addWidget(self.active_test_lbl)
 
         self.rename_test_btn = QPushButton("Переименовать")
@@ -82,30 +83,64 @@ class QuestionsMixin:
 
         # Карта кастомизации заголовков теста на клиенте
         headers_card = QFrame()
-        headers_card.setStyleSheet("QFrame { background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; }")
+        headers_card.setStyleSheet("QFrame { background-color: #fafaf9; border: 1px dashed #d6d3d1; border-radius: 8px; }")
         hc_layout = QHBoxLayout(headers_card)
         hc_layout.setContentsMargins(16, 10, 16, 10)
         hc_layout.setSpacing(12)
 
         hc_title = QLabel("Заголовки на экране студента:")
-        hc_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #475569; border: none; background: transparent;")
+        hc_title.setStyleSheet("font-size: 12px; font-weight: bold; color: #57534e; border: none; background: transparent;")
         hc_layout.addWidget(hc_title)
 
         self.test_title_input = QLineEdit()
         self.test_title_input.setPlaceholderText("Главный заголовок (по умолч: Итоговое тестирование)")
         self.test_title_input.setText(self.exam_server.test_title)
         self.test_title_input.textChanged.connect(self._on_test_title_changed)
-        self.test_title_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; }")
+        self.test_title_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #d6d3d1; border-radius: 6px; }")
         hc_layout.addWidget(self.test_title_input, 2)
 
         self.test_section_input = QLineEdit()
         self.test_section_input.setPlaceholderText("Подзаголовок (по умолч: Раздел: Основная часть)")
         self.test_section_input.setText(self.exam_server.test_section)
         self.test_section_input.textChanged.connect(self._on_test_section_changed)
-        self.test_section_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; }")
+        self.test_section_input.setStyleSheet("QLineEdit { padding: 6px 10px; font-size: 12px; border: 1px solid #d6d3d1; border-radius: 6px; }")
         hc_layout.addWidget(self.test_section_input, 2)
 
         layout.addWidget(headers_card)
+
+        # --- Фильтр по вопросам ---
+        filter_card = QFrame()
+        filter_card.setObjectName("qFilterCard")
+        filter_card.setStyleSheet(
+            "QFrame#qFilterCard { background-color: #ffffff;"
+            " border: 1px solid #e7e5e4; border-radius: 12px; }"
+        )
+        f_lay = QHBoxLayout(filter_card)
+        f_lay.setContentsMargins(14, 10, 14, 10)
+        f_lay.setSpacing(12)
+
+        self.q_search = QLineEdit()
+        self.q_search.setPlaceholderText("Поиск по тексту вопроса или варианту ответа…")
+        self.q_search.setStyleSheet(
+            "QLineEdit { padding: 8px 12px; font-size: 13px;"
+            " border: 1px solid #e7e5e4; border-radius: 8px;"
+            " background-color: #ffffff; color: #1c1917; }"
+            "QLineEdit:focus { border: 1px solid #2563eb; }"
+        )
+        self.q_search.textChanged.connect(self._update_questions_table)
+        f_lay.addWidget(self.q_search, 3)
+
+        self.q_type_filter = QComboBox()
+        self.q_type_filter.addItems([
+            "Все типы",
+            "Одиночный выбор",
+            "Множественный выбор",
+            "Письменный ответ",
+        ])
+        self.q_type_filter.currentIndexChanged.connect(self._update_questions_table)
+        f_lay.addWidget(self.q_type_filter, 1)
+
+        layout.addWidget(filter_card)
 
         # Table of Questions
         self.q_table = QTableWidget(0, 4)
@@ -198,20 +233,43 @@ class QuestionsMixin:
     def _update_questions_table(self):
         self.q_table.setRowCount(0)
         questions = self.exam_server.questions
+
+        query = self.q_search.text().strip().lower() if hasattr(self, "q_search") else ""
+        type_idx = self.q_type_filter.currentIndex() if hasattr(self, "q_type_filter") else 0
+        # 0=Все, 1=Одиночный, 2=Множественный, 3=Письменный
+
         for q in questions:
+            q_text = q.get("text", "")
+            ans_texts = [a.get("text", "") for a in q.get("answers", [])]
+
+            # Type filter
+            is_written = bool(q.get("written"))
+            is_multiple = bool(q.get("multiple"))
+            if type_idx == 1 and (is_written or is_multiple):
+                continue
+            if type_idx == 2 and not is_multiple:
+                continue
+            if type_idx == 3 and not is_written:
+                continue
+
+            # Search filter (case-insensitive substring in question text or any answer)
+            if query:
+                haystack = (q_text + " " + " ".join(ans_texts)).lower()
+                if query not in haystack:
+                    continue
+
             row = self.q_table.rowCount()
             self.q_table.insertRow(row)
 
-            self.q_table.setItem(row, 0, QTableWidgetItem(str(q.get('number', row + 1))))
-            self.q_table.setItem(row, 1, QTableWidgetItem(q.get('text', '')))
+            self.q_table.setItem(row, 0, QTableWidgetItem(str(q.get("number", row + 1))))
+            self.q_table.setItem(row, 1, QTableWidgetItem(q_text))
 
-            if q.get('written'):
+            if is_written:
                 type_str = "Письменный"
             else:
-                type_str = "Множественный" if q.get('multiple') else "Одиночный"
+                type_str = "Множественный" if is_multiple else "Одиночный"
             self.q_table.setItem(row, 2, QTableWidgetItem(type_str))
 
-            ans_texts = [a.get('text', '') for a in q.get('answers', [])]
             self.q_table.setItem(row, 3, QTableWidgetItem(", ".join(ans_texts)))
 
     def add_question(self):

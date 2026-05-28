@@ -357,7 +357,7 @@ def get_grade_details(score_str: str) -> tuple:
         correct = float(parts[0])
         total = float(parts[1])
         if total == 0:
-            return "0%", "#ef4444"
+            return "0%", "#dc2626"
         percent = (correct / total) * 100
         percent_str = f"{int(percent)}%"
 
@@ -369,12 +369,12 @@ def get_grade_details(score_str: str) -> tuple:
         g3 = settings.value("grade_3_min", 50, type=int)
 
         if percent >= g5:
-            return percent_str, "#10b981"
+            return percent_str, "#16a34a"
         elif percent >= g4:
-            return percent_str, "#3b82f6"
+            return percent_str, "#2563eb"
         elif percent >= g3:
             return percent_str, "#f59e0b"
         else:
-            return percent_str, "#ef4444"
+            return percent_str, "#dc2626"
     except Exception:
-        return "—", "#64748b"
+        return "—", "#78716c"

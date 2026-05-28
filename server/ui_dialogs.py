@@ -53,6 +53,39 @@ def apply_dialog_scaling(dialog, parent, base_w, base_h):
     from shared.styles import inject_icon_paths
     dialog.setStyleSheet(inject_icon_paths(get_scaled_qss(GLOBAL_QSS, scale_factor)))
 
+
+# ---------------------------------------------------------------------------
+# Shared label helpers — keep dialogs visually consistent.
+# Returned labels carry transparent background + no border so they sit
+# cleanly on any card or dialog surface.
+# ---------------------------------------------------------------------------
+def _title_label(text: str, size: int = 18) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setStyleSheet(
+        f"font-size: {size}px; font-weight: 600; color: #1c1917;"
+        " border: none; background: transparent;"
+    )
+    return lbl
+
+
+def _section_label(text: str, size: int = 13) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setStyleSheet(
+        f"font-size: {size}px; font-weight: 600; color: #44403c;"
+        " border: none; background: transparent;"
+    )
+    return lbl
+
+
+def _muted_label(text: str, size: int = 12) -> QLabel:
+    lbl = QLabel(text)
+    lbl.setStyleSheet(
+        f"font-size: {size}px; color: #78716c;"
+        " border: none; background: transparent;"
+    )
+    return lbl
+
+
 class StudentAnswersDialog(QDialog):
     def __init__(self, student, questions, parent=None):
         super().__init__(parent)
@@ -61,27 +94,26 @@ class StudentAnswersDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
-        title = QLabel(f"Ответы студента: {student.name} ({student.group})")
-        title.setProperty("class", "sectionTitle")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; border: none;")
+        title = _title_label(f"Ответы студента: {student.name} ({student.group})")
         layout.addWidget(title)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;")
+        scroll.setStyleSheet(
+            "QScrollArea { border: 1px solid #e7e5e4; border-radius: 8px; background-color: #ffffff; }"
+        )
 
         scroll_content = QWidget()
         scroll_content.setStyleSheet("background-color: #ffffff;")
         scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(16)
+        scroll_layout.setSpacing(12)
         scroll_layout.setContentsMargins(16, 16, 16, 16)
         scroll_layout.setAlignment(Qt.AlignTop)
 
         if not student.answers:
-            no_ans = QLabel("Студент еще не отправил ответы.")
-            no_ans.setStyleSheet("color: #64748b; font-size: 14px; font-weight: bold; border: none;")
+            no_ans = _muted_label("Студент ещё не отправил ответы.", size=13)
             scroll_layout.addWidget(no_ans)
         else:
             for idx, q in enumerate(questions):
@@ -95,9 +127,7 @@ class StudentAnswersDialog(QDialog):
                     is_correct = any(compare_written_answer(student_text, ans_text) for ans_text in correct_answers)
                     q_score_val = 1.0 if is_correct else 0.0
                 else:
-                    # Рассчитываем частичный балл для отображения
                     from shared.parser import calculate_score
-                    # Формируем структуру для одного вопроса
                     single_q_score_str = calculate_score([q], {q_num: student_ans}, partial_multiple=True)
                     try:
                         q_score_val = float(single_q_score_str.split('/')[0])
@@ -105,48 +135,65 @@ class StudentAnswersDialog(QDialog):
                         q_score_val = 0.0
                     is_correct = (q_score_val >= 1.0)
 
-                # Card for each question
                 q_card = QFrame()
-                q_card.setStyleSheet("background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;")
+                q_card.setStyleSheet(
+                    "background-color: #fafaf9; border: 1px solid #e7e5e4;"
+                    " border-radius: 10px; padding: 12px;"
+                )
                 card_lay = QVBoxLayout(q_card)
                 card_lay.setSpacing(6)
 
-                # Header with correctness badge
                 header = QHBoxLayout()
                 q_lbl = QLabel(f"Вопрос {q_num}: {q.get('text', '')}")
                 q_lbl.setWordWrap(True)
-                q_lbl.setStyleSheet("font-size: 13px; font-weight: bold; color: #1e293b; border: none;")
+                q_lbl.setStyleSheet(
+                    "font-size: 13px; font-weight: 600; color: #292524;"
+                    " border: none; background: transparent;"
+                )
                 header.addWidget(q_lbl, 1)
 
                 badge = QLabel()
+                badge_base = (
+                    "font-size: 11px; font-weight: 600; padding: 3px 10px;"
+                    " border-radius: 999px; border: none;"
+                )
                 if q_score_val >= 1.0:
-                    badge.setText("Верно (1.0)")
-                    badge.setStyleSheet("background-color: #d1fae5; color: #065f46; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px; border: none;")
+                    badge.setText(f"Верно · {q_score_val}")
+                    badge.setStyleSheet(
+                        badge_base + " background-color: #dcfce7; color: #14532d;"
+                    )
                 elif q_score_val > 0:
-                    badge.setText(f"Частично ({q_score_val})")
-                    badge.setStyleSheet("background-color: #fef3c7; color: #92400e; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px; border: none;")
+                    badge.setText(f"Частично · {q_score_val}")
+                    badge.setStyleSheet(
+                        badge_base + " background-color: #fef3c7; color: #92400e;"
+                    )
                 else:
-                    badge.setText("Неверно (0.0)")
-                    badge.setStyleSheet("background-color: #fee2e2; color: #991b1b; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px; border: none;")
+                    badge.setText(f"Неверно · {q_score_val}")
+                    badge.setStyleSheet(
+                        badge_base + " background-color: #fee2e2; color: #991b1b;"
+                    )
                 header.addWidget(badge)
                 card_lay.addLayout(header)
 
-                # Student selected
                 if q.get('written'):
-                    sel_lbl = QLabel(f"Ответ студента: {student_ans[0] if student_ans else '[Нет ответа]'}")
+                    sel_lbl = QLabel(f"Ответ студента: {student_ans[0] if student_ans else '[нет ответа]'}")
                 else:
-                    sel_lbl = QLabel(f"Выбрано студентом: {', '.join(student_ans) if student_ans else '[Нет ответа]'}")
+                    sel_lbl = QLabel(f"Выбрано: {', '.join(student_ans) if student_ans else '[нет ответа]'}")
                 sel_lbl.setWordWrap(True)
-                sel_lbl.setStyleSheet("font-size: 12px; color: #475569; border: none;")
+                sel_lbl.setStyleSheet(
+                    "font-size: 12px; color: #57534e; border: none; background: transparent;"
+                )
                 card_lay.addWidget(sel_lbl)
 
-                # Correct answers
                 if q.get('written'):
-                    cor_lbl = QLabel(f"Правильные варианты ответа: {', '.join(correct_answers)}")
+                    cor_lbl = QLabel(f"Правильные варианты: {', '.join(correct_answers)}")
                 else:
                     cor_lbl = QLabel(f"Правильный ответ: {', '.join(correct_answers)}")
                 cor_lbl.setWordWrap(True)
-                cor_lbl.setStyleSheet("font-size: 12px; color: #059669; font-weight: 500; border: none;")
+                cor_lbl.setStyleSheet(
+                    "font-size: 12px; color: #15803d; font-weight: 500;"
+                    " border: none; background: transparent;"
+                )
                 card_lay.addWidget(cor_lbl)
 
                 scroll_layout.addWidget(q_card)
@@ -155,10 +202,8 @@ class StudentAnswersDialog(QDialog):
         layout.addWidget(scroll)
 
         close_btn = QPushButton("Закрыть")
-        close_btn.setStyleSheet(
-            "QPushButton { background-color: #6366f1; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #4f46e5; }"
-        )
+        close_btn.setProperty("class", "primaryBtn")
+        close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn, 0, Qt.AlignRight)
 
@@ -182,9 +227,7 @@ class EditQuestionDialog(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
 
-        # Question Text
-        lbl1 = QLabel("Текст вопроса:")
-        lbl1.setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        lbl1 = _section_label("Текст вопроса")
         layout.addWidget(lbl1)
 
         self.q_text_input = QTextEdit()
@@ -192,15 +235,14 @@ class EditQuestionDialog(QDialog):
         self.q_text_input.setPlainText(self.question.get("text", ""))
         self.q_text_input.setMaximumHeight(80)
         self.q_text_input.setStyleSheet(
-            "QTextEdit { background-color: #ffffff; border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px; font-size: 13px; color: #1e293b; }"
-            "QTextEdit:focus { border: 2px solid #3b82f6; }"
+            "QTextEdit { background-color: #ffffff; border: 1px solid #e7e5e4;"
+            " border-radius: 8px; padding: 8px; font-size: 13px; color: #292524; }"
+            "QTextEdit:focus { border: 1px solid #2563eb; }"
         )
         layout.addWidget(self.q_text_input)
 
-        # Question Type
         type_lay = QHBoxLayout()
-        type_lbl = QLabel("Тип вопроса:")
-        type_lbl.setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        type_lbl = _section_label("Тип вопроса")
         type_lay.addWidget(type_lbl)
 
         self.q_type_combo = QComboBox()
@@ -210,7 +252,6 @@ class EditQuestionDialog(QDialog):
             "Письменный ответ"
         ])
 
-        # Determine initial selection
         if self.question.get("written", False):
             self.q_type_combo.setCurrentIndex(2)
         elif self.question.get("multiple", False):
@@ -222,25 +263,21 @@ class EditQuestionDialog(QDialog):
         type_lay.addStretch()
         layout.addLayout(type_lay)
 
-        # Image selection
         img_layout = QHBoxLayout()
-        self.img_status = QLabel("Изображение отсутствует" if not self.question.get("image_data") else "Изображение прикреплено")
-        self.img_status.setStyleSheet("color: #64748b; font-size: 12px; font-weight: 500; border: none; background: transparent;")
+        self.img_status = _muted_label(
+            "Изображение отсутствует" if not self.question.get("image_data") else "Изображение прикреплено"
+        )
         img_layout.addWidget(self.img_status)
 
         self.add_img_btn = QPushButton("Выбрать изображение")
-        self.add_img_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #1e293b; padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-weight: bold; font-size: 12px; }"
-            "QPushButton:hover { background-color: #f1f5f9; }"
-        )
+        self.add_img_btn.setProperty("class", "secondaryBtn")
+        self.add_img_btn.setCursor(Qt.PointingHandCursor)
         self.add_img_btn.clicked.connect(self._select_image)
         img_layout.addWidget(self.add_img_btn)
 
         self.remove_img_btn = QPushButton("Удалить")
-        self.remove_img_btn.setStyleSheet(
-            "QPushButton { background-color: #fee2e2; color: #991b1b; padding: 6px 12px; border-radius: 6px; border: none; font-weight: bold; font-size: 12px; }"
-            "QPushButton:hover { background-color: #fca5a5; }"
-        )
+        self.remove_img_btn.setProperty("class", "dangerBtn")
+        self.remove_img_btn.setCursor(Qt.PointingHandCursor)
         self.remove_img_btn.clicked.connect(self._remove_image)
         if not self.question.get("image_data"):
             self.remove_img_btn.hide()
@@ -248,15 +285,13 @@ class EditQuestionDialog(QDialog):
 
         layout.addLayout(img_layout)
 
-        # Answer Options List
-        self.ans_title_lbl = QLabel("Варианты ответов:")
-        self.ans_title_lbl.setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none; background: transparent;")
+        self.ans_title_lbl = _section_label("Варианты ответов")
         layout.addWidget(self.ans_title_lbl)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet(
-            "QScrollArea { border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; }"
+            "QScrollArea { border: 1px solid #e7e5e4; border-radius: 8px; background-color: #ffffff; }"
             "QScrollArea > QWidget > QWidget { background-color: #ffffff; }"
         )
         self.scroll_content = QWidget()
@@ -269,12 +304,9 @@ class EditQuestionDialog(QDialog):
         self.scroll.setWidget(self.scroll_content)
         layout.addWidget(self.scroll)
 
-        # Add Answer variant button
         self.add_ans_btn = QPushButton("Добавить вариант ответа")
-        self.add_ans_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #475569; font-weight: bold; font-size: 13px; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; }"
-            "QPushButton:hover { background-color: #f1f5f9; }"
-        )
+        self.add_ans_btn.setProperty("class", "secondaryBtn")
+        self.add_ans_btn.setCursor(Qt.PointingHandCursor)
         self.add_ans_btn.clicked.connect(self._add_answer_row)
         layout.addWidget(self.add_ans_btn)
 
@@ -283,18 +315,14 @@ class EditQuestionDialog(QDialog):
         btn_lay.addStretch()
 
         cancel_btn = QPushButton("Отмена")
-        cancel_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #3b82f6; font-size: 13px; font-weight: bold; padding: 10px 20px; border: 2px solid #3b82f6; border-radius: 8px; }"
-            "QPushButton:hover { background-color: #eff6ff; }"
-        )
+        cancel_btn.setProperty("class", "secondaryBtn")
+        cancel_btn.setCursor(Qt.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
         btn_lay.addWidget(cancel_btn)
 
         self.save_btn = QPushButton("Сохранить")
-        self.save_btn.setStyleSheet(
-            "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 20px; border: none; border-radius: 8px; }"
-            "QPushButton:hover { background-color: #059669; }"
-        )
+        self.save_btn.setProperty("class", "primaryBtn")
+        self.save_btn.setCursor(Qt.PointingHandCursor)
         self.save_btn.clicked.connect(self._save_changes)
         btn_lay.addWidget(self.save_btn)
 
@@ -327,7 +355,10 @@ class EditQuestionDialog(QDialog):
 
     def _create_answer_row(self, text="", is_correct=False):
         row_widget = QWidget()
-        row_widget.setStyleSheet("QWidget { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; }")
+        row_widget.setStyleSheet(
+            "QWidget { background-color: #ffffff; border: 1px solid #e7e5e4;"
+            " border-radius: 8px; }"
+        )
         row_lay = QHBoxLayout(row_widget)
         row_lay.setContentsMargins(8, 6, 8, 6)
         row_lay.setSpacing(8)
@@ -352,17 +383,16 @@ class EditQuestionDialog(QDialog):
         ans_input.setText(text)
         ans_input.setPlaceholderText("Текст ответа...")
         ans_input.setStyleSheet(
-            "QLineEdit { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; font-size: 13px; color: #1e293b; }"
-            "QLineEdit:focus { border: 1px solid #3b82f6; }"
+            "QLineEdit { background-color: #ffffff; border: 1px solid #d6d3d1;"
+            " border-radius: 6px; padding: 6px 8px; font-size: 13px; color: #292524; }"
+            "QLineEdit:focus { border: 1px solid #2563eb; }"
         )
         row_lay.addWidget(ans_input, 1)
 
         # Delete button
         del_btn = QPushButton("Удалить")
-        del_btn.setStyleSheet(
-            "QPushButton { background-color: #fee2e2; color: #991b1b; padding: 6px 12px; border-radius: 6px; border: none; font-weight: bold; font-size: 12px; }"
-            "QPushButton:hover { background-color: #fca5a5; }"
-        )
+        del_btn.setProperty("class", "tableDangerBtn")
+        del_btn.setCursor(Qt.PointingHandCursor)
 
         def remove_row():
             row_widget.deleteLater()
@@ -446,25 +476,25 @@ class MonitoringDialog(QDialog):
             self.setWindowTitle(f"Мониторинг группы {group}")
         else:
             self.setWindowTitle("Мониторинг тестирования в реальном времени")
-        apply_dialog_scaling(self, parent, 700, 450)
+        apply_dialog_scaling(self, parent, 820, 470)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
-        title = QLabel(f"Подключенные студенты ({group})" if group else "Подключенные студенты")
-        title.setProperty("class", "sectionTitle")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b; border: none;")
+        title = _title_label(
+            f"Подключенные студенты ({group})" if group else "Подключенные студенты"
+        )
         layout.addWidget(title)
 
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Имя студента", "Группа", "Статус", "Результат", "Процент"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.table.setColumnWidth(0, 200)
-        self.table.setColumnWidth(1, 100)
+        self.table.setColumnWidth(0, 250)
+        self.table.setColumnWidth(1, 110)
         self.table.setColumnWidth(2, 180)
-        self.table.setColumnWidth(3, 100)
-        self.table.setColumnWidth(4, 80)
+        self.table.setColumnWidth(3, 130)
+        self.table.setColumnWidth(4, 110)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -474,10 +504,8 @@ class MonitoringDialog(QDialog):
 
         btn_layout = QHBoxLayout()
         self.view_answers_btn = QPushButton("Посмотреть ответы")
-        self.view_answers_btn.setStyleSheet(
-            "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #2563eb; }"
-        )
+        self.view_answers_btn.setProperty("class", "primaryBtn")
+        self.view_answers_btn.setCursor(Qt.PointingHandCursor)
         self.view_answers_btn.clicked.connect(self.view_answers)
         btn_layout.addWidget(self.view_answers_btn)
 
@@ -485,6 +513,7 @@ class MonitoringDialog(QDialog):
 
         close_btn = QPushButton("Закрыть")
         close_btn.setProperty("class", "secondaryBtn")
+        close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
 
@@ -557,13 +586,13 @@ class MonitoringDialog(QDialog):
                 warn_count = len(getattr(s, 'cheat_warnings', []))
                 if warn_count >= 3:
                     status_item.setText("Сдан (Блокировка ⚠️)")
-                    status_item.setForeground(QColor("#ef4444"))
+                    status_item.setForeground(QColor("#dc2626"))
                 else:
                     status_item.setText("Сдал тест")
-                    status_item.setForeground(QColor("#10b981"))
+                    status_item.setForeground(QColor("#16a34a"))
             elif not s.active:
                 status_item.setText("Соединение потеряно")
-                status_item.setForeground(QColor("#ef4444"))
+                status_item.setForeground(QColor("#dc2626"))
             else:
                 warn_count = len(getattr(s, 'cheat_warnings', []))
                 if warn_count > 0:
@@ -571,7 +600,7 @@ class MonitoringDialog(QDialog):
                     status_item.setForeground(QColor("#e11d48"))
                 else:
                     status_item.setText("Выполняет тест")
-                    status_item.setForeground(QColor("#3b82f6"))
+                    status_item.setForeground(QColor("#2563eb"))
 
             # Проверяем или создаем ячейку для результата
             score_item = self.table.item(row, 3)
@@ -592,7 +621,7 @@ class MonitoringDialog(QDialog):
                 grade_item.setForeground(QColor(grade_color))
             else:
                 grade_item.setText("—")
-                grade_item.setForeground(QColor("#64748b"))
+                grade_item.setForeground(QColor("#78716c"))
 
 
 # ---------------------------------------------------------------------------
@@ -613,7 +642,7 @@ class DropZoneWidget(QFrame):
 
         self.label = QLabel("Перетащите файл теста формата .txt сюда")
         self.label.setAlignment(Qt.AlignCenter)
-        self.label.setStyleSheet("font-size: 15px; color: #64748b; font-weight: bold; border: none;")
+        self.label.setStyleSheet("font-size: 15px; color: #78716c; font-weight: bold; border: none;")
         layout.addWidget(self.label)
 
         btn_row = QHBoxLayout()
@@ -629,7 +658,7 @@ class DropZoneWidget(QFrame):
 
         self._status_label = QLabel("Файл не выбран")
         self._status_label.setAlignment(Qt.AlignCenter)
-        self._status_label.setStyleSheet("font-size: 13px; color: #94a3b8; border: none;")
+        self._status_label.setStyleSheet("font-size: 13px; color: #a8a29e; border: none;")
         layout.addWidget(self._status_label)
 
     def _browse(self):
@@ -639,7 +668,7 @@ class DropZoneWidget(QFrame):
 
     def set_file(self, path):
         self._status_label.setText(f"Выбран файл: {os.path.basename(path)}")
-        self._status_label.setStyleSheet("font-size: 13px; color: #10b981; font-weight: bold; border: none;")
+        self._status_label.setStyleSheet("font-size: 13px; color: #16a34a; font-weight: bold; border: none;")
         self.file_dropped.emit(path)
 
     def dragEnterEvent(self, event: QDragEnterEvent):
@@ -659,22 +688,22 @@ class SelectTestFromRepoDialog(QDialog):
         super().__init__(parent)
         self.tests = tests
         self.setWindowTitle("Выбрать тест из репозитория")
-        apply_dialog_scaling(self, parent, 500, 420)
+        apply_dialog_scaling(self, parent, 520, 440)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
 
-        title = QLabel("Выберите тест из сохраненных:")
-        title.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b; border: none; background: transparent;")
+        title = _section_label("Выберите тест из сохранённых")
         layout.addWidget(title)
 
         # Поле поиска
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Поиск по названию или группе...")
+        self.search_input.setPlaceholderText("Поиск по названию или группе…")
         self.search_input.setStyleSheet(
-            "QLineEdit { padding: 8px 12px; font-size: 13px; border-radius: 6px; border: 1px solid #cbd5e1; background-color: #ffffff; }"
-            "QLineEdit:focus { border: 1px solid #3b82f6; }"
+            "QLineEdit { padding: 9px 12px; font-size: 13px; border-radius: 8px;"
+            " border: 1px solid #e7e5e4; background-color: #ffffff; color: #1c1917; }"
+            "QLineEdit:focus { border: 1px solid #2563eb; }"
         )
         self.search_input.textChanged.connect(self._filter_table)
         layout.addWidget(self.search_input)
@@ -682,7 +711,7 @@ class SelectTestFromRepoDialog(QDialog):
         self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["Название теста / Группа", "Вопросов"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.table.setColumnWidth(0, 300)
+        self.table.setColumnWidth(0, 320)
         self.table.setColumnWidth(1, 120)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -696,18 +725,14 @@ class SelectTestFromRepoDialog(QDialog):
         btn_lay.addStretch()
 
         cancel_btn = QPushButton("Отмена")
-        cancel_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #475569; font-weight: bold; font-size: 13px; padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #f1f5f9; }"
-        )
+        cancel_btn.setProperty("class", "secondaryBtn")
+        cancel_btn.setCursor(Qt.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
         btn_lay.addWidget(cancel_btn)
 
         self.select_btn = QPushButton("Выбрать")
-        self.select_btn.setStyleSheet(
-            "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #2563eb; }"
-        )
+        self.select_btn.setProperty("class", "primaryBtn")
+        self.select_btn.setCursor(Qt.PointingHandCursor)
         self.select_btn.clicked.connect(self.accept)
         btn_lay.addWidget(self.select_btn)
 
@@ -750,43 +775,14 @@ class UpdateProgressDialog(QDialog):
         super().__init__(parent)
         self.exam_server = exam_server
         self.setWindowTitle("Обновление системы")
-        self.resize(580, 450)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f8fafc;
-            }
-            QLabel {
-                color: #0f172a;
-                font-family: 'Segoe UI', Arial, sans-serif;
-            }
-            QProgressBar {
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                background-color: #e2e8f0;
-                text-align: center;
-                color: #0f172a;
-                font-weight: bold;
-                height: 18px;
-            }
-            QProgressBar::chunk {
-                background-color: #3b82f6;
-                border-radius: 5px;
-            }
-            QFrame.card {
-                background-color: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 12px;
-            }
-        """)
+        apply_dialog_scaling(self, parent, 580, 470)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
         layout.setContentsMargins(20, 20, 20, 20)
 
         # Title
-        title_label = QLabel("Установка системных обновлений")
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b;")
+        title_label = _title_label("Установка системных обновлений")
         layout.addWidget(title_label)
 
         # Section 1: Server Device Progress
@@ -795,42 +791,39 @@ class UpdateProgressDialog(QDialog):
         server_frame.setStyleSheet("""
             QFrame#server_card {
                 background-color: #ffffff;
-                border: 1px solid #e2e8f0;
+                border: 1px solid #e7e5e4;
                 border-radius: 10px;
             }
         """)
         server_lay = QVBoxLayout(server_frame)
-        server_lay.setContentsMargins(12, 12, 12, 12)
+        server_lay.setContentsMargins(14, 14, 14, 14)
         server_lay.setSpacing(8)
 
-        self.server_title = QLabel("Локальный сервер (Загрузка с GitHub)")
-        self.server_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #475569;")
+        self.server_title = _section_label("Локальный сервер (загрузка с GitHub)")
         server_lay.addWidget(self.server_title)
 
         self.server_progress = QProgressBar()
         self.server_progress.setValue(0)
         server_lay.addWidget(self.server_progress)
 
-        self.server_status = QLabel("Ожидание...")
-        self.server_status.setStyleSheet("font-size: 11px; color: #64748b;")
+        self.server_status = _muted_label("Ожидание…", size=11)
         server_lay.addWidget(self.server_status)
 
         layout.addWidget(server_frame)
 
         # Section 2: Connected Clients List
-        clients_label = QLabel("Подключенные клиенты (Передача обновлений)")
-        clients_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #475569;")
+        clients_label = _section_label("Подключённые клиенты (передача обновлений)")
         layout.addWidget(clients_label)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; }")
+        scroll.setStyleSheet("QScrollArea { border: 1px solid #e7e5e4; border-radius: 8px; background-color: #ffffff; }")
 
         self.scroll_content = QWidget()
         self.scroll_content.setStyleSheet("background-color: #ffffff;")
         self.scroll_layout = QVBoxLayout(self.scroll_content)
         self.scroll_layout.setSpacing(12)
-        self.scroll_layout.setContentsMargins(10, 10, 10, 10)
+        self.scroll_layout.setContentsMargins(12, 12, 12, 12)
 
         scroll.setWidget(self.scroll_content)
         layout.addWidget(scroll, 1)
@@ -840,19 +833,14 @@ class UpdateProgressDialog(QDialog):
         btn_lay.addStretch()
 
         self.cancel_btn = QPushButton("Отмена")
-        self.cancel_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #64748b; font-weight: bold; font-size: 13px; padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #f1f5f9; }"
-        )
+        self.cancel_btn.setProperty("class", "secondaryBtn")
+        self.cancel_btn.setCursor(Qt.PointingHandCursor)
         self.cancel_btn.clicked.connect(self.reject)
         btn_lay.addWidget(self.cancel_btn)
 
         self.upgrade_btn = QPushButton("Обновить все")
-        self.upgrade_btn.setStyleSheet(
-            "QPushButton { background-color: #10b981; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #059669; }"
-            "QPushButton:disabled { background-color: #cbd5e1; color: #94a3b8; }"
-        )
+        self.upgrade_btn.setProperty("class", "primaryBtn")
+        self.upgrade_btn.setCursor(Qt.PointingHandCursor)
         self.upgrade_btn.setEnabled(False)
         self.upgrade_btn.clicked.connect(self.apply_full_upgrade)
         btn_lay.addWidget(self.upgrade_btn)
@@ -899,8 +887,7 @@ class UpdateProgressDialog(QDialog):
 
         students = list(self.exam_server._students.values())
         if not students:
-            empty_lbl = QLabel("Нет подключенных клиентов.")
-            empty_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; font-style: italic;")
+            empty_lbl = _muted_label("Нет подключённых клиентов.", size=12)
             self.scroll_layout.addWidget(empty_lbl)
             return
 
@@ -912,9 +899,14 @@ class UpdateProgressDialog(QDialog):
 
             info_lay = QHBoxLayout()
             name_lbl = QLabel(f"{s.name} ({s.group})")
-            name_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #334155;")
+            name_lbl.setStyleSheet(
+                "font-size: 12px; font-weight: 600; color: #44403c;"
+                " border: none; background: transparent;"
+            )
             ver_lbl = QLabel(f"Версия: {s.version}")
-            ver_lbl.setStyleSheet("font-size: 11px; color: #64748b;")
+            ver_lbl.setStyleSheet(
+                "font-size: 11px; color: #78716c; border: none; background: transparent;"
+            )
             info_lay.addWidget(name_lbl)
             info_lay.addStretch()
             info_lay.addWidget(ver_lbl)
@@ -922,32 +914,34 @@ class UpdateProgressDialog(QDialog):
 
             prog = QProgressBar()
             prog.setValue(0)
-            prog.setFixedHeight(12)
+            prog.setFixedHeight(10)
             prog.setStyleSheet("""
                 QProgressBar {
-                    border: 1px solid #e2e8f0;
+                    border: 1px solid #e7e5e4;
                     border-radius: 4px;
-                    background-color: #f1f5f9;
+                    background-color: #f5f5f4;
                     text-align: center;
                     font-size: 9px;
                     color: transparent;
                 }
                 QProgressBar::chunk {
-                    background-color: #10b981;
+                    background-color: #2563eb;
                     border-radius: 3px;
                 }
             """)
             item_lay.addWidget(prog)
 
-            status_lbl = QLabel("Ожидание скачивания сервера...")
-            status_lbl.setStyleSheet("font-size: 10px; color: #94a3b8;")
+            status_lbl = QLabel("Ожидание скачивания сервера…")
+            status_lbl.setStyleSheet(
+                "font-size: 10px; color: #a8a29e; border: none; background: transparent;"
+            )
             item_lay.addWidget(status_lbl)
 
             # Разделительная полоса
             sep = QFrame()
             sep.setFrameShape(QFrame.HLine)
-            sep.setFrameShadow(QFrame.Sunken)
-            sep.setStyleSheet("color: #f1f5f9;")
+            sep.setFrameShadow(QFrame.Plain)
+            sep.setStyleSheet("color: #f5f5f4;")
             item_lay.addWidget(sep)
 
             self.scroll_layout.addWidget(item_widget)
@@ -963,7 +957,7 @@ class UpdateProgressDialog(QDialog):
             prog.setValue(percent)
             status_lbl.setText(text)
             if percent == 100:
-                status_lbl.setStyleSheet("font-size: 10px; color: #059669; font-weight: bold;")
+                status_lbl.setStyleSheet("font-size: 10px; color: #15803d; font-weight: bold;")
             else:
                 status_lbl.setStyleSheet("font-size: 10px; color: #2563eb;")
 
@@ -1055,50 +1049,32 @@ class ConnectedClientsDialog(QDialog):
         )
         super().__init__(parent)
         self.exam_server = exam_server
-        self.setWindowTitle("Подключенные клиенты")
-        self.resize(680, 420)
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f8fafc;
-            }
-            QLabel {
-                color: #0f172a;
-                font-family: 'Segoe UI', Arial, sans-serif;
-            }
-            QTableWidget {
-                background-color: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                gridline-color: #f1f5f9;
-            }
-            QHeaderView::section {
-                background-color: #f1f5f9;
-                padding: 8px;
-                font-weight: bold;
-                border: none;
-                border-bottom: 1px solid #cbd5e1;
-                color: #475569;
-            }
-        """)
+        self.setWindowTitle("Подключённые клиенты")
+        apply_dialog_scaling(self, parent, 880, 460)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
         # Title
-        title_label = QLabel("Список подключенных клиентов (в реальном времени)")
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e293b;")
+        title_label = _title_label("Список подключённых клиентов")
         layout.addWidget(title_label)
 
         # Description hint
-        desc_label = QLabel("Здесь отображаются устройства студентов, которые в данный момент подключены к серверу и проходят тестирование.")
-        desc_label.setStyleSheet("font-size: 11px; color: #64748b; margin-bottom: 4px;")
+        desc_label = _muted_label(
+            "Здесь отображаются устройства студентов, которые сейчас подключены к серверу и проходят тестирование."
+        )
         layout.addWidget(desc_label)
 
         # Table
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Имя студента", "Группа", "ОС", "Версия клиента", "IP-адрес / Порт"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table.setColumnWidth(0, 260)
+        self.table.setColumnWidth(1, 110)
+        self.table.setColumnWidth(2, 100)
+        self.table.setColumnWidth(3, 160)
+        self.table.setColumnWidth(4, 180)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -1110,10 +1086,8 @@ class ConnectedClientsDialog(QDialog):
         btn_lay.addStretch()
 
         close_btn = QPushButton("Закрыть")
-        close_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #64748b; font-weight: bold; font-size: 13px; padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #f1f5f9; }"
-        )
+        close_btn.setProperty("class", "secondaryBtn")
+        close_btn.setCursor(Qt.PointingHandCursor)
         close_btn.clicked.connect(self.accept)
         btn_lay.addWidget(close_btn)
 

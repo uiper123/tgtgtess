@@ -52,7 +52,7 @@ class SettingsMixin:
         # Вспомогательный метод для стилизации рядов настроек
         def add_form_row(grid_layout, label_text, widget, row_idx):
             lbl = QLabel(label_text)
-            lbl.setStyleSheet("font-size: 13px; font-weight: 500; color: #475569; background: transparent;")
+            lbl.setStyleSheet("font-size: 13px; font-weight: 500; color: #57534e; background: transparent;")
             widget.setMaximumWidth(140)
             grid_layout.addWidget(lbl, row_idx, 0, Qt.AlignLeft | Qt.AlignVCenter)
             grid_layout.addWidget(widget, row_idx, 1, Qt.AlignLeft | Qt.AlignVCenter)
@@ -67,13 +67,13 @@ class SettingsMixin:
         s1_layout.setSpacing(14)
 
         s1_title = QLabel("Основные параметры сервера и безопасности")
-        s1_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        s1_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #292524;")
         s1_layout.addWidget(s1_title)
 
         # Порт
         port_lay = QHBoxLayout()
         lbl_port = QLabel("Порт TCP-сервера:")
-        lbl_port.setStyleSheet("font-size: 13px; font-weight: 500; color: #475569; background: transparent;")
+        lbl_port.setStyleSheet("font-size: 13px; font-weight: 500; color: #57534e; background: transparent;")
         self.port_spin = QSpinBox()
         self.port_spin.setRange(1024, 65535)
         self.port_spin.setValue(self._settings.value("tcp_port", 9876, type=int))
@@ -113,7 +113,7 @@ class SettingsMixin:
         s2_layout.setSpacing(14)
 
         s2_title = QLabel("Параметры запуска тестирований по умолчанию")
-        s2_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        s2_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #292524;")
         s2_layout.addWidget(s2_title)
 
         grid = QGridLayout()
@@ -162,7 +162,7 @@ class SettingsMixin:
         s3_layout.setSpacing(14)
 
         s3_title = QLabel("Цветовая индикация результатов (пороговые проценты)")
-        s3_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        s3_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #292524;")
         s3_layout.addWidget(s3_title)
 
         grid3 = QGridLayout()
@@ -199,7 +199,7 @@ class SettingsMixin:
         s4_layout.setSpacing(14)
 
         s4_title = QLabel("Внешний вид и масштабирование")
-        s4_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        s4_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #292524;")
         s4_layout.addWidget(s4_title)
 
         grid4 = QGridLayout()
@@ -237,17 +237,17 @@ class SettingsMixin:
         s5_layout.setSpacing(14)
 
         s5_title = QLabel("Обновление системы (GitHub)")
-        s5_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        s5_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #292524;")
         s5_layout.addWidget(s5_title)
 
         upd_info_lay = QHBoxLayout()
         from shared.version import VERSION
         self.ver_label = QLabel(f"Текущая версия: <b>{VERSION}</b>")
-        self.ver_label.setStyleSheet("font-size: 13px; color: #475569;")
+        self.ver_label.setStyleSheet("font-size: 13px; color: #57534e;")
         upd_info_lay.addWidget(self.ver_label)
 
         self.upd_status_label = QLabel("")
-        self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #059669;")
+        self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #15803d;")
         upd_info_lay.addWidget(self.upd_status_label)
         upd_info_lay.addStretch()
         s5_layout.addLayout(upd_info_lay)
@@ -394,7 +394,7 @@ class SettingsMixin:
 
     def _check_updates(self):
         self.upd_status_label.setText("Проверка...")
-        self.upd_status_label.setStyleSheet("font-size: 13px; color: #475569;")
+        self.upd_status_label.setStyleSheet("font-size: 13px; color: #57534e;")
         self.download_upd_btn.setEnabled(False)
 
         import threading
@@ -418,7 +418,7 @@ class SettingsMixin:
             self.update_clients_btn.setEnabled(True)
         elif error == "latest":
             self.upd_status_label.setText("У вас актуальная версия.")
-            self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #059669;")
+            self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #15803d;")
             self.download_upd_btn.setEnabled(False)
             self.update_clients_btn.setEnabled(True)
         else:

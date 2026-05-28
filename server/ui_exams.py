@@ -74,7 +74,7 @@ class ExamsMixin:
 
         grp_col = QVBoxLayout()
         grp_label = QLabel("Группа")
-        grp_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        grp_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
         grp_col.addWidget(grp_label)
         self._group_input = QLineEdit()
         self._group_input.setPlaceholderText("Например: CS-101")
@@ -83,7 +83,7 @@ class ExamsMixin:
 
         dur_col = QVBoxLayout()
         dur_label = QLabel("Лимит времени (минуты)")
-        dur_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        dur_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
         dur_col.addWidget(dur_label)
         self._duration_spin = QSpinBox()
         self._duration_spin.setRange(1, 300)
@@ -95,7 +95,7 @@ class ExamsMixin:
         # Выбор количества вопросов
         limit_col = QVBoxLayout()
         limit_label = QLabel("Кол-во вопросов")
-        limit_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        limit_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
         limit_col.addWidget(limit_label)
         self._questions_limit_spin = QSpinBox()
         self._questions_limit_spin.setRange(1, 1000)
@@ -107,7 +107,7 @@ class ExamsMixin:
         # Количество попыток для одного ФИО
         attempts_col = QVBoxLayout()
         attempts_label = QLabel("Попыток")
-        attempts_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        attempts_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
         attempts_col.addWidget(attempts_label)
         self._attempts_limit_spin = QSpinBox()
         self._attempts_limit_spin.setRange(1, 10)
@@ -119,7 +119,7 @@ class ExamsMixin:
         # Лимит нарушений прокторинга (после превышения студент блокируется)
         cheat_col = QVBoxLayout()
         cheat_label = QLabel("Нарушений")
-        cheat_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        cheat_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
         cheat_col.addWidget(cheat_label)
         self._cheat_warning_spin = QSpinBox()
         self._cheat_warning_spin.setRange(1, 20)
@@ -137,7 +137,7 @@ class ExamsMixin:
 
         rnd_col = QVBoxLayout()
         rnd_label = QLabel("Случайный порядок")
-        rnd_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        rnd_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
         rnd_col.addWidget(rnd_label)
         self._random_order_cb = QCheckBox("Случайный порядок")
         self._random_order_cb.setCursor(Qt.PointingHandCursor)
@@ -148,7 +148,7 @@ class ExamsMixin:
         # Частичный зачёт множественных вопросов
         partial_col = QVBoxLayout()
         partial_label = QLabel("Проверка ответов")
-        partial_label.setStyleSheet("font-size: 12px; color: #64748b; font-weight: bold;")
+        partial_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
         partial_col.addWidget(partial_label)
         self._partial_multiple_cb = QCheckBox("Частичные ответы")
         self._partial_multiple_cb.setChecked(self._settings.value("default_partial_multiple", True, type=bool))
@@ -179,11 +179,8 @@ class ExamsMixin:
         sel_layout.setSpacing(12)
 
         repo_btn_layout = QHBoxLayout()
-        self.choose_from_repo_btn = QPushButton("Выбрать тест из сохраненных в репозитории")
-        self.choose_from_repo_btn.setStyleSheet(
-            "QPushButton { background-color: #8b5cf6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 10px 20px; border: none; border-radius: 8px; }"
-            "QPushButton:hover { background-color: #7c3aed; }"
-        )
+        self.choose_from_repo_btn = QPushButton("Выбрать тест из сохранённых в репозитории")
+        self.choose_from_repo_btn.setProperty("class", "secondaryBtn")
         self.choose_from_repo_btn.setCursor(Qt.PointingHandCursor)
         self.choose_from_repo_btn.clicked.connect(self._choose_test_from_repo_dialog)
         repo_btn_layout.addWidget(self.choose_from_repo_btn)
@@ -202,9 +199,10 @@ class ExamsMixin:
         self.active_test_status_card.setObjectName("activeTestStatusCard")
         self.active_test_status_card.setStyleSheet(
             "QFrame#activeTestStatusCard {"
-            "  background-color: #ecfdf5;"
-            "  border: 1px solid #a7f3d0;"
-            "  border-radius: 12px;"
+            "  background-color: #ffffff;"
+            "  border: 1px solid #e7e5e4;"
+            "  border-left: 3px solid #16a34a;"
+            "  border-radius: 10px;"
             "}"
         )
         card_lay = QHBoxLayout(self.active_test_status_card)
@@ -213,18 +211,18 @@ class ExamsMixin:
 
         info_col = QVBoxLayout()
         self.active_test_title_lbl = QLabel("Тест готов к запуску:")
-        self.active_test_title_lbl.setStyleSheet("font-size: 15px; font-weight: bold; color: #065f46; border: none; background: transparent;")
+        self.active_test_title_lbl.setStyleSheet("font-size: 14px; font-weight: 600; color: #1c1917; border: none; background: transparent;")
         info_col.addWidget(self.active_test_title_lbl)
 
         self.active_test_questions_lbl = QLabel("Вопросов: 0")
-        self.active_test_questions_lbl.setStyleSheet("font-size: 13px; color: #047857; border: none; background: transparent;")
+        self.active_test_questions_lbl.setStyleSheet("font-size: 12.5px; color: #78716c; border: none; background: transparent;")
         info_col.addWidget(self.active_test_questions_lbl)
         card_lay.addLayout(info_col, 1)
 
         self.change_test_btn = QPushButton("Сменить тест")
         self.change_test_btn.setStyleSheet(
-            "QPushButton { background-color: #ffffff; color: #065f46; font-weight: bold; font-size: 13px; padding: 8px 16px; border: 1px solid #a7f3d0; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #f0fdf4; }"
+            "QPushButton { background-color: #ffffff; color: #44403c; font-weight: 600; font-size: 12.5px; padding: 7px 14px; border: 1px solid #e7e5e4; border-radius: 6px; }"
+            "QPushButton:hover { background-color: #fafaf9; border-color: #d6d3d1; }"
         )
         self.change_test_btn.clicked.connect(self._show_test_selector)
         card_lay.addWidget(self.change_test_btn)
@@ -234,7 +232,7 @@ class ExamsMixin:
 
         # Таблица экзаменов
         table_title = QLabel("Список активных тестирований")
-        table_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #1e293b;")
+        table_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #292524;")
         layout.addWidget(table_title)
 
         self._exam_table = QTableWidget(0, 5)
@@ -351,7 +349,7 @@ class ExamsMixin:
         # Обновляем надпись статуса сервера
         port = self.exam_server._tcp_server.serverPort()
         self._status_label.setText(f"Сервер: Работает (порт {port})")
-        self._status_label.setStyleSheet("color: #10b981; font-weight: bold;")
+        self._status_label.setStyleSheet("color: #16a34a; font-weight: bold;")
 
         # Перезаполняем таблицу активных экзаменов
         self._update_exam_table_view()
@@ -405,7 +403,7 @@ class ExamsMixin:
         # Если больше нет активных экзаменов, сбрасываем статус сервера
         if not self.exam_server.is_active:
             self._status_label.setText("Сервер: Выключен")
-            self._status_label.setStyleSheet("color: #94a3b8;")
+            self._status_label.setStyleSheet("color: #a8a29e;")
 
     @Slot(str, int)
     def _on_server_started(self, addr, port):
@@ -427,7 +425,7 @@ class ExamsMixin:
             self.exam_server.log_message.emit(f"TCP-сервер запущен на порту {port}")
 
         self.exam_server.log_message.emit(f"Внимание: убедитесь, что брандмауэр (firewall) на этом компьютере разрешает входящие TCP-подключения на порту {port}")
-        self._status_label.setStyleSheet("color: #10b981; font-weight: bold;")
+        self._status_label.setStyleSheet("color: #16a34a; font-weight: bold;")
         self._update_exam_table_view()
 
     def _open_monitoring(self):

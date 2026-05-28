@@ -79,7 +79,7 @@ class DashboardMixin:
         # Фильтры и поиск
         filter_card = QFrame()
         filter_card.setProperty("class", "card")
-        filter_card.setStyleSheet("QFrame { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }")
+        filter_card.setStyleSheet("QFrame { background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; }")
         filter_lay = QHBoxLayout(filter_card)
         filter_lay.setContentsMargins(16, 12, 16, 12)
         filter_lay.setSpacing(12)
@@ -88,8 +88,8 @@ class DashboardMixin:
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Поиск по названию или группе...")
         self.search_input.setStyleSheet(
-            "QLineEdit { padding: 8px 12px 8px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #cbd5e1; background-color: #ffffff; }"
-            "QLineEdit:focus { border: 1px solid #6366f1; }"
+            "QLineEdit { padding: 8px 12px 8px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #d6d3d1; background-color: #ffffff; }"
+            "QLineEdit:focus { border: 1px solid #2563eb; }"
         )
         self.search_input.textChanged.connect(self._update_dashboard_stats)
         filter_lay.addWidget(self.search_input, 3)
@@ -98,8 +98,8 @@ class DashboardMixin:
         self.status_filter = QComboBox()
         self.status_filter.addItems(["Все статусы", "Готовые тесты", "Пустые тесты"])
         self.status_filter.setStyleSheet(
-            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #cbd5e1; background-color: #ffffff; min-width: 140px; }"
-            "QComboBox:focus { border: 1px solid #6366f1; }"
+            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #d6d3d1; background-color: #ffffff; min-width: 140px; }"
+            "QComboBox:focus { border: 1px solid #2563eb; }"
         )
         self.status_filter.currentIndexChanged.connect(self._update_dashboard_stats)
         filter_lay.addWidget(self.status_filter, 1)
@@ -114,8 +114,8 @@ class DashboardMixin:
             "Вопросы: Больше -> Меньше"
         ])
         self.sort_filter.setStyleSheet(
-            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #cbd5e1; background-color: #ffffff; min-width: 180px; }"
-            "QComboBox:focus { border: 1px solid #6366f1; }"
+            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #d6d3d1; background-color: #ffffff; min-width: 180px; }"
+            "QComboBox:focus { border: 1px solid #2563eb; }"
         )
         self.sort_filter.currentIndexChanged.connect(self._update_dashboard_stats)
         filter_lay.addWidget(self.sort_filter, 1)
@@ -127,7 +127,7 @@ class DashboardMixin:
         self.tests_table.setHorizontalHeaderLabels(["Группа / Название", "Количество вопросов", "Статус"])
         self.tests_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.tests_table.setColumnWidth(0, 450)
-        self.tests_table.setColumnWidth(1, 200)
+        self.tests_table.setColumnWidth(1, 230)
         self.tests_table.setColumnWidth(2, 150)
         self.tests_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tests_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -220,9 +220,9 @@ class DashboardMixin:
             status = "Готов" if q_count > 0 else "Пустой"
             status_item = QTableWidgetItem(status)
             if q_count > 0:
-                status_item.setForeground(QColor("#10b981"))
+                status_item.setForeground(QColor("#16a34a"))
             else:
-                status_item.setForeground(QColor("#ef4444"))
+                status_item.setForeground(QColor("#dc2626"))
             self.tests_table.setItem(row, 2, status_item)
 
     def _create_new_test_flow(self):

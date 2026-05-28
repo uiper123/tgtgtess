@@ -65,7 +65,7 @@ class ResultsMixin:
         filter_card = QFrame()
         filter_card.setObjectName("filterCard")
         filter_card.setStyleSheet(
-            "QFrame#filterCard { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; }"
+            "QFrame#filterCard { background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 12px; padding: 12px; }"
         )
         filter_layout = QHBoxLayout(filter_card)
         filter_layout.setContentsMargins(12, 12, 12, 12)
@@ -75,7 +75,7 @@ class ResultsMixin:
         search_lay = QVBoxLayout()
         search_lay.setSpacing(4)
         search_lbl = QLabel("Поиск")
-        search_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748b; border: none; background: transparent;")
+        search_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #78716c; border: none; background: transparent;")
         self.r_search = QLineEdit()
         self.r_search.setPlaceholderText("🔍 Введите имя для поиска...")
         self.r_search.textChanged.connect(self._update_results_table)
@@ -87,7 +87,7 @@ class ResultsMixin:
         group_lay = QVBoxLayout()
         group_lay.setSpacing(4)
         group_lbl = QLabel("Группа")
-        group_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748b; border: none; background: transparent;")
+        group_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #78716c; border: none; background: transparent;")
         self.r_group_filter = QComboBox()
         self.r_group_filter.currentIndexChanged.connect(self._update_results_table)
         group_lay.addWidget(group_lbl)
@@ -98,7 +98,7 @@ class ResultsMixin:
         sort_lay = QVBoxLayout()
         sort_lay.setSpacing(4)
         sort_lbl = QLabel("Сортировка")
-        sort_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #64748b; border: none; background: transparent;")
+        sort_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #78716c; border: none; background: transparent;")
         self.r_sort_filter = QComboBox()
         self.r_sort_filter.addItems([
             "По умолчанию",
@@ -122,7 +122,7 @@ class ResultsMixin:
         self.r_table.setColumnWidth(0, 250)
         self.r_table.setColumnWidth(1, 100)
         self.r_table.setColumnWidth(2, 200)
-        self.r_table.setColumnWidth(3, 160)
+        self.r_table.setColumnWidth(3, 190)
         self.r_table.setColumnWidth(4, 100)
         self.r_table.setColumnWidth(5, 180)
         self.r_table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -142,10 +142,7 @@ class ResultsMixin:
         btn_row.addWidget(export_btn)
 
         import_log_btn = QPushButton("Импортировать лог студента (.log)")
-        import_log_btn.setStyleSheet(
-            "QPushButton { background-color: #8b5cf6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
-            "QPushButton:hover { background-color: #7c3aed; }"
-        )
+        import_log_btn.setProperty("class", "secondaryBtn")
         import_log_btn.setCursor(Qt.PointingHandCursor)
         import_log_btn.clicked.connect(self._import_student_log)
         btn_row.addWidget(import_log_btn)
