@@ -50,7 +50,8 @@ def apply_dialog_scaling(dialog, parent, base_w, base_h):
             scale_factor = 2.0
 
     dialog.resize(int(base_w * scale_factor), int(base_h * scale_factor))
-    dialog.setStyleSheet(get_scaled_qss(GLOBAL_QSS, scale_factor))
+    from shared.styles import inject_icon_paths
+    dialog.setStyleSheet(inject_icon_paths(get_scaled_qss(GLOBAL_QSS, scale_factor)))
 
 class StudentAnswersDialog(QDialog):
     def __init__(self, student, questions, parent=None):

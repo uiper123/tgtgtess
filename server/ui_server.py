@@ -387,7 +387,8 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.setMinimumSize(int(base_min_w * scale_factor), int(base_min_h * scale_factor))
         self.resize(int(base_w * scale_factor), int(base_h * scale_factor))
 
-        scaled_qss = get_scaled_qss(GLOBAL_QSS, scale_factor)
+        from shared.styles import inject_icon_paths
+        scaled_qss = inject_icon_paths(get_scaled_qss(GLOBAL_QSS, scale_factor))
         self.setStyleSheet(scaled_qss)
 
         if hasattr(self, "_exam_table"):

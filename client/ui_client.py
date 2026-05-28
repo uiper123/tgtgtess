@@ -102,7 +102,8 @@ class StudentWindow(QMainWindow):
 
         self.setMinimumSize(800, 600)
         self.resize(900, 650)
-        self.setStyleSheet(CLIENT_QSS)
+        from shared.styles import inject_icon_paths
+        self.setStyleSheet(inject_icon_paths(CLIENT_QSS))
         self._settings = QSettings("EduTest", "StudentClient")
         self._login_geometry = None
         self._login_window_flags = self.windowFlags()

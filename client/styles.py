@@ -59,6 +59,15 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     background: none;
 }
+QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical,
+QScrollBar::up-arrow:horizontal, QScrollBar::down-arrow:horizontal,
+QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal {
+    background: none;
+    border: none;
+    width: 0px;
+    height: 0px;
+}
+
 
 /* --- Входная карточка --- */
 QFrame#loginCard {
@@ -98,7 +107,7 @@ QComboBox::drop-down {
     border-bottom-right-radius: 10px;
 }
 QComboBox::down-arrow {
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364758b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    image: url({ICON:chevron-down});
     width: 14px;
     height: 14px;
 }
@@ -245,7 +254,7 @@ QRadioButton::indicator {
 QRadioButton::indicator:checked {
     background-color: #6366f1;
     border: 2px solid #6366f1;
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'><circle cx='12' cy='12' r='6'/></svg>");
+    image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nd2hpdGUnPjxjaXJjbGUgY3g9JzEyJyBjeT0nMTInIHI9JzYnLz48L3N2Zz4=");
 }
 QRadioButton::indicator:hover {
     border-color: #6366f1;
@@ -261,7 +270,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #10b981;
     border: 2px solid #10b981;
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'></polyline></svg>");
+    image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPSc0JyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxwb2x5bGluZSBwb2ludHM9JzIwIDYgOSAxNyA0IDEyJz48L3BvbHlsaW5lPjwvc3ZnPg==");
 }
 QCheckBox::indicator:hover {
     border-color: #10b981;
@@ -330,5 +339,25 @@ QMessageBox QPushButton {
 QMessageBox QPushButton:hover {
     background-color: #4f46e5;
 }
+/* --- Контекстные меню --- */
+QMenu {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px;
+}
+QMenu::item {
+    padding: 8px 24px 8px 16px;
+    border-radius: 6px;
+    color: #0f172a;
+}
+QMenu::item:selected {
+    background-color: #eef2ff;
+    color: #4f46e5;
+}
+QMenu::separator {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 4px 8px;
+}
 """
-

@@ -31,6 +31,9 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     border: none;
     background: none;
     height: 0px;
+    width: 0px;
+    subcontrol-position: top;
+    subcontrol-origin: margin;
 }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
     background: none;
@@ -54,10 +57,22 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
     border: none;
     background: none;
     width: 0px;
+    height: 0px;
+    subcontrol-position: left;
+    subcontrol-origin: margin;
 }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     background: none;
 }
+QScrollBar::up-arrow:vertical, QScrollBar::down-arrow:vertical,
+QScrollBar::up-arrow:horizontal, QScrollBar::down-arrow:horizontal,
+QScrollBar::left-arrow:horizontal, QScrollBar::right-arrow:horizontal {
+    background: none;
+    border: none;
+    width: 0px;
+    height: 0px;
+}
+
 
 /* --- Премиальный Сайдбар --- */
 #sidebar {
@@ -161,7 +176,6 @@ QSpinBox {
 QSpinBox:focus {
     border: 2px solid #6366f1;
 }
-
 QComboBox {
     background-color: #ffffff;
     border: 2px solid #e2e8f0;
@@ -186,13 +200,9 @@ QComboBox::drop-down {
     border-bottom-right-radius: 10px;
 }
 QComboBox::down-arrow {
-    image: none;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 6px solid #64748b;
-    width: 0;
-    height: 0;
-    margin-right: 12px;
+    image: url({ICON:chevron-down});
+    width: 12px;
+    height: 12px;
 }
 QComboBox QFrame {
     border: 1px solid #cbd5e1;
@@ -234,7 +244,7 @@ QCheckBox::indicator {
 QCheckBox::indicator:checked {
     background-color: #6366f1;
     border-color: #6366f1;
-    image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'></polyline></svg>");
+    image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPSd3aGl0ZScgc3Ryb2tlLXdpZHRoPSc0JyBzdHJva2UtbGluZWNhcD0ncm91bmQnIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxwb2x5bGluZSBwb2ludHM9JzIwIDYgOSAxNyA0IDEyJz48L3BvbHlsaW5lPjwvc3ZnPg==");
 }
 
 /* --- Премиальные Кнопки --- */
@@ -455,5 +465,25 @@ QMessageBox QPushButton {
 QMessageBox QPushButton:hover {
     background-color: #4f46e5;
 }
+/* --- Контекстные меню --- */
+QMenu {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px;
+}
+QMenu::item {
+    padding: 8px 24px 8px 16px;
+    border-radius: 6px;
+    color: #0f172a;
+}
+QMenu::item:selected {
+    background-color: #eef2ff;
+    color: #4f46e5;
+}
+QMenu::separator {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 4px 8px;
+}
 """
-
