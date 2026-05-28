@@ -68,3 +68,7 @@ tests/*.json
 !shared/*.png
 !shared/*.jpg
 резервная копия/
+
+# Private signing key — НИКОГДА не коммитить!
+update_private_key.pem
+*.private.pem
