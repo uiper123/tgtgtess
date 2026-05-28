@@ -16,12 +16,14 @@ from PySide6.QtCore import Qt, QObject, Signal, Slot, QByteArray, QTimer
 from PySide6.QtNetwork import QTcpSocket, QAbstractSocket, QNetworkProxy
 from PySide6.QtWidgets import QApplication
 
-MAX_MESSAGE_SIZE = 500 * 1024 * 1024
+MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 МБ. До 1.3.7 было 500 МБ —
+                                     # достаточно для DoS на клиент.
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from shared.protocol import pack_message
 from shared.version import VERSION
+from shared.security import verify_signature, sha256_hex, has_public_key
 
 
 def xor_encrypt(data: bytes, key: bytes = b'EduTestPro2025') -> bytes:
@@ -154,6 +156,9 @@ class StudentClient(QObject):
         self._update_file_path = ''
         self._update_total_chunks = 0
         self._update_received_chunks = 0
+        self._update_expected_sha256: Optional[str] = None
+        self._update_signature: Optional[str] = None
+        self._update_sig_algo: Optional[str] = None
 
     def check_active_group(self, host: str, port: int):
         """Запрашивает с сервера активные группы без входа."""
@@ -283,7 +288,7 @@ class StudentClient(QObject):
         elif status == 'update_chunk':
             self._handle_update_chunk(packet)
         elif status == 'update_complete':
-            self._handle_update_complete()
+            self._handle_update_complete(packet)
         elif status == 'idle_connected':
             pass
         elif status == 'error':
@@ -373,13 +378,35 @@ class StudentClient(QObject):
             self._socket.disconnectFromHost()
 
     def _save_update_file(self, packet: dict) -> bool:
-        """Декодирует и сохраняет файл обновления в .new."""
+        """Декодирует и сохраняет файл обновления в .new.
+
+        Перед записью проверяет:
+          * SHA-256 — защита от случайной порчи данных,
+          * Ed25519 подпись — защита от MITM-подмены сервера в LAN.
+
+        Если проверки не пройдены — файл .new не создаётся, обновление
+        отвергается, в лог пишется причина. Поведение можно отключить
+        отдельным флагом в будущем, но по умолчанию — fail closed.
+        """
         import base64
         payload = packet.get('payload')
         if not payload:
             return False
         try:
             data = base64.b64decode(payload)
+        except Exception as e:
+            self.log_message.emit(f"Ошибка декодирования обновления: {e}")
+            return False
+
+        if not self._verify_update_bytes(
+            data,
+            expected_sha256=packet.get('sha256'),
+            signature_b64=packet.get('signature'),
+            sig_algo=packet.get('sig_algo'),
+        ):
+            return False
+
+        try:
             current_exe = os.path.abspath(sys.argv[0])
             update_file = current_exe + ".new"
             with open(update_file, 'wb') as f:
@@ -388,6 +415,62 @@ class StudentClient(QObject):
         except Exception as e:
             self.log_message.emit(f"Ошибка при сохранении обновления: {e}")
             return False
+
+    def _verify_update_bytes(
+        self,
+        data: bytes,
+        expected_sha256: Optional[str],
+        signature_b64: Optional[str],
+        sig_algo: Optional[str],
+    ) -> bool:
+        """
+        Проверяет, что бинарник обновления подлинный и не повреждён.
+
+        Если в клиента не встроен публичный ключ (shared/update_public_key.pem),
+        мы временно разрешаем установку, но громко логируем предупреждение.
+        Это даёт обратную совместимость с серверами, которые не успели
+        развернуть подпись. Когда вы выкатите подписанные сборки, обновите
+        проверку на fail-closed (см. SECURITY.md).
+        """
+        if expected_sha256:
+            actual = sha256_hex(data)
+            if actual.lower() != str(expected_sha256).lower():
+                self.log_message.emit(
+                    f"❌ Хэш обновления не совпадает: ожидался {expected_sha256}, "
+                    f"получен {actual}. Обновление отклонено."
+                )
+                return False
+
+        if has_public_key():
+            if sig_algo and sig_algo.lower() != 'ed25519':
+                self.log_message.emit(
+                    f"❌ Неизвестный алгоритм подписи: {sig_algo!r}. Обновление отклонено."
+                )
+                return False
+            if not signature_b64:
+                self.log_message.emit(
+                    "❌ Сервер прислал обновление без подписи, но клиент "
+                    "сконфигурирован проверять подпись. Обновление отклонено."
+                )
+                return False
+            if not verify_signature(data, signature_b64):
+                self.log_message.emit(
+                    "❌ Подпись Ed25519 не валидна. Возможна подмена сервера. "
+                    "Обновление отклонено."
+                )
+                return False
+            self.log_message.emit("✅ Подпись обновления подтверждена.")
+        elif signature_b64:
+            self.log_message.emit(
+                "⚠️ Сервер прислал подпись, но в клиенте нет публичного ключа — "
+                "проверить не можем. Доверяем, но обновитесь до сборки с ключом."
+            )
+        else:
+            self.log_message.emit(
+                "⚠️ Обновление пришло БЕЗ ПОДПИСИ. Это небезопасно (см. SECURITY.md). "
+                "Доверяем только потому, что у клиента нет встроенного ключа."
+            )
+        return True
 
     def _run_updater(self):
         """Запускает скрипт замены и перезагружает приложение."""
@@ -452,6 +535,10 @@ class StudentClient(QObject):
         self._update_total_chunks = packet.get('total_chunks', 0)
         self._update_received_chunks = 0
         self._update_file_path = os.path.abspath(sys.argv[0]) + ".new"
+        # Метаданные подписи — будут проверены в _handle_update_complete.
+        self._update_expected_sha256 = packet.get('sha256')
+        self._update_signature = packet.get('signature')
+        self._update_sig_algo = packet.get('sig_algo')
         try:
             with open(self._update_file_path, 'wb') as f:
                 pass  # Создаём/очищаем файл
@@ -488,17 +575,51 @@ class StudentClient(QObject):
             self.log_message.emit(f"Ошибка при записи чанка обновления: {e}")
             self.update_progress_signal.emit(0, f"Ошибка записи: {e}")
 
-    def _handle_update_complete(self):
-        """Все чанки получены — запускаем процедуру обновления."""
+    def _handle_update_complete(self, packet: Optional[dict] = None):
+        """Все чанки получены — проверяем подпись и запускаем процедуру обновления."""
         self.log_message.emit(
-            f"Загрузка обновления завершена: {self._update_received_chunks}/{self._update_total_chunks} чанков"
+            f"Загрузка обновления завершена: "
+            f"{self._update_received_chunks}/{self._update_total_chunks} чанков"
         )
-        if self._update_received_chunks == self._update_total_chunks and self._update_total_chunks > 0:
-            self.update_progress_signal.emit(100, "Загрузка завершена! Перезапуск...")
-            self._run_updater()
-        else:
+        if not (
+            self._update_received_chunks == self._update_total_chunks
+            and self._update_total_chunks > 0
+        ):
             self.log_message.emit("Ошибка: не все чанки обновления получены, обновление отменено.")
             self.update_progress_signal.emit(0, "Ошибка: получены не все данные.")
+            return
+
+        # complete-пакет может дублировать sha256/signature — это бекап
+        # на случай потерянного start-пакета.
+        if packet:
+            self._update_expected_sha256 = self._update_expected_sha256 or packet.get('sha256')
+            self._update_signature = self._update_signature or packet.get('signature')
+            self._update_sig_algo = self._update_sig_algo or packet.get('sig_algo')
+
+        try:
+            with open(self._update_file_path, 'rb') as f:
+                full_bytes = f.read()
+        except OSError as exc:
+            self.log_message.emit(f"Не удалось прочитать собранный файл обновления: {exc}")
+            self.update_progress_signal.emit(0, "Ошибка чтения файла.")
+            return
+
+        if not self._verify_update_bytes(
+            full_bytes,
+            expected_sha256=self._update_expected_sha256,
+            signature_b64=self._update_signature,
+            sig_algo=self._update_sig_algo,
+        ):
+            # Уничтожаем непроверенный .new, чтобы _run_updater не подобрал его потом.
+            try:
+                os.remove(self._update_file_path)
+            except OSError:
+                pass
+            self.update_progress_signal.emit(0, "Обновление отклонено: проверка не пройдена.")
+            return
+
+        self.update_progress_signal.emit(100, "Загрузка завершена! Перезапуск...")
+        self._run_updater()
 
     @property
     def student_name(self) -> str:
