@@ -42,6 +42,15 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 PySide6 = pytest.importorskip("PySide6")
 pytest.importorskip("cryptography")
 
+
+def _require_qtwidgets():
+    """Тесты, импортирующие client.main, нуждаются в QtWidgets
+    (он тянет ui_client.py). В headless CI без libEGL — пропускаем."""
+    try:
+        import PySide6.QtWidgets  # noqa: F401
+    except ImportError as e:
+        pytest.skip(f"QtWidgets not available (likely missing libEGL): {e}")
+
 from PySide6.QtCore import QByteArray, QCoreApplication, QTimer
 from PySide6.QtNetwork import QHostAddress, QTcpServer, QTcpSocket
 
@@ -303,6 +312,7 @@ def test_client_rejects_legacy_update_without_signature(monkeypatch, fake_update
     `_save_update_file` должен отказаться записывать .new, если в пакете
     нет signature, а у клиента есть public key (то есть он умеет проверять).
     """
+    _require_qtwidgets()
     pytest.importorskip("PySide6.QtCore")
     from PySide6.QtCore import QCoreApplication
     QCoreApplication.instance() or QCoreApplication(sys.argv)
@@ -331,6 +341,7 @@ def test_client_rejects_legacy_update_without_signature(monkeypatch, fake_update
 
 def test_client_rejects_legacy_update_with_wrong_hash(monkeypatch, fake_update_payload, tmp_path, keypair):
     """Подпись валидная, но хэш в пакете не совпадает с фактическим payload."""
+    _require_qtwidgets()
     from PySide6.QtCore import QCoreApplication
     QCoreApplication.instance() or QCoreApplication(sys.argv)
 
@@ -357,6 +368,7 @@ def test_client_rejects_legacy_update_with_wrong_hash(monkeypatch, fake_update_p
 
 def test_client_accepts_correctly_signed_update(monkeypatch, fake_update_payload, tmp_path, keypair):
     """Happy path: всё валидно → .new создан."""
+    _require_qtwidgets()
     from PySide6.QtCore import QCoreApplication
     QCoreApplication.instance() or QCoreApplication(sys.argv)
 
@@ -393,6 +405,7 @@ def test_linux_updater_script_actually_swaps_binary(monkeypatch, tmp_path):
     shell-скрипта чтобы запуск не падал), дёргаем _run_updater,
     реально ждём 3 секунды (updater делает sleep 2), проверяем swap.
     """
+    _require_qtwidgets()
     import time
 
     from PySide6.QtCore import QCoreApplication
@@ -435,6 +448,7 @@ def test_linux_updater_script_actually_swaps_binary(monkeypatch, tmp_path):
 def test_windows_updater_script_has_proper_quoting(monkeypatch, tmp_path):
     """Скрипт .bat должен правильно квотировать пути с пробелами
     (типичная Windows-проблема `C:\\Program Files\\...`)."""
+    _require_qtwidgets()
     from PySide6.QtCore import QCoreApplication
     QCoreApplication.instance() or QCoreApplication(sys.argv)
 
