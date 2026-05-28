@@ -1,28 +1,37 @@
-import os
 import json
-from datetime import datetime
-from PySide6.QtCore import Qt, Slot
+import os
+
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QFileDialog, QMessageBox,
-    QSizePolicy, QFrame, QTextEdit, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox, QGridLayout
+    QAbstractItemView,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
+
+from shared.parser import questions_to_network_payload
 
 try:
-    from .ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
-    )
     from .storage import test_path, tests_dir
-except ImportError:
-    from ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
+    from .ui_dialogs import (
+        DropZoneWidget,
+        EditQuestionDialog,
+        MonitoringDialog,
+        SelectTestFromRepoDialog,
+        StudentAnswersDialog,
     )
+except ImportError:
     from storage import test_path, tests_dir
 
 class DashboardMixin:
@@ -50,9 +59,9 @@ class DashboardMixin:
         title.setProperty("class", "sectionTitle")
         title.setStyleSheet("background: transparent; border: none;")
         header_lay.addWidget(title)
-        
+
         header_lay.addStretch()
-        
+
         create_new_btn = QPushButton("Создать новый тест")
         create_new_btn.setProperty("class", "primaryBtn")
         create_new_btn.setCursor(Qt.PointingHandCursor)
@@ -64,7 +73,7 @@ class DashboardMixin:
         import_btn.setCursor(Qt.PointingHandCursor)
         import_btn.clicked.connect(self._import_test_txt_flow)
         header_lay.addWidget(import_btn)
-        
+
         layout.addLayout(header_lay)
 
         # Фильтры и поиск
@@ -173,13 +182,13 @@ class DashboardMixin:
     def _update_dashboard_stats(self):
         self.tests_table.setRowCount(0)
         tests = self._get_saved_tests()
-        
+
         # 1. Поиск по тексту (название теста или группы)
         if hasattr(self, "search_input"):
             search_text = self.search_input.text().strip().lower()
             if search_text:
                 tests = [t for t in tests if search_text in t["group"].lower()]
-                
+
         # 2. Фильтрация по статусу (Все, Готовые, Пустые)
         if hasattr(self, "status_filter"):
             status_idx = self.status_filter.currentIndex()
@@ -187,7 +196,7 @@ class DashboardMixin:
                 tests = [t for t in tests if len(t["questions"]) > 0]
             elif status_idx == 2: # Пустые
                 tests = [t for t in tests if len(t["questions"]) == 0]
-                
+
         # 3. Сортировка по разным критериям
         if hasattr(self, "sort_filter"):
             sort_idx = self.sort_filter.currentIndex()
@@ -199,15 +208,15 @@ class DashboardMixin:
                 tests.sort(key=lambda x: len(x["questions"]))
             elif sort_idx == 4: # Вопросы убывание
                 tests.sort(key=lambda x: len(x["questions"]), reverse=True)
-                
+
         for t in tests:
             row = self.tests_table.rowCount()
             self.tests_table.insertRow(row)
             self.tests_table.setItem(row, 0, QTableWidgetItem(t["group"]))
-            
+
             q_count = len(t["questions"])
             self.tests_table.setItem(row, 1, QTableWidgetItem(str(q_count)))
-            
+
             status = "Готов" if q_count > 0 else "Пустой"
             status_item = QTableWidgetItem(status)
             if q_count > 0:
@@ -248,7 +257,7 @@ class DashboardMixin:
                 self._save_active_test_to_repo()
                 self._update_dashboard_stats()
                 self._update_exams_page_test_view()
-                
+
                 QMessageBox.information(self, "Успешно", f"Тест успешно импортирован во 'Все тесты' под именем '{group_name}' ({count} вопросов).")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать файл: {e}")
@@ -280,13 +289,13 @@ class DashboardMixin:
         disable_confirm = self._get_disable_delete_confirm()
         if not disable_confirm:
             reply = QMessageBox.question(
-                self, "Удаление теста", 
+                self, "Удаление теста",
                 f"Вы уверены, что хотите безвозвратно удалить тест для группы '{group}'?",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply != QMessageBox.Yes:
                 return
-        
+
         path = test_path(group)
         if os.path.exists(path):
             try:
@@ -294,7 +303,7 @@ class DashboardMixin:
                 self.exam_server.log_message.emit(f"Тест '{group}' удален из репозитория.")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось удалить файл: {e}")
-        
+
         # If the deleted test was the active one, clear active questions
         if self._current_test_group == group:
             self._current_test_group = "Новый тест"
@@ -305,7 +314,7 @@ class DashboardMixin:
             self._update_test_headers_inputs()
             self.active_test_lbl.setText("Активный тест: Новый тест")
             self.selected_test_sidebar_lbl.setText("Тест: Новый тест")
-        
+
         self._update_dashboard_stats()
         self._update_exams_page_test_view()
 

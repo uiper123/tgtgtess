@@ -1,29 +1,37 @@
-import os
-import json
-from datetime import datetime
-from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QFileDialog, QMessageBox,
-    QSizePolicy, QFrame, QTextEdit, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox, QGridLayout
+    QAbstractItemView,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
+
+from shared.parser import parse_test_file, questions_to_network_payload
 
 try:
-    from .ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
-    )
     from .storage import test_path, tests_dir
-except ImportError:
-    from ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
+    from .ui_dialogs import (
+        DropZoneWidget,
+        EditQuestionDialog,
+        MonitoringDialog,
+        SelectTestFromRepoDialog,
+        StudentAnswersDialog,
     )
-    from storage import test_path, tests_dir
+except ImportError:
+    from storage import test_path
+    from ui_dialogs import (
+        EditQuestionDialog,
+        SelectTestFromRepoDialog,
+    )
 
 class QuestionsMixin:
     def _build_questions_page(self):
@@ -58,18 +66,18 @@ class QuestionsMixin:
         title.setProperty("class", "sectionTitle")
         title.setStyleSheet("background: transparent; border: none;")
         top_row.addWidget(title)
-        
+
         top_row.addStretch()
-        
+
         self.active_test_lbl = QLabel("Активный тест: Новый тест")
         self.active_test_lbl.setStyleSheet("color: #475569; font-size: 13px; font-weight: bold; padding: 6px 12px; background-color: #e2e8f0; border-radius: 6px; border: none;")
         top_row.addWidget(self.active_test_lbl)
-        
+
         self.rename_test_btn = QPushButton("Переименовать")
         self.rename_test_btn.setProperty("class", "secondaryBtn")
         self.rename_test_btn.clicked.connect(self._rename_active_test)
         top_row.addWidget(self.rename_test_btn)
-        
+
         layout.addLayout(top_row)
 
         # Карта кастомизации заголовков теста на клиенте
@@ -223,11 +231,11 @@ class QuestionsMixin:
         if row < 0:
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите вопрос для редактирования!")
             return
-        
+
         q = self.exam_server.questions[row]
         import copy
         q_copy = copy.deepcopy(q)
-        
+
         dlg = EditQuestionDialog(q_copy, self)
         if dlg.exec():
             self.exam_server.questions[row] = dlg.question
@@ -242,11 +250,11 @@ class QuestionsMixin:
         if row < 0:
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите вопрос для удаления!")
             return
-        
+
         disable_confirm = self._get_disable_delete_confirm()
         if not disable_confirm:
             reply = QMessageBox.question(
-                self, "Удаление вопроса", 
+                self, "Удаление вопроса",
                 f"Вы уверены, что хотите удалить вопрос №{row + 1}?",
                 QMessageBox.Yes | QMessageBox.No
             )
@@ -266,7 +274,7 @@ class QuestionsMixin:
         if not self.exam_server.questions:
             QMessageBox.warning(self, "Предупреждение", "Список вопросов пуст!")
             return
-        
+
         path, _ = self._get_save_file_name("Экспортировать тест", "test_edited.txt", "Текстовые файлы (*.txt)")
         if path:
             if not path.lower().endswith('.txt'):
@@ -276,7 +284,7 @@ class QuestionsMixin:
                 lines.append(f"@title: {self.exam_server.test_title}")
                 lines.append(f"@section: {self.exam_server.test_section}")
                 lines.append("")
-                
+
                 for q in self.exam_server.questions:
                     prefix_q = "?"
                     if q.get('written'):
@@ -290,10 +298,10 @@ class QuestionsMixin:
                         prefix = "+" if ans.get('correct') else "-"
                         lines.append(f"{prefix} {ans.get('text', '')}")
                     lines.append("")
-                
+
                 with open(path, "w", encoding="utf-8") as f:
                     f.write("\n".join(lines))
-                
+
                 QMessageBox.information(self, "Успешно", f"Тест успешно сохранен в файл:\n{path}")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить тест: {e}")

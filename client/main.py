@@ -4,16 +4,16 @@ client/main.py — Точка входа клиента студента.
 шифрованный локальный бэкап.
 """
 
-import sys
-import os
 import json
-import struct
+import os
 import platform
+import struct
+import sys
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
-from PySide6.QtCore import Qt, QObject, Signal, Slot, QByteArray, QTimer
-from PySide6.QtNetwork import QTcpSocket, QAbstractSocket, QNetworkProxy
+from PySide6.QtCore import QByteArray, QObject, Signal, Slot
+from PySide6.QtNetwork import QAbstractSocket, QNetworkProxy, QTcpSocket
 from PySide6.QtWidgets import QApplication
 
 MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 МБ. До 1.3.7 было 500 МБ —
@@ -22,8 +22,8 @@ MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 МБ. До 1.3.7 было 500 МБ —
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from shared.protocol import pack_message
+from shared.security import has_public_key, sha256_hex, verify_signature
 from shared.version import VERSION
-from shared.security import verify_signature, sha256_hex, has_public_key
 
 
 def xor_encrypt(data: bytes, key: bytes = b'EduTestPro2025') -> bytes:
@@ -171,12 +171,12 @@ class StudentClient(QObject):
         self._temp_sock = QTcpSocket(self)
         self._temp_sock.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
         self._temp_buf = QByteArray()
-        
+
         def on_connected():
             packet = {'action': 'get_active_group'}
             self._temp_sock.write(pack_message(packet))
             self._temp_sock.flush()
-            
+
         def on_ready_read():
             self._temp_buf.append(self._temp_sock.readAll())
             while len(self._temp_buf) >= 4:
@@ -478,7 +478,7 @@ class StudentClient(QObject):
         try:
             current_exe = os.path.abspath(sys.argv[0])
             update_file = current_exe + ".new"
-            
+
             # Если запущен скрипт .py, мы не заменяем его бинарным файлом.
             # Просто перезапускаем текущий .py с помощью sys.executable.
             if current_exe.endswith('.py'):
@@ -501,22 +501,22 @@ class StudentClient(QObject):
             if platform.system() == 'Windows':
                 updater_script = "update.bat"
                 with open(updater_script, 'w') as f:
-                    f.write(f'@echo off\n')
-                    f.write(f'timeout /t 2 /nobreak > nul\n')
+                    f.write('@echo off\n')
+                    f.write('timeout /t 2 /nobreak > nul\n')
                     f.write(f'del "{current_exe}"\n')
                     f.write(f'move "{update_file}" "{current_exe}"\n')
                     f.write(f'start "" "{current_exe}"\n')
-                    f.write(f'del "%~f0"\n')
+                    f.write('del "%~f0"\n')
                 subprocess.Popen([updater_script], shell=True)
             else:
                 updater_script = "update.sh"
                 with open(updater_script, 'w') as f:
-                    f.write(f'#!/bin/bash\n')
-                    f.write(f'sleep 2\n')
+                    f.write('#!/bin/bash\n')
+                    f.write('sleep 2\n')
                     f.write(f'mv "{update_file}" "{current_exe}"\n')
                     f.write(f'chmod +x "{current_exe}"\n')
                     f.write(f'"{current_exe}" &\n')
-                    f.write(f'rm "$0"\n')
+                    f.write('rm "$0"\n')
                 os.chmod(updater_script, 0o755)
                 subprocess.Popen(["/bin/bash", updater_script])
 
@@ -564,11 +564,11 @@ class StudentClient(QObject):
             with open(self._update_file_path, 'ab') as f:
                 f.write(data)
             self._update_received_chunks += 1
-            
+
             if self._update_total_chunks > 0:
                 percent = int((self._update_received_chunks / self._update_total_chunks) * 100)
                 self.update_progress_signal.emit(
-                    percent, 
+                    percent,
                     f"Загрузка обновления: {percent}% ({self._update_received_chunks} из {self._update_total_chunks} частей)"
                 )
         except Exception as e:
@@ -635,19 +635,20 @@ class StudentClient(QObject):
     def check_attempts_left(self, host: str, port: int, name: str, group: str):
         """Запрашивает с сервера количество оставшихся попыток студента."""
         import struct
+
         from shared.protocol import pack_message
-        
+
         if hasattr(self, '_attempts_sock') and self._attempts_sock is not None:
             try:
                 self._attempts_sock.disconnectFromHost()
                 self._attempts_sock.deleteLater()
             except Exception:
                 pass
-        
+
         self._attempts_sock = QTcpSocket(self)
         self._attempts_sock.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
         self._attempts_buf = QByteArray()
-        
+
         def on_connected():
             packet = {
                 'action': 'get_attempts_left',
@@ -656,7 +657,7 @@ class StudentClient(QObject):
             }
             self._attempts_sock.write(pack_message(packet))
             self._attempts_sock.flush()
-            
+
         def on_ready_read():
             self._attempts_buf.append(self._attempts_sock.readAll())
             while len(self._attempts_buf) >= 4:
@@ -677,7 +678,7 @@ class StudentClient(QObject):
                 except Exception:
                     pass
                 self._attempts_sock.disconnectFromHost()
-                
+
         self._attempts_sock.connected.connect(on_connected)
         self._attempts_sock.readyRead.connect(on_ready_read)
         self._attempts_sock.errorOccurred.connect(lambda error: None)
@@ -703,8 +704,8 @@ def main():
     app.setOrganizationName("EduTest")
 
     # Установка иконки приложения
-    from PySide6.QtGui import QIcon, QPixmap
     from PySide6.QtCore import QByteArray
+    from PySide6.QtGui import QIcon, QPixmap
     icon_set = False
     try:
         from shared.icon_data import ICON_BASE64

@@ -65,7 +65,7 @@ def _candidate_public_key_paths() -> list[Path]:
     candidates.append(Path(__file__).resolve().parent / PUBLIC_KEY_FILENAME)
 
     # 2) Рядом с исполняемым файлом — для Nuitka onefile (распакованная папка).
-    if getattr(sys, "frozen", False) or sys.argv and sys.argv[0]:
+    if getattr(sys, "frozen", False) or (sys.argv and sys.argv[0]):
         exe_dir = Path(os.path.dirname(os.path.abspath(sys.argv[0])))
         candidates.append(exe_dir / PUBLIC_KEY_FILENAME)
 

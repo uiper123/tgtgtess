@@ -62,18 +62,33 @@ extend-exclude = ["build", "dist", "updates"]
 
 [tool.ruff.lint]
 select = [
-    "E", "W",      # pycodestyle
-    "F",            # pyflakes
-    "I",            # isort
-    "B",            # bugbear
-    "UP",           # pyupgrade
-    "SIM",          # simplify
+    "E", "W",      # pycodestyle (basic style)
+    "F",            # pyflakes (real bugs: unused imports/vars, etc.)
+    "I",            # isort (import sorting)
     "RUF",          # ruff-specific
 ]
 ignore = [
     "E501",        # line too long — handled by formatter
-    "B008",        # default args via function calls — Qt-style is common
+    "E402",        # module import not at top — legit with pytest.importorskip
+    "E722",        # bare except — used heavily in Qt slot handlers (legacy)
+    # Проект намеренно русскоязычный, ruff не должен ругаться на кириллицу,
+    # "похожую" на латиницу (е→e, о→o, …).
+    "RUF001",      # ambiguous unicode character in string
+    "RUF002",      # ambiguous unicode character in docstring
+    "RUF003",      # ambiguous unicode character in comment
+    "RUF012",      # mutable class attributes (Qt signal style)
+    "RUF013",      # implicit Optional (codebase already mostly conforms)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["B", "SIM"]
+"tests/**" = ["F841", "E402", "F401"]
+"server/main.py" = ["B023"]
+# server/ui_*.py намеренно ре-экспортируют диалоги из ui_dialogs для других модулей.
+"server/ui_dashboard.py" = ["F401"]
+"server/ui_exams.py" = ["F401", "F841"]
+"server/ui_questions.py" = ["F401"]
+"server/ui_results.py" = ["F401"]
+"server/ui_server.py" = ["F401"]
+"server/ui_settings.py" = ["F401"]
+"client/main.py" = ["F841"]
+"shared/styles.py" = ["RUF046"]

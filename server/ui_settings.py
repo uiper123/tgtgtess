@@ -1,27 +1,31 @@
 import os
-import json
-from datetime import datetime
+
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QFileDialog, QMessageBox,
-    QSizePolicy, QFrame, QTextEdit, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox, QGridLayout
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
-from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
 
 try:
     from .ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
+        DropZoneWidget,
+        EditQuestionDialog,
+        MonitoringDialog,
+        SelectTestFromRepoDialog,
+        StudentAnswersDialog,
     )
 except ImportError:
-    from ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
-    )
+    pass
 
 class SettingsMixin:
     def _build_settings_page(self):
@@ -34,7 +38,7 @@ class SettingsMixin:
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
         scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        
+
         scroll_content = QWidget()
         scroll_content.setObjectName("scrollContent")
         layout = QVBoxLayout(scroll_content)
@@ -203,7 +207,7 @@ class SettingsMixin:
 
         self.scale_combo = QComboBox()
         self.scale_combo.addItems(["80%", "100%", "125%", "150%", "175%", "200%"])
-        
+
         saved_scale = self._settings.value("ui_scale", "100%")
         if isinstance(saved_scale, float):
             saved_scale = f"{int(saved_scale * 100)}%"
@@ -212,7 +216,7 @@ class SettingsMixin:
                 saved_scale = f"{int(float(saved_scale) * 100)}%"
             except ValueError:
                 saved_scale = "100%"
-                
+
         index = self.scale_combo.findText(saved_scale)
         if index >= 0:
             self.scale_combo.setCurrentIndex(index)
@@ -241,7 +245,7 @@ class SettingsMixin:
         self.ver_label = QLabel(f"Текущая версия: <b>{VERSION}</b>")
         self.ver_label.setStyleSheet("font-size: 13px; color: #475569;")
         upd_info_lay.addWidget(self.ver_label)
-        
+
         self.upd_status_label = QLabel("")
         self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #059669;")
         upd_info_lay.addWidget(self.upd_status_label)
@@ -249,7 +253,7 @@ class SettingsMixin:
         s5_layout.addLayout(upd_info_lay)
 
         upd_btn_lay = QHBoxLayout()
-        
+
         check_upd_btn = QPushButton("Проверить обновления")
         check_upd_btn.setProperty("class", "secondaryBtn")
         check_upd_btn.setCursor(Qt.PointingHandCursor)
@@ -262,7 +266,7 @@ class SettingsMixin:
         self.download_upd_btn.setEnabled(False)
         self.download_upd_btn.clicked.connect(self._download_updates)
         upd_btn_lay.addWidget(self.download_upd_btn)
-        
+
         self.update_clients_btn = QPushButton("Обновить клиентов")
         self.update_clients_btn.setProperty("class", "secondaryBtn")
         self.update_clients_btn.setCursor(Qt.PointingHandCursor)
@@ -275,15 +279,15 @@ class SettingsMixin:
         show_clients_btn.setCursor(Qt.PointingHandCursor)
         show_clients_btn.clicked.connect(self._show_connected_clients)
         upd_btn_lay.addWidget(show_clients_btn)
-        
+
         upd_btn_lay.addStretch()
         s5_layout.addLayout(upd_btn_lay)
-        
+
         layout.addWidget(sect5_card)
 
         # Кнопки действий
         btn_layout = QHBoxLayout()
-        
+
         save_btn = QPushButton("Сохранить настройки")
         save_btn.setProperty("class", "primaryBtn")
         save_btn.setCursor(Qt.PointingHandCursor)
@@ -295,7 +299,7 @@ class SettingsMixin:
         reset_btn.setCursor(Qt.PointingHandCursor)
         reset_btn.clicked.connect(self._reset_settings)
         btn_layout.addWidget(reset_btn)
-        
+
         btn_layout.addStretch()
         layout.addLayout(btn_layout)
 
@@ -309,7 +313,7 @@ class SettingsMixin:
         disable_confirm = self.disable_delete_confirm_cb.isChecked()
         auto_export = self.auto_export_csv_cb.isChecked()
         show_notifications = self.show_notifications_cb.isChecked()
-        
+
         def_duration = self.def_duration_spin.value()
         def_q_limit = self.def_q_limit_spin.value()
         def_attempts = self.def_attempts_spin.value()
@@ -326,12 +330,12 @@ class SettingsMixin:
             return
 
         self.exam_server.DEFAULT_PORT = new_port
-        
+
         self._settings.setValue("tcp_port", new_port)
         self._settings.setValue("disable_delete_confirm", disable_confirm)
         self._settings.setValue("auto_export_csv", auto_export)
         self._settings.setValue("show_notifications", show_notifications)
-        
+
         self._settings.setValue("default_duration", def_duration)
         self._settings.setValue("default_questions_limit", def_q_limit)
         self._settings.setValue("default_attempts", def_attempts)
@@ -341,11 +345,11 @@ class SettingsMixin:
         self._settings.setValue("grade_5_min", g5)
         self._settings.setValue("grade_4_min", g4)
         self._settings.setValue("grade_3_min", g3)
-        
+
         # Сохранение масштабирования
         selected_scale = self.scale_combo.currentText()
         self._settings.setValue("ui_scale", selected_scale)
-        
+
         self._settings.sync()
 
         # Применяем новые параметры сразу к форме запуска тестов
@@ -368,7 +372,7 @@ class SettingsMixin:
 
     def _reset_settings(self):
         reply = QMessageBox.question(
-            self, "Сброс настроек", 
+            self, "Сброс настроек",
             "Вы уверены, что хотите сбросить все настройки к значениям по умолчанию?",
             QMessageBox.Yes | QMessageBox.No
         )
@@ -392,13 +396,13 @@ class SettingsMixin:
         self.upd_status_label.setText("Проверка...")
         self.upd_status_label.setStyleSheet("font-size: 13px; color: #475569;")
         self.download_upd_btn.setEnabled(False)
-        
+
         import threading
         def run_check():
             self.exam_server.log_message.emit("Запущена проверка обновлений на GitHub...")
             update_data, error = self.exam_server.check_for_updates()
             self.update_checked_signal.emit(update_data, error or "")
-            
+
         threading.Thread(target=run_check, daemon=True).start()
 
     @Slot(object, str)
@@ -434,38 +438,38 @@ class SettingsMixin:
     def _download_updates(self):
         if not hasattr(self, "_latest_update_data"):
             return
-            
+
         assets = self._latest_update_data.get("assets", [])
         if not assets:
             QMessageBox.warning(self, "Ошибка", "В релизе не найдены файлы для скачивания.")
             return
-            
+
         # Открываем диалог прогресса
         try:
             from .ui_dialogs import UpdateProgressDialog
         except ImportError:
             from ui_dialogs import UpdateProgressDialog
-            
+
         self._upd_dialog = UpdateProgressDialog(self.exam_server, self)
         self._upd_dialog.show()
-        
+
         self.upd_status_label.setText("Запущено обновление...")
-        
+
         import threading
         def run_download_and_broadcast():
             self.exam_server.log_message.emit("Начато скачивание обновлений сервера и клиентов...")
             upd_dir = self.exam_server.get_updates_dir()
             success_count = 0
-            
+
             # Автоматически фильтруем нужные файлы на основе ОС сервера и клиентов
             import platform
             server_os = platform.system().lower()
-            
+
             connected_oses = set()
             for s in self.exam_server._students.values():
                 if hasattr(s, 'os') and s.os:
                     connected_oses.add(s.os.lower())
-                    
+
             filtered_assets = []
             for asset in assets:
                 name = asset.get("name", "").lower()
@@ -473,13 +477,13 @@ class SettingsMixin:
                 is_student = 'student' in name or 'client' in name
                 is_windows = name.endswith('.exe')
                 is_linux = not is_windows
-                
+
                 if is_server:
                     if server_os == 'windows' and not is_windows:
                         continue
                     if server_os == 'linux' and not is_linux:
                         continue
-                        
+
                 if is_student:
                     if connected_oses:
                         if 'windows' in connected_oses and not is_windows:
@@ -488,24 +492,24 @@ class SettingsMixin:
                         if 'linux' in connected_oses and not is_linux:
                             if 'windows' not in connected_oses:
                                 continue
-                
+
                 filtered_assets.append(asset)
-            
+
             # Шаг 1: Скачивание файлов сервера и клиента с GitHub
             total_assets = len(filtered_assets)
             if total_assets == 0:
                 self.server_download_progress_signal.emit(100, "Нет подходящих файлов для скачивания.")
-                
+
             for idx, asset in enumerate(filtered_assets):
                 name = asset.get("name", "")
                 url = asset.get("browser_download_url", "")
                 if name and url:
                     dest = os.path.join(upd_dir, name)
                     self.server_download_progress_signal.emit(
-                        int((idx / total_assets) * 100), 
+                        int((idx / total_assets) * 100),
                         f"Скачивание: {name}..."
                     )
-                    
+
                     # Передаем progress_callback в download_asset
                     def prog_cb(pct, down, tot):
                         mb_down = down / (1024 * 1024)
@@ -514,19 +518,21 @@ class SettingsMixin:
                             int(((idx + pct/100) / total_assets) * 100),
                             f"Скачивание {name}: {pct}% ({mb_down:.1f}MB / {mb_tot:.1f}MB)"
                         )
-                        
+
                     if self.exam_server.download_asset(url, dest, prog_cb):
                         success_count += 1
-            
+
             self.server_download_progress_signal.emit(100, "Все обновления успешно загружены на сервер!")
             self.exam_server.log_message.emit("Обновления успешно скачаны на сервер. Подготовка к раздаче клиентам...")
-            
+
             # Шаг 2: Если есть подключенные клиенты, передаем обновления им
             students = list(self.exam_server._students.items())
             if students:
                 import base64
+
+                from main import OLD_CLIENT_MAX_SIZE, UPDATE_CHUNK_SIZE, _version_tuple
+
                 from shared.protocol import pack_message
-                from main import _version_tuple, UPDATE_CHUNK_SIZE, OLD_CLIENT_MAX_SIZE
 
                 # Находим файлы обновлений для каждой ОС
                 update_files = {}
@@ -625,7 +631,7 @@ class SettingsMixin:
             # Включаем кнопку обновления на сервере
             self.exam_server.log_message.emit("Рассылка обновлений всем подключенным клиентам завершена.")
             self.all_updates_ready_signal.emit()
-            
+
         threading.Thread(target=run_download_and_broadcast, daemon=True).start()
 
     @Slot(int)

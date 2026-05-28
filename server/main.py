@@ -5,27 +5,27 @@ server/main.py — Точка входа сервера преподавател
 TCP-сервер работает через QTcpServer, принимая JSON-пакеты от студентов.
 """
 
-import sys
-import os
-import json
 import csv
-import struct
+import json
+import os
 import random
-from functools import partial
+import struct
+import sys
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from functools import partial
+from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import Qt, QObject, Signal, Slot, QByteArray
-from PySide6.QtNetwork import QTcpServer, QTcpSocket, QHostAddress
+from PySide6.QtCore import QByteArray, QObject, Signal, Slot
+from PySide6.QtNetwork import QHostAddress, QTcpServer, QTcpSocket
 from PySide6.QtWidgets import QApplication
 
 # Добавляем корень проекта в sys.path для импорта shared
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from shared.parser import parse_test_file, questions_to_network_payload, calculate_score
+from shared.parser import calculate_score, parse_test_file, questions_to_network_payload
 from shared.protocol import pack_message
-from shared.version import VERSION, GITHUB_REPO
-from shared.security import load_private_key, sign_bytes, sha256_hex
+from shared.security import load_private_key, sha256_hex, sign_bytes
+from shared.version import GITHUB_REPO, VERSION
 
 try:
     from .storage import project_root, results_path, safe_test_filename
@@ -73,7 +73,7 @@ def _version_tuple(v: str) -> tuple:
 
 class ConnectedStudent:
     """Данные о подключённом студенте."""
-    __slots__ = ('socket', 'name', 'group', 'buffer', 'finished', 'score', 'active', 'answers', 'questions', 'cheat_warnings', 'connect_time', 'version', 'os')
+    __slots__ = ('active', 'answers', 'buffer', 'cheat_warnings', 'connect_time', 'finished', 'group', 'name', 'os', 'questions', 'score', 'socket', 'version')
 
     def __init__(self, socket: QTcpSocket, name: str, group: str):
         self.socket = socket
@@ -146,7 +146,7 @@ class ExamServer(QObject):
 
         # Результаты текущего экзамена
         self._results: List[Dict[str, str]] = []
-        
+
         # Все исторические результаты (персистентные)
         self._all_results: List[Dict[str, Any]] = []
         self._load_all_results_from_file()
@@ -155,7 +155,7 @@ class ExamServer(QObject):
         """Запускает прослушивание порта сервером для фоновых дежурных подключений."""
         if port is None:
             port = self.DEFAULT_PORT
-            
+
         if not self._tcp_server.isListening():
             from PySide6.QtNetwork import QHostAddress
             if self._tcp_server.listen(QHostAddress.AnyIPv4, port):
@@ -245,9 +245,9 @@ class ExamServer(QObject):
                         pass
                     sock.disconnectFromHost()
                     self._students.pop(sock, None)
-            
+
             self.log_message.emit(f"Экзамен для группы '{exam['group']}' остановлен.")
-            
+
         # Если активных экзаменов больше нет, переводим в дежурный режим ожидания
         if not self._active_exams:
             self._exam_active = False
@@ -397,10 +397,10 @@ class ExamServer(QObject):
         """Отправляет количество оставшихся попыток студента."""
         name = packet.get('name', '').strip()
         group = packet.get('group', '').strip()
-        
+
         attempts_left = 0
         max_attempts = 0
-        
+
         if name and group:
             group_key = group.lower()
             if self._exam_active and group_key in self._active_exams:
@@ -409,7 +409,7 @@ class ExamServer(QObject):
                 attempts_used = exam.setdefault('attempts', {}).get(student_key, 0)
                 max_attempts = exam.get('max_attempts', 1)
                 attempts_left = max(0, max_attempts - attempts_used)
-        
+
         response = {
             'status': 'attempts_left',
             'attempts_left': attempts_left,
@@ -484,7 +484,7 @@ class ExamServer(QObject):
             peer_ip = sock.peerAddress().toString().removeprefix("::ffff:")
             display_name = name if name else f"Устройство {peer_ip}"
             display_group = group if group else "Ожидание"
-            
+
             student = ConnectedStudent(sock, display_name, display_group)
             student.version = client_version
             student.os = client_os
@@ -492,7 +492,7 @@ class ExamServer(QObject):
             self._students[sock] = student
             self.student_connected.emit(display_name, display_group)
             self.log_message.emit(f"Фоновое дежурное подключение: {display_name} ({client_os}, версия {client_version})")
-            
+
             # Отправляем подтверждение idle-подключения
             response = {'status': 'idle_connected', 'version': VERSION}
             sock.write(pack_message(response))
@@ -643,11 +643,11 @@ class ExamServer(QObject):
         }
         self._results.append(result_entry)
         self._all_results.append(result_entry)
-        
+
         # Ограничение размера истории (пункт 15 аудита)
         if len(self._all_results) > 10000:
             self._all_results = self._all_results[-10000:]
-            
+
         self._save_all_results_to_file()
 
         response = {
@@ -731,21 +731,20 @@ class ExamServer(QObject):
         Проверяет наличие новых версий на GitHub.
         Возвращает (update_data, error_message).
         """
-        import urllib.request
         import json
-        import ssl
+        import urllib.request
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         try:
             ssl_context = _verified_ssl_context()
-                
+
             req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
             with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
                 data = json.loads(response.read().decode())
                 latest_version = data.get("tag_name", "").lstrip("v")
-                
+
                 if not latest_version:
                     return None, "Не удалось определить версию в GitHub релизе"
-                
+
                 if latest_version != VERSION:
                     return data, None
                 else:
@@ -762,10 +761,9 @@ class ExamServer(QObject):
     def download_asset(self, url: str, dest_path: str, progress_callback=None):
         """Скачивает файл по ссылке с поддержкой User-Agent и оповещением прогресса."""
         import urllib.request
-        import ssl
         try:
             ssl_context = _verified_ssl_context()
-                
+
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
             with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
@@ -958,7 +956,7 @@ class ExamServer(QObject):
                     )
             except Exception:
                 pass
-        
+
         self.log_message.emit(f"Массовое обновление запущено для {count} клиентов.")
 
     def prepare_update_payloads(self) -> dict:
@@ -1019,8 +1017,8 @@ def main():
     app.setOrganizationName("EduTest")
 
     # Установка иконки приложения
-    from PySide6.QtGui import QIcon, QPixmap
     from PySide6.QtCore import QByteArray
+    from PySide6.QtGui import QIcon, QPixmap
     icon_set = False
     try:
         from shared.icon_data import ICON_BASE64

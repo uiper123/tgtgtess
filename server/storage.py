@@ -1,6 +1,6 @@
-from pathlib import Path
 import hashlib
 import re
+from pathlib import Path
 
 
 def project_root() -> Path:

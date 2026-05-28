@@ -1,26 +1,40 @@
-import os
 import json
+import os
 from datetime import datetime
-from PySide6.QtCore import Qt, Slot
+
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QFileDialog, QMessageBox,
-    QSizePolicy, QFrame, QTextEdit, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox, QGridLayout
+    QAbstractItemView,
+    QComboBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
+
+from shared.parser import get_grade_details, parse_test_file
 
 try:
     from .ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
+        DropZoneWidget,
+        EditQuestionDialog,
+        MonitoringDialog,
+        SelectTestFromRepoDialog,
+        StudentAnswersDialog,
     )
 except ImportError:
     from ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
+        StudentAnswersDialog,
     )
 
 class ResultsMixin:
@@ -126,7 +140,7 @@ class ResultsMixin:
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.clicked.connect(self._export_manually)
         btn_row.addWidget(export_btn)
-        
+
         import_log_btn = QPushButton("Импортировать лог студента (.log)")
         import_log_btn.setStyleSheet(
             "QPushButton { background-color: #8b5cf6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
@@ -165,11 +179,11 @@ class ResultsMixin:
         current = self.r_group_filter.currentText()
         self.r_group_filter.clear()
         self.r_group_filter.addItem("Все группы")
-        
+
         # Collect all unique groups
         groups = sorted(list(set(r.get('group', '') for r in self.exam_server.results if r.get('group'))))
         self.r_group_filter.addItems(groups)
-        
+
         idx = self.r_group_filter.findText(current)
         if idx >= 0:
             self.r_group_filter.setCurrentIndex(idx)
@@ -181,11 +195,11 @@ class ResultsMixin:
         self._refresh_group_filter_list()
         self.r_table.setRowCount(0)
         results = list(self.exam_server.results)
-        
+
         # 1. Apply search filter
         search_text = self.r_search.text().strip().lower()
         if search_text:
-            results = [r for r in results if 
+            results = [r for r in results if
                 search_text in r.get('name', '').lower() or
                 search_text in r.get('group', '').lower() or
                 search_text in r.get('test_name', '').lower()
@@ -229,20 +243,20 @@ class ResultsMixin:
             self.r_table.insertRow(row)
             self.r_table.setItem(row, 0, QTableWidgetItem(r.get('name', '')))
             self.r_table.setItem(row, 1, QTableWidgetItem(r.get('group', '')))
-            
+
             test_name = r.get('test_name', '')
             if not test_name:
                 test_name = '—'
             self.r_table.setItem(row, 2, QTableWidgetItem(test_name))
-            
+
             score_str = r.get('score', '0/0')
             self.r_table.setItem(row, 3, QTableWidgetItem(score_str))
-            
+
             grade_text, grade_color = get_grade_details(score_str)
             grade_item = QTableWidgetItem(grade_text)
             grade_item.setForeground(QColor(grade_color))
             self.r_table.setItem(row, 4, grade_item)
-            
+
             self.r_table.setItem(row, 5, QTableWidgetItem(r.get('timestamp', '')))
 
     def _on_result_row_action(self, row):
@@ -253,7 +267,7 @@ class ResultsMixin:
         if not hasattr(self, 'filtered_results') or not self.filtered_results:
             QMessageBox.warning(self, "Предупреждение", "Нет результатов для экспорта!")
             return
-        
+
         path, _ = self._get_save_file_name("Экспортировать отфильтрованные результаты", "results_filtered.csv", "CSV-файлы (*.csv)")
         if path:
             if not path.lower().endswith('.csv'):
@@ -278,24 +292,24 @@ class ResultsMixin:
         log_path, _ = self._get_open_file_name("Выберите файл лога студента", "", "Лог-файлы (*.log)")
         if not log_path:
             return
-            
+
         try:
             # 1. Читаем и расшифровываем лог
             with open(log_path, 'rb') as f:
                 encrypted_data = f.read()
-            
+
             key = b'EduTestPro2025'
             decrypted = bytearray(len(encrypted_data))
             klen = len(key)
             for i, b in enumerate(encrypted_data):
                 decrypted[i] = b ^ key[i % klen]
-            
+
             log_json = json.loads(decrypted.decode('utf-8'))
             student_name = log_json.get('name', 'Неизвестный')
             student_group = log_json.get('group', 'Неизвестная')
             student_answers = log_json.get('answers', {})
             test_name_in_log = log_json.get('test_name', '')
-            
+
             # В логе лежат номера вопросов как строки (JSON keys), приводим к int
             int_answers = {}
             for k, v in student_answers.items():
@@ -303,7 +317,7 @@ class ResultsMixin:
                     int_answers[int(k)] = v
                 except:
                     pass
-            
+
             # 2. Пытаемся автоматически найти тест в репозитории
             questions = None
             if test_name_in_log:
@@ -317,11 +331,11 @@ class ResultsMixin:
                         questions = parse_test_file(potential_path)
                     except:
                         pass
-            
+
             if not questions:
-                QMessageBox.information(self, "Выбор теста", 
+                QMessageBox.information(self, "Выбор теста",
                     f"Лог студента {student_name} загружен.\nАвтоматически найти тест '{test_name_in_log}' не удалось.\nВыберите файл теста (.txt) вручную.")
-                
+
                 manual_test_path, _ = self._get_open_file_name("Выберите файл теста для оценки", "", "Текстовые файлы (*.txt)")
                 if not manual_test_path:
                     return
@@ -329,11 +343,11 @@ class ResultsMixin:
 
             if not questions:
                 raise ValueError("Файл теста пуст или неверного формата.")
-            
+
             # 3. Рассчитываем и сохраняем
             from shared.parser import calculate_score
             score = calculate_score(questions, int_answers, partial_multiple=True)
-            
+
             result_entry = {
                 'name': student_name,
                 'group': student_group,
@@ -341,13 +355,13 @@ class ResultsMixin:
                 'answers': int_answers,
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " (Импорт)",
             }
-            
+
             self.exam_server._all_results.append(result_entry)
             self.exam_server._save_all_results_to_file()
             self._update_results_table()
-            
+
             QMessageBox.information(self, "Успешно", f"Результат студента {student_name} успешно импортирован!\nОценка: {score}")
-            
+
         except Exception as e:
             QMessageBox.critical(self, "Ошибка импорта", f"Не удалось импортировать лог: {e}")
 
@@ -355,42 +369,42 @@ class ResultsMixin:
         try:
             if not hasattr(self, 'filtered_results') or row < 0 or row >= len(self.filtered_results):
                 return
-                
+
             result_entry = self.filtered_results[row]
-            
+
             # 1. Пытаемся получить вопросы для этого студента
             questions = None
             group = result_entry.get('group', '')
-            
+
             # Сначала ищем в активных сессиях для этой группы
             if group:
                 active_exam = self.exam_server._active_exams.get(group.lower())
                 if active_exam:
                     questions = active_exam.get('questions')
-                    
+
             # Если активной сессии нет, пробуем найти тест по test_name или group
             if not questions:
                 try:
                     from .storage import test_path
                 except ImportError:
                     from storage import test_path
-                
+
                 test_names_to_try = []
                 if result_entry.get('test_name'):
                     test_names_to_try.append(result_entry['test_name'])
                 if group:
                     test_names_to_try.append(group)
-                    
+
                 for t_name in test_names_to_try:
                     json_path = test_path(t_name)
                     txt_path = json_path.with_suffix('.txt')
-                    
+
                     found_path = None
                     if os.path.exists(json_path):
                         found_path = json_path
                     elif os.path.exists(txt_path):
                         found_path = txt_path
-                        
+
                     if found_path:
                         try:
                             if str(found_path).lower().endswith('.json'):
@@ -400,17 +414,17 @@ class ResultsMixin:
                                     questions = data.get("questions", [])
                             else:
                                 questions = parse_test_file(str(found_path))
-                                
+
                             if questions:
                                 break
                         except Exception as e:
                             print(f"Failed to load test: {e}")
                             pass
-                            
+
             # Если все еще нет вопросов, просим выбрать файл теста вручную
             if not questions:
                 QMessageBox.information(
-                    self, 
+                    self,
                     "Просмотр ответов",
                     f"Тест для студента '{result_entry.get('name')}' не найден в локальной базе.\nПожалуйста, выберите файл теста (.txt или .json)."
                 )
@@ -418,7 +432,7 @@ class ResultsMixin:
                     from .storage import tests_dir
                 except ImportError:
                     from storage import tests_dir
-                    
+
                 manual_test_path, _ = QFileDialog.getOpenFileName(
                     self,
                     "Выберите файл теста",
@@ -438,11 +452,11 @@ class ResultsMixin:
                 except Exception as e:
                     QMessageBox.critical(self, "Ошибка", f"Не удалось прочитать файл теста: {e}")
                     return
-                    
+
             if not questions:
                 QMessageBox.warning(self, "Внимание", "Не удалось загрузить вопросы теста.")
                 return
-                
+
             # 2. Создаем псевдо-объект студента для StudentAnswersDialog
             # Приводим все ключи ответов к числовому и строковому виду
             answers_raw = result_entry.get('answers', {})
@@ -457,23 +471,23 @@ class ResultsMixin:
                     answers_normalized[str(k)] = v
                 except:
                     pass
-                    
+
             class PseudoStudent:
                 def __init__(self, name, group, answers):
                     self.name = name
                     self.group = group
                     self.answers = answers
-                    
+
             student = PseudoStudent(
                 name=result_entry.get('name', 'Неизвестный'),
                 group=result_entry.get('group', 'Неизвестная'),
                 answers=answers_normalized
             )
-            
+
             # 3. Открываем диалог с ответами
             dialog = StudentAnswersDialog(student, questions, self)
             dialog.exec()
-            
+
         except Exception as e:
             import traceback
             tb = traceback.format_exc()

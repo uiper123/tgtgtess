@@ -1,10 +1,6 @@
-import os
-from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QColor, QFont
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextEdit, QFrame
-)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout, QWidget
+
 
 class LogsMixin:
     def _build_logs_page(self):

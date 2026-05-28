@@ -1,26 +1,37 @@
 import os
-import json
-from datetime import datetime
+
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QFileDialog, QMessageBox,
-    QSizePolicy, QFrame, QTextEdit, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox, QGridLayout
+    QAbstractItemView,
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
-from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
 
 try:
     from .ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
+        DropZoneWidget,
+        EditQuestionDialog,
+        MonitoringDialog,
+        SelectTestFromRepoDialog,
+        StudentAnswersDialog,
     )
 except ImportError:
     from ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
+        DropZoneWidget,
+        MonitoringDialog,
+        SelectTestFromRepoDialog,
     )
 
 class ExamsMixin:
@@ -170,7 +181,7 @@ class ExamsMixin:
         self._drop_zone = DropZoneWidget()
         self._drop_zone.file_dropped.connect(self._on_file_dropped)
         sel_layout.addWidget(self._drop_zone)
-        
+
         layout.addWidget(self.test_selector_widget)
 
         # Карточка активного готового теста (показывается, если тест выбран)
@@ -263,7 +274,7 @@ class ExamsMixin:
         if not tests:
             QMessageBox.information(self, "Информация", "В репозитории пока нет сохраненных тестов. Создайте новый тест во вкладке 'Все тесты' или перетащите файл теста!")
             return
-        
+
         dlg = SelectTestFromRepoDialog(tests, self)
         if dlg.exec():
             group = dlg.selected_group
@@ -275,7 +286,7 @@ class ExamsMixin:
         try:
             count = self.exam_server.load_test(path)
             self._loaded_test_name = os.path.basename(path)
-            
+
             group_name = os.path.basename(path).replace(".txt", "").replace(".json", "")
             self._current_test_group = group_name
             self._update_test_headers_inputs()
@@ -283,12 +294,12 @@ class ExamsMixin:
             self.selected_test_sidebar_lbl.setText(f"Тест: {group_name}")
             self._save_active_test_to_repo()
             self._update_dashboard_stats()
-            
+
             self.exam_server.log_message.emit(f"Тест успешно импортирован в репозиторий под именем '{group_name}'")
             self.show_toast(f"Тест '{group_name}' успешно загружен!", "success")
         except Exception as e:
             self._show_error(str(e))
-            self.show_toast(f"Ошибка загрузки: {str(e)}", "error")
+            self.show_toast(f"Ошибка загрузки: {e!s}", "error")
 
     def _toggle_exam(self):
         group = self._group_input.text().strip()
@@ -298,14 +309,14 @@ class ExamsMixin:
         if not self.exam_server.questions:
             self._show_error("Сначала перетащите или выберите файл теста!")
             return
-        
+
         # Проверяем, не запущен ли уже тест для этой группы
         if group.lower() in self.exam_server.get_active_exams():
             self._show_error(f"Экзамен для группы '{group}' уже запущен!")
             return
 
         duration = self._duration_spin.value()
-        
+
         # Запускаем экзамен на сервере
         questions = list(self.exam_server.questions)
         limit = self._questions_limit_spin.value()
@@ -337,14 +348,14 @@ class ExamsMixin:
         for group_key, exam in self.exam_server.get_active_exams().items():
             row = self._exam_table.rowCount()
             self._exam_table.insertRow(row)
-            
+
             # Название теста
             self._exam_table.setItem(row, 0, QTableWidgetItem(exam['test_name']))
             # Группа
             self._exam_table.setItem(row, 1, QTableWidgetItem(exam['group']))
             # Статус
             self._exam_table.setItem(row, 2, QTableWidgetItem("Активен"))
-            
+
             # Подсчёт студентов для этой группы
             student_count = sum(1 for s in self.exam_server.get_connected_students() if s.group.lower() == group_key)
             self._exam_table.setItem(row, 3, QTableWidgetItem(str(student_count)))
@@ -376,7 +387,7 @@ class ExamsMixin:
     def _stop_exam_for_group(self, group):
         self.exam_server.stop_exam_for_group(group)
         self._update_exam_table_view()
-        
+
         # Если больше нет активных экзаменов, сбрасываем статус сервера
         if not self.exam_server.is_active:
             self._status_label.setText("Сервер: Выключен")
@@ -384,14 +395,14 @@ class ExamsMixin:
 
     @Slot(str, int)
     def _on_server_started(self, addr, port):
-        from PySide6.QtNetwork import QNetworkInterface, QAbstractSocket
+        from PySide6.QtNetwork import QAbstractSocket, QNetworkInterface
         ips = []
         for address in QNetworkInterface.allAddresses():
             if address.protocol() == QAbstractSocket.IPv4Protocol:
                 ip_str = address.toString()
                 if not address.isLoopback() and not ip_str.startswith("169.254") and ip_str != "127.0.0.1":
                     ips.append(ip_str)
-                    
+
         if ips:
             ip_display = ", ".join(ips)
             self._status_label.setText(f"Сервер: Работает (IP: {ip_display}, порт {port})")
@@ -400,7 +411,7 @@ class ExamsMixin:
         else:
             self._status_label.setText(f"Сервер: Работает (порт {port})")
             self.exam_server.log_message.emit(f"TCP-сервер запущен на порту {port}")
-            
+
         self.exam_server.log_message.emit(f"Внимание: убедитесь, что брандмауэр (firewall) на этом компьютере разрешает входящие TCP-подключения на порту {port}")
         self._status_label.setStyleSheet("color: #10b981; font-weight: bold;")
         self._update_exam_table_view()

@@ -21,10 +21,10 @@ shared/parser.py — Нативный парсер TXT-файлов тестов
   }
 """
 
+import base64
 import os
 import re
-import base64
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 class TestQuestionsList(list):
@@ -69,20 +69,20 @@ def compare_written_answer(student_ans: str, correct_ans: str) -> bool:
     """
     s_clean = student_ans.strip().lower()
     c_clean = correct_ans.strip().lower()
-    
+
     if s_clean == c_clean:
         return True
-        
+
     s_num_str = s_clean.replace(',', '.')
     c_num_str = c_clean.replace(',', '.')
-    
+
     try:
         s_val = float(s_num_str)
         c_val = float(c_num_str)
         return s_val == c_val
     except ValueError:
         pass
-        
+
     return False
 
 
@@ -94,14 +94,14 @@ def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
     # Объединяем строки текста вопроса (могут быть многострочные)
     question['text'] = '\n'.join(question.get('_text_lines', [])).strip()
     question.pop('_text_lines', None)
-    
+
     # Если в вопросе несколько правильных ответов, то по умолчанию выставляем множественный выбор
     # Но только если это не письменный вопрос
     if not question.get('written', False):
         correct_count = sum(1 for a in question.get('answers', []) if a.get('correct', False))
         if correct_count > 1:
             question['multiple'] = True
-        
+
     return question
 
 
@@ -163,7 +163,7 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 questions.append(_finalize_question(current))
 
             rest = stripped[1:].strip()
-            
+
             # Проверяем старый формат: "?N" или "?N (С множественным выбором)" или "?N (Письменный ответ)"
             old_match = re.match(r'^(\d+)\s*(\(С множественным выбором\)|\(Письменный ответ\)|\(Письменно\))?$', rest, re.IGNORECASE)
             if old_match:
@@ -184,7 +184,7 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 mult_marker = "(С множественным выбором)"
                 written_marker = "(Письменный ответ)"
                 written_marker_alt = "(Письменно)"
-                
+
                 if rest.lower().startswith(mult_marker.lower()):
                     is_multiple = True
                     text_part = rest[len(mult_marker):].strip()
@@ -334,7 +334,7 @@ def calculate_score(
             num_correct = len(correct_selected)
             num_wrong = len(wrong_selected)
             total_correct = len(correct_set)
-            
+
             question_score = (num_correct - num_wrong) / total_correct
             score += max(0.0, min(1.0, question_score))
         else:
@@ -360,14 +360,14 @@ def get_grade_details(score_str: str) -> tuple:
             return "0%", "#ef4444"
         percent = (correct / total) * 100
         percent_str = f"{int(percent)}%"
-        
+
         # Чтение пороговых значений из настроек с безопасными дефолтами
         from PySide6.QtCore import QSettings
         settings = QSettings("EduTest", "Server")
         g5 = settings.value("grade_5_min", 90, type=int)
         g4 = settings.value("grade_4_min", 70, type=int)
         g3 = settings.value("grade_3_min", 50, type=int)
-        
+
         if percent >= g5:
             return percent_str, "#10b981"
         elif percent >= g4:

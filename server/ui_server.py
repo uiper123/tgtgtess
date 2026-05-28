@@ -5,45 +5,46 @@ server/ui_server.py — Графический интерфейс препода
 """
 
 import os
-import sys
 from datetime import datetime
-from PySide6.QtCore import Qt, Signal, Slot, QSize, QTimer, QSettings
-from PySide6.QtGui import QFont, QDragEnterEvent, QDropEvent, QColor
+
+from PySide6.QtCore import QSettings, Qt, Signal, Slot
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QSpinBox, QTableWidget, QTableWidgetItem,
-    QHeaderView, QStackedWidget, QFileDialog, QMessageBox,
-    QSizePolicy, QFrame, QTextEdit, QDialog, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox, QGridLayout
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from shared.parser import get_grade_details, questions_to_network_payload, parse_test_file
 
 try:
     from .styles import GLOBAL_QSS, get_scaled_qss
-    from .ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
-    )
-    from .ui_toasts import ToastNotification
     from .ui_dashboard import DashboardMixin
-    from .ui_questions import QuestionsMixin
+    from .ui_dialogs import (
+        DropZoneWidget,
+        EditQuestionDialog,
+        MonitoringDialog,
+        SelectTestFromRepoDialog,
+        StudentAnswersDialog,
+    )
     from .ui_exams import ExamsMixin
-    from .ui_results import ResultsMixin
     from .ui_logs import LogsMixin
+    from .ui_questions import QuestionsMixin
+    from .ui_results import ResultsMixin
     from .ui_settings import SettingsMixin
+    from .ui_toasts import ToastNotification
 except ImportError:
     from styles import GLOBAL_QSS, get_scaled_qss
-    from ui_dialogs import (
-        StudentAnswersDialog, EditQuestionDialog, MonitoringDialog,
-        DropZoneWidget, SelectTestFromRepoDialog
-    )
-    from ui_toasts import ToastNotification
     from ui_dashboard import DashboardMixin
-    from ui_questions import QuestionsMixin
     from ui_exams import ExamsMixin
-    from ui_results import ResultsMixin
     from ui_logs import LogsMixin
+    from ui_questions import QuestionsMixin
+    from ui_results import ResultsMixin
     from ui_settings import SettingsMixin
+    from ui_toasts import ToastNotification
 
 # ---------------------------------------------------------------------------
 # Главное окно Преподавателя
@@ -60,20 +61,20 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.exam_server = exam_server
         self._settings = QSettings("EduTest", "Server")
         self.setWindowTitle("TTGTiSO-Test — Панель преподавателя")
-        
+
         self.update_checked_signal.connect(self._on_update_checked)
         self.update_downloaded_signal.connect(self._on_update_downloaded)
         self.server_download_progress_signal.connect(self._on_server_download_progress)
         self.client_update_progress_signal.connect(self._on_client_update_progress)
         self.all_updates_ready_signal.connect(self._on_all_updates_ready)
-        
+
         # Установка иконки приложения
         from PySide6.QtGui import QIcon
         try:
             from .main import get_resource_path
         except ImportError:
             from main import get_resource_path
-        
+
         icon_path = get_resource_path("image.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
@@ -140,7 +141,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         logo.setObjectName("logoLabel")
         logo.setStyleSheet("padding: 0; margin: 0; font-size: 20px; font-weight: 800; color: #ffffff;")
         logo_lay.addWidget(logo)
-        
+
         logo_lay.addStretch()
 
         self.collapse_sidebar_btn = QPushButton("◀")
@@ -231,7 +232,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
             "}"
         )
         self.top_bar.setFixedHeight(50)
-        
+
         top_bar_layout = QHBoxLayout(self.top_bar)
         top_bar_layout.setContentsMargins(16, 0, 16, 0)
         top_bar_layout.setSpacing(12)
@@ -261,7 +262,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         top_bar_layout.addWidget(self.top_bar_title)
 
         top_bar_layout.addStretch()
-        
+
         main_cont_layout.addWidget(self.top_bar)
         self.top_bar.hide() # Скрыто по умолчанию
 
@@ -329,11 +330,11 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
     @Slot(str)
     def _append_log(self, msg: str):
         ts = datetime.now().strftime('%H:%M:%S')
-        
+
         # Определение цвета в зависимости от ключевых слов
         color = "#334155" # Default slate-700 (Обычный)
         msg_lower = msg.lower()
-        
+
         if any(w in msg_lower for w in ["ошибка", "error", "отклонён", "отключился", "отменено", "не найден"]):
             color = "#dc2626" # Red
         elif any(w in msg_lower for w in ["успешно", "завершен", "подключился", "success", "сохранен"]):
@@ -342,7 +343,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
             color = "#d97706" # Orange
         elif any(w in msg_lower for w in ["скачивание", "передача", "загрузка", "обновления"]):
             color = "#2563eb" # Blue
-            
+
         # Форматируем строку как HTML
         formatted_msg = f'<span style="color: #94a3b8;">[{ts}]</span> <strong style="color: {color};">{msg}</strong>'
         self._log.append(formatted_msg)
@@ -365,18 +366,18 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
             scale_factor = 1.75
         elif saved_scale == "200%":
             scale_factor = 2.0
-            
+
         base_min_w = 1200
         base_min_h = 750
         base_w = 1300
         base_h = 850
-        
+
         self.setMinimumSize(int(base_min_w * scale_factor), int(base_min_h * scale_factor))
         self.resize(int(base_w * scale_factor), int(base_h * scale_factor))
-        
+
         scaled_qss = get_scaled_qss(GLOBAL_QSS, scale_factor)
         self.setStyleSheet(scaled_qss)
-        
+
         if hasattr(self, "_exam_table"):
             self._exam_table.verticalHeader().setDefaultSectionSize(int(54 * scale_factor))
             self._exam_table.setColumnWidth(0, int(300 * scale_factor))
@@ -384,18 +385,18 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
             self._exam_table.setColumnWidth(2, int(120 * scale_factor))
             self._exam_table.setColumnWidth(3, int(120 * scale_factor))
             self._exam_table.setColumnWidth(4, int(240 * scale_factor))
-            
+
         if hasattr(self, "tests_table"):
             self.tests_table.setColumnWidth(0, int(450 * scale_factor))
             self.tests_table.setColumnWidth(1, int(200 * scale_factor))
             self.tests_table.setColumnWidth(2, int(150 * scale_factor))
-            
+
         if hasattr(self, "q_table"):
             self.q_table.setColumnWidth(0, int(80 * scale_factor))
             self.q_table.setColumnWidth(1, int(400 * scale_factor))
             self.q_table.setColumnWidth(2, int(120 * scale_factor))
             self.q_table.setColumnWidth(3, int(400 * scale_factor))
-            
+
         if hasattr(self, "r_table"):
             self.r_table.setColumnWidth(0, int(300 * scale_factor))
             self.r_table.setColumnWidth(1, int(120 * scale_factor))

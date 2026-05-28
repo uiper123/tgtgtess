@@ -1,5 +1,6 @@
 import re
 
+
 def get_scaled_qss(qss_text: str, scale_factor: float) -> str:
     """
     Масштабирует числовые значения в QSS (px) согласно коэффициенту.

@@ -1,19 +1,35 @@
 import os
-from PySide6.QtCore import Qt, Signal, QTimer
+
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QTableWidget, QTableWidgetItem,
-    QHeaderView, QFileDialog, QMessageBox,
-    QFrame, QTextEdit, QDialog, QAbstractItemView,
-    QScrollArea, QCheckBox, QComboBox
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 try:
-    from .styles import GLOBAL_QSS, get_scaled_qss
     from shared.parser import get_grade_details
+
+    from .styles import GLOBAL_QSS, get_scaled_qss
 except ImportError:
     from styles import GLOBAL_QSS, get_scaled_qss
+
     from shared.parser import get_grade_details
 
 def apply_dialog_scaling(dialog, parent, base_w, base_h):
@@ -30,7 +46,7 @@ def apply_dialog_scaling(dialog, parent, base_w, base_h):
             scale_factor = 1.75
         elif saved_scale == "200%":
             scale_factor = 2.0
-            
+
     dialog.resize(int(base_w * scale_factor), int(base_h * scale_factor))
     dialog.setStyleSheet(get_scaled_qss(GLOBAL_QSS, scale_factor))
 
@@ -52,7 +68,7 @@ class StudentAnswersDialog(QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;")
-        
+
         scroll_content = QWidget()
         scroll_content.setStyleSheet("background-color: #ffffff;")
         scroll_layout = QVBoxLayout(scroll_content)
@@ -69,7 +85,7 @@ class StudentAnswersDialog(QDialog):
                 q_num = q.get('number', idx + 1)
                 student_ans = student.answers.get(q_num, [])
                 correct_answers = [ans['text'] for ans in q.get('answers', []) if ans.get('correct')]
-                
+
                 if q.get('written'):
                     student_text = student_ans[0] if student_ans else ""
                     from shared.parser import compare_written_answer
@@ -149,7 +165,7 @@ class EditQuestionDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Редактирование вопроса" if question else "Создание вопроса")
         apply_dialog_scaling(self, parent, 650, 600)
-        
+
         self.question = question if question else {
             "number": 1,
             "text": "",
@@ -158,7 +174,7 @@ class EditQuestionDialog(QDialog):
             "answers": [],
             "image_data": None
         }
-        
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
@@ -190,7 +206,7 @@ class EditQuestionDialog(QDialog):
             "Множественный выбор",
             "Письменный ответ"
         ])
-        
+
         # Determine initial selection
         if self.question.get("written", False):
             self.q_type_combo.setCurrentIndex(2)
@@ -198,7 +214,7 @@ class EditQuestionDialog(QDialog):
             self.q_type_combo.setCurrentIndex(1)
         else:
             self.q_type_combo.setCurrentIndex(0)
-            
+
         type_lay.addWidget(self.q_type_combo)
         type_lay.addStretch()
         layout.addLayout(type_lay)
@@ -208,7 +224,7 @@ class EditQuestionDialog(QDialog):
         self.img_status = QLabel("Изображение отсутствует" if not self.question.get("image_data") else "Изображение прикреплено")
         self.img_status.setStyleSheet("color: #64748b; font-size: 12px; font-weight: 500; border: none; background: transparent;")
         img_layout.addWidget(self.img_status)
-        
+
         self.add_img_btn = QPushButton("Выбрать изображение")
         self.add_img_btn.setStyleSheet(
             "QPushButton { background-color: #ffffff; color: #1e293b; padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-weight: bold; font-size: 12px; }"
@@ -216,7 +232,7 @@ class EditQuestionDialog(QDialog):
         )
         self.add_img_btn.clicked.connect(self._select_image)
         img_layout.addWidget(self.add_img_btn)
-        
+
         self.remove_img_btn = QPushButton("Удалить")
         self.remove_img_btn.setStyleSheet(
             "QPushButton { background-color: #fee2e2; color: #991b1b; padding: 6px 12px; border-radius: 6px; border: none; font-weight: bold; font-size: 12px; }"
@@ -226,14 +242,14 @@ class EditQuestionDialog(QDialog):
         if not self.question.get("image_data"):
             self.remove_img_btn.hide()
         img_layout.addWidget(self.remove_img_btn)
-        
+
         layout.addLayout(img_layout)
 
         # Answer Options List
         self.ans_title_lbl = QLabel("Варианты ответов:")
         self.ans_title_lbl.setStyleSheet("color: #1e293b; font-size: 13px; font-weight: bold; border: none; background: transparent;")
         layout.addWidget(self.ans_title_lbl)
-        
+
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setStyleSheet(
@@ -246,7 +262,7 @@ class EditQuestionDialog(QDialog):
         self.scroll_content_layout.setSpacing(8)
         self.scroll_content_layout.setContentsMargins(10, 10, 10, 10)
         self.scroll_content_layout.setAlignment(Qt.AlignTop)
-        
+
         self.scroll.setWidget(self.scroll_content)
         layout.addWidget(self.scroll)
 
@@ -262,7 +278,7 @@ class EditQuestionDialog(QDialog):
         # Bottom Buttons
         btn_lay = QHBoxLayout()
         btn_lay.addStretch()
-        
+
         cancel_btn = QPushButton("Отмена")
         cancel_btn.setStyleSheet(
             "QPushButton { background-color: #ffffff; color: #3b82f6; font-size: 13px; font-weight: bold; padding: 10px 20px; border: 2px solid #3b82f6; border-radius: 8px; }"
@@ -321,7 +337,7 @@ class EditQuestionDialog(QDialog):
             correct_cb.hide()
         else:
             correct_cb.setChecked(is_correct)
-            
+
         correct_cb.setStyleSheet(
             "QCheckBox { background: transparent; border: none; }"
             "QCheckBox::indicator { width: 20px; height: 20px; }"
@@ -344,7 +360,7 @@ class EditQuestionDialog(QDialog):
             "QPushButton { background-color: #fee2e2; color: #991b1b; padding: 6px 12px; border-radius: 6px; border: none; font-weight: bold; font-size: 12px; }"
             "QPushButton:hover { background-color: #fca5a5; }"
         )
-        
+
         def remove_row():
             row_widget.deleteLater()
             self.answer_rows.remove(row_info)
@@ -354,7 +370,7 @@ class EditQuestionDialog(QDialog):
 
         row_info = {"widget": row_widget, "input": ans_input, "cb": correct_cb}
         self.answer_rows.append(row_info)
-        
+
         self.scroll_content_layout.addWidget(row_widget)
 
     def _add_answer_row(self):
@@ -411,7 +427,7 @@ class EditQuestionDialog(QDialog):
         self.question["multiple"] = is_multiple
         self.question["written"] = is_written
         self.question["answers"] = answers_list
-        
+
         self.accept()
 
 
@@ -461,14 +477,14 @@ class MonitoringDialog(QDialog):
         )
         self.view_answers_btn.clicked.connect(self.view_answers)
         btn_layout.addWidget(self.view_answers_btn)
-        
+
         btn_layout.addStretch()
 
         close_btn = QPushButton("Закрыть")
         close_btn.setProperty("class", "secondaryBtn")
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
-        
+
         layout.addLayout(btn_layout)
 
         # Таймер обновления данных
@@ -484,14 +500,14 @@ class MonitoringDialog(QDialog):
         if row < 0:
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите студента из списка!")
             return
-        
+
         students = list(self.exam_server._monitor_data.values())
         if self.group:
             students = [s for s in students if s.group.lower() == self.group.lower()]
 
         if row < len(students):
             student = students[row]
-            
+
             # Находим правильные вопросы для этого студента
             questions = getattr(student, 'questions', None)
             if not questions:
@@ -508,7 +524,7 @@ class MonitoringDialog(QDialog):
         students = list(self.exam_server._monitor_data.values())
         if self.group:
             students = [s for s in students if s.group.lower() == self.group.lower()]
-        
+
         # Динамически регулируем количество строк, предотвращая мерцание
         if self.table.rowCount() != len(students):
             self.table.setRowCount(len(students))
@@ -641,15 +657,15 @@ class SelectTestFromRepoDialog(QDialog):
         self.tests = tests
         self.setWindowTitle("Выбрать тест из репозитория")
         apply_dialog_scaling(self, parent, 500, 420)
-        
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
-        
+
         title = QLabel("Выберите тест из сохраненных:")
         title.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b; border: none; background: transparent;")
         layout.addWidget(title)
-        
+
         # Поле поиска
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("🔍 Поиск по названию или группе...")
@@ -659,7 +675,7 @@ class SelectTestFromRepoDialog(QDialog):
         )
         self.search_input.textChanged.connect(self._filter_table)
         layout.addWidget(self.search_input)
-        
+
         self.table = QTableWidget(0, 2)
         self.table.setHorizontalHeaderLabels(["Название теста / Группа", "Вопросов"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
@@ -670,12 +686,12 @@ class SelectTestFromRepoDialog(QDialog):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(True)
         layout.addWidget(self.table)
-        
+
         self._filter_table()
-            
+
         btn_lay = QHBoxLayout()
         btn_lay.addStretch()
-        
+
         cancel_btn = QPushButton("Отмена")
         cancel_btn.setStyleSheet(
             "QPushButton { background-color: #ffffff; color: #475569; font-weight: bold; font-size: 13px; padding: 8px 16px; border: 1px solid #cbd5e1; border-radius: 6px; }"
@@ -683,7 +699,7 @@ class SelectTestFromRepoDialog(QDialog):
         )
         cancel_btn.clicked.connect(self.reject)
         btn_lay.addWidget(cancel_btn)
-        
+
         self.select_btn = QPushButton("Выбрать")
         self.select_btn.setStyleSheet(
             "QPushButton { background-color: #3b82f6; color: #ffffff; font-weight: bold; font-size: 13px; padding: 8px 16px; border: none; border-radius: 6px; }"
@@ -691,12 +707,12 @@ class SelectTestFromRepoDialog(QDialog):
         )
         self.select_btn.clicked.connect(self.accept)
         btn_lay.addWidget(self.select_btn)
-        
+
         layout.addLayout(btn_lay)
         self.selected_group = None
-        
+
         self.table.doubleClicked.connect(self.accept)
-        
+
     def _filter_table(self):
         query = self.search_input.text().strip().lower()
         self.table.setRowCount(0)
@@ -706,7 +722,7 @@ class SelectTestFromRepoDialog(QDialog):
                 self.table.insertRow(row)
                 self.table.setItem(row, 0, QTableWidgetItem(t["group"]))
                 self.table.setItem(row, 1, QTableWidgetItem(str(len(t["questions"]))))
-        
+
     def accept(self):
         selected = self.table.currentRow()
         if selected >= 0:
@@ -718,8 +734,16 @@ class SelectTestFromRepoDialog(QDialog):
 
 class UpdateProgressDialog(QDialog):
     def __init__(self, exam_server, parent=None):
-        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QScrollArea, QProgressBar, QWidget, QApplication
-        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import (
+            QFrame,
+            QHBoxLayout,
+            QLabel,
+            QProgressBar,
+            QPushButton,
+            QScrollArea,
+            QVBoxLayout,
+            QWidget,
+        )
         super().__init__(parent)
         self.exam_server = exam_server
         self.setWindowTitle("Обновление системы")
@@ -798,13 +822,13 @@ class UpdateProgressDialog(QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; }")
-        
+
         self.scroll_content = QWidget()
         self.scroll_content.setStyleSheet("background-color: #ffffff;")
         self.scroll_layout = QVBoxLayout(self.scroll_content)
         self.scroll_layout.setSpacing(12)
         self.scroll_layout.setContentsMargins(10, 10, 10, 10)
-        
+
         scroll.setWidget(self.scroll_content)
         layout.addWidget(scroll, 1)
 
@@ -834,14 +858,14 @@ class UpdateProgressDialog(QDialog):
 
         self.client_widgets = {} # sock -> (name_lbl, progress_bar, status_lbl)
         self._populate_clients()
-        
+
         # Реалтайм-обновление списка клиентов в диалоге обновления
         self.exam_server.student_connected.connect(self._on_student_changed)
         self.exam_server.student_disconnected.connect(self._on_student_changed)
-        
+
     def _on_student_changed(self, name, group):
         self._populate_clients()
-        
+
     def reject(self):
         try:
             self.exam_server.student_connected.disconnect(self._on_student_changed)
@@ -859,7 +883,7 @@ class UpdateProgressDialog(QDialog):
         super().closeEvent(event)
 
     def _populate_clients(self):
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QFrame
+        from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QVBoxLayout, QWidget
         # Очистить предыдущие виджеты
         for i in reversed(range(self.scroll_layout.count())):
             item = self.scroll_layout.itemAt(i)
@@ -867,22 +891,22 @@ class UpdateProgressDialog(QDialog):
                 w = item.widget()
                 w.setParent(None)
                 w.deleteLater()
-                
+
         self.client_widgets.clear()
-        
+
         students = list(self.exam_server._students.values())
         if not students:
             empty_lbl = QLabel("Нет подключенных клиентов.")
             empty_lbl.setStyleSheet("color: #94a3b8; font-size: 12px; font-style: italic;")
             self.scroll_layout.addWidget(empty_lbl)
             return
-            
+
         for s in students:
             item_widget = QWidget()
             item_lay = QVBoxLayout(item_widget)
             item_lay.setContentsMargins(0, 0, 0, 8)
             item_lay.setSpacing(4)
-            
+
             info_lay = QHBoxLayout()
             name_lbl = QLabel(f"{s.name} ({s.group})")
             name_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #334155;")
@@ -892,7 +916,7 @@ class UpdateProgressDialog(QDialog):
             info_lay.addStretch()
             info_lay.addWidget(ver_lbl)
             item_lay.addLayout(info_lay)
-            
+
             prog = QProgressBar()
             prog.setValue(0)
             prog.setFixedHeight(12)
@@ -911,25 +935,25 @@ class UpdateProgressDialog(QDialog):
                 }
             """)
             item_lay.addWidget(prog)
-            
+
             status_lbl = QLabel("Ожидание скачивания сервера...")
             status_lbl.setStyleSheet("font-size: 10px; color: #94a3b8;")
             item_lay.addWidget(status_lbl)
-            
+
             # Разделительная полоса
             sep = QFrame()
             sep.setFrameShape(QFrame.HLine)
             sep.setFrameShadow(QFrame.Sunken)
             sep.setStyleSheet("color: #f1f5f9;")
             item_lay.addWidget(sep)
-            
+
             self.scroll_layout.addWidget(item_widget)
             self.client_widgets[s.socket] = (name_lbl, prog, status_lbl)
 
     def set_server_progress(self, percent, text):
         self.server_progress.setValue(percent)
         self.server_status.setText(text)
-        
+
     def set_client_progress(self, socket, percent, text):
         if socket in self.client_widgets:
             _, prog, status_lbl = self.client_widgets[socket]
@@ -944,20 +968,21 @@ class UpdateProgressDialog(QDialog):
         self.upgrade_btn.setEnabled(True)
 
     def apply_full_upgrade(self):
-        from PySide6.QtWidgets import QApplication
         import os
-        import sys
-        import subprocess
         import platform
         import shutil
-        
+        import subprocess
+        import sys
+
+        from PySide6.QtWidgets import QApplication
+
         # Рассылка перезагрузки клиентам
         self.exam_server.send_reboot_to_all_clients()
-        
+
         # Перезагрузка сервера
         current_exe = os.path.abspath(sys.argv[0])
         update_file = current_exe + ".new"
-        
+
         # Если запущен скрипт .py, мы не заменяем его бинарным файлом.
         # Просто перезапускаем текущий .py с помощью sys.executable.
         if current_exe.endswith('.py'):
@@ -967,7 +992,7 @@ class UpdateProgressDialog(QDialog):
                 subprocess.Popen([sys.executable, current_exe])
             QApplication.quit()
             return
-            
+
         # Для скомпилированного бинарника: ищем скачанный с GitHub файл сервера в updates/
         upd_dir = self.exam_server.get_updates_dir()
         if os.path.exists(upd_dir):
@@ -979,14 +1004,14 @@ class UpdateProgressDialog(QDialog):
                         continue
                     if server_os == 'linux' and name_lower.endswith('.exe'):
                         continue
-                    
+
                     src_path = os.path.join(upd_dir, f)
                     try:
                         shutil.copy2(src_path, update_file)
                         break
                     except Exception as e:
                         print(f"Ошибка при копировании файла обновления сервера: {e}")
-        
+
         if os.path.exists(update_file):
             if platform.system() == 'Windows':
                 updater_script = "update.bat"
@@ -1009,14 +1034,22 @@ class UpdateProgressDialog(QDialog):
                     f.write('rm "$0"\n')
                 os.chmod(updater_script, 0o755)
                 subprocess.Popen(["/bin/bash", updater_script])
-                
+
         QApplication.quit()
 
 
 class ConnectedClientsDialog(QDialog):
     def __init__(self, exam_server, parent=None):
-        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
-        from PySide6.QtCore import Qt, QTimer
+        from PySide6.QtCore import QTimer
+        from PySide6.QtWidgets import (
+            QAbstractItemView,
+            QHBoxLayout,
+            QHeaderView,
+            QLabel,
+            QPushButton,
+            QTableWidget,
+            QVBoxLayout,
+        )
         super().__init__(parent)
         self.exam_server = exam_server
         self.setWindowTitle("Подключенные клиенты")

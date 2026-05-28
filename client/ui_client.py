@@ -3,17 +3,30 @@ client/ui_client.py — Графический интерфейс студент
 Авторизация → Kiosk Mode → Прохождение теста → Завершение.
 """
 
-import sys
-import os
 import base64
-from PySide6.QtCore import Qt, QTimer, Slot, QByteArray, QSettings
-from PySide6.QtGui import QPixmap, QFont, QKeyEvent, QCloseEvent
+import os
+
+from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer, Slot
+from PySide6.QtGui import QCloseEvent, QKeyEvent, QPixmap
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QRadioButton, QCheckBox, QButtonGroup,
-    QStackedWidget, QFrame, QProgressBar, QMessageBox,
-    QSizePolicy, QScrollArea, QSpacerItem, QComboBox
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QScrollArea,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
+
 from shared.parser import get_grade_details
 
 try:
@@ -22,6 +35,7 @@ except ImportError:
     from styles import CLIENT_QSS
 
 from PySide6.QtWidgets import QDialog
+
 
 class ClientUpdateDialog(QDialog):
     def __init__(self, parent=None):
@@ -69,14 +83,14 @@ class StudentWindow(QMainWindow):
         super().__init__(parent)
         self.client = client
         self.setWindowTitle("TTGTiSO-Test — Тестирование")
-        
+
         # Установка иконки приложения
         from PySide6.QtGui import QIcon
         try:
             from .main import get_resource_path
         except ImportError:
             from main import get_resource_path
-        
+
         icon_path = get_resource_path("image.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
@@ -232,13 +246,13 @@ class StudentWindow(QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setObjectName("mainScroll")
-        
+
         scroll_content = QWidget()
         scroll_content.setObjectName("scrollContent")
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setAlignment(Qt.AlignCenter)
         scroll_layout.addWidget(card)
-        
+
         scroll.setWidget(scroll_content)
         outer.addWidget(scroll)
         self._stack.addWidget(page)
@@ -264,7 +278,7 @@ class StudentWindow(QMainWindow):
         ui_layout = QVBoxLayout(user_info)
         ui_layout.setContentsMargins(0, 0, 0, 0)
         ui_layout.setSpacing(2)
-        
+
         self._student_name_label = QLabel("Имя Фамилия")
         self._student_name_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #1e293b; border: none;")
         self._student_group_label = QLabel("Группа: ---")
@@ -299,7 +313,7 @@ class StudentWindow(QMainWindow):
             "QProgressBar::chunk { background-color: #10b981; border-radius: 4px; }"
         )
         pc_layout.addWidget(self._progress)
-        
+
         tb_layout.addWidget(progress_container, 1)
 
         # Right: Timer
@@ -320,7 +334,7 @@ class StudentWindow(QMainWindow):
         title_section.setStyleSheet("background-color: #f8fafc; border: none;")
         ts_layout = QHBoxLayout(title_section)
         ts_layout.setContentsMargins(40, 24, 40, 0)
-        
+
         title_text_layout = QVBoxLayout()
         self._test_title = QLabel("Итоговое тестирование")
         self._test_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #0f172a; border: none;")
@@ -427,7 +441,7 @@ class StudentWindow(QMainWindow):
         cl.addWidget(self._result_sub)
 
         cl.addSpacing(12)
-        
+
         ok_btn = QPushButton("Вернуться на экран входа")
         ok_btn.setProperty("class", "primaryBtn")
         ok_btn.setCursor(Qt.PointingHandCursor)
@@ -444,9 +458,9 @@ class StudentWindow(QMainWindow):
         if not self._update_dialog:
             self._update_dialog = ClientUpdateDialog(self)
             self._update_dialog.show()
-        
+
         self._update_dialog.update_progress(percent, text)
-        
+
         if percent == 100 and "завершена" in text.lower():
             QTimer.singleShot(2000, self._update_dialog.close)
 
@@ -496,11 +510,11 @@ class StudentWindow(QMainWindow):
         ip = self._ip_input.text().strip()
         name = self._name_input.text().strip()
         group = self._group_input.currentText().strip()
-        
+
         if not ip or not name or not group:
             self._attempts_lbl.hide()
             return
-            
+
         ip, port = self._parse_address(ip)
         self.client.check_attempts_left(ip, port, name, group)
 
@@ -544,7 +558,7 @@ class StudentWindow(QMainWindow):
             self._save_current_ip()
             return
         self._save_current_ip()
-        
+
         ip, port = self._parse_address(ip)
         self.client.check_active_group(ip, port)
         self.client.connect_to_server_idle(ip, port)
@@ -655,13 +669,13 @@ class StudentWindow(QMainWindow):
         self._result_sub.setText("Результат отправлен преподавателю")
         grade_text, grade_color = get_grade_details(score)
         self._result_grade.setText(f"Процент прохождения: {grade_text}")
-        
+
         # Convert hex color to rgba for clean background
         hex_color = grade_color.lstrip('#')
         r = int(hex_color[0:2], 16)
         g = int(hex_color[2:4], 16)
         b = int(hex_color[4:6], 16)
-        
+
         self._result_grade.setStyleSheet(
             f"font-size: 20px; font-weight: bold; color: {grade_color}; "
             f"background-color: rgba({r}, {g}, {b}, 0.12); padding: 12px 24px; border-radius: 8px; border: none;"
@@ -832,7 +846,7 @@ class StudentWindow(QMainWindow):
 
         # Update Navigation buttons states
         self._prev_btn.setEnabled(index > 0)
-        
+
         is_last = (index == total - 1)
         if is_last:
             self._next_btn.setText("Завершить тест")
@@ -850,6 +864,7 @@ class StudentWindow(QMainWindow):
 
     def _update_saving_status(self):
         from datetime import datetime
+
         from PySide6.QtNetwork import QAbstractSocket
         now_str = datetime.now().strftime("%H:%M:%S")
         if self.client.get_socket_state() == QAbstractSocket.ConnectedState:
@@ -866,7 +881,7 @@ class StudentWindow(QMainWindow):
         q = self._questions[self._current_q]
         q_num = q.get('number', self._current_q + 1)
         selected = []
-        
+
         if q.get('written'):
             if self._answer_widgets:
                 w = self._answer_widgets[0]
@@ -876,9 +891,9 @@ class StudentWindow(QMainWindow):
             for w in self._answer_widgets:
                 if isinstance(w, (QRadioButton, QCheckBox)) and w.isChecked():
                     selected.append(w.text())
-                    
+
         self._answers[q_num] = selected
-        
+
         # Автосохранение бэкапа локально при любом сохранении ответа!
         self.client.save_backup(self._answers)
         self._update_saving_status()
@@ -907,7 +922,7 @@ class StudentWindow(QMainWindow):
             from client.main import save_student_final_backup
         except ImportError:
             from main import save_student_final_backup
-        
+
         name = self._name_input.text()
         group = self._group_input.currentText()
         score_placeholder = f"{len(self._answers)}/{len(self._questions)}"
@@ -993,13 +1008,13 @@ class StudentWindow(QMainWindow):
     def _handle_focus_loss(self):
         if getattr(self, "_test_finished", False):
             return
-            
+
         self._focus_loss_count = getattr(self, "_focus_loss_count", 0) + 1
-        
+
         # Отправляем предупреждение на сервер
         warning_desc = f"Потеря фокуса / Переключение рабочего стола (Предупреждение {self._focus_loss_count})"
         self.client.send_cheat_warning(warning_desc)
-        
+
         if self._focus_loss_count >= 3:
             self._timer.stop()
             self._test_finished = True

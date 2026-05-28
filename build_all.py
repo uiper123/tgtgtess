@@ -1,7 +1,6 @@
 import os
-import sys
 import subprocess
-import shutil
+import sys
 
 # Конфигурация
 PROJECT_NAME = "EduTest Pro"
@@ -19,7 +18,7 @@ def run_command(cmd):
 
 def build_app(app_name, config):
     print(f"\n=== Building {app_name.upper()} ===")
-    
+
     # Базовые флаги Nuitka
     cmd = [
         sys.executable, "-m", "nuitka",
@@ -31,13 +30,13 @@ def build_app(app_name, config):
         f"--output-dir=dist/{app_name}",
         config['main']
     ]
-    
+
     # Включаем ресурсы только если они существуют
     if os.path.exists("image.ico"):
         cmd.insert(-1, "--include-data-files=image.ico=image.ico")
     if os.path.exists("image.png"):
         cmd.insert(-1, "--include-data-files=image.png=image.png")
-    
+
     # Флаги для Windows
     if os.name == 'nt':
         cmd.extend([
@@ -87,11 +86,11 @@ def main():
         # shutil.rmtree("dist") # Опционально: полная очистка
         pass
     os.makedirs("dist", exist_ok=True)
-    
+
     # Собираем оба приложения
     for app, cfg in APPS.items():
         build_app(app, cfg)
-        
+
     print("\n=== BUILD COMPLETE ===")
     if os.name == 'nt':
         print("Now you can run Inno Setup with 'build/student_setup.iss' to create Windows Installer.")
