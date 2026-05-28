@@ -21,9 +21,10 @@ pytest.importorskip("PySide6")
 # server/main.py транзитивно подтягивает QtWidgets (через ui_*). На CI без libEGL
 # импорт упадёт — в таком случае пропускаем весь файл целиком.
 try:
-    import PySide6.QtWidgets
+    import PySide6.QtWidgets  # type: ignore[unused-ignore]
+    _ = PySide6.QtWidgets
 except ImportError:
-    sys.exit(0)
+    pytest.skip("libEGL missing — skipping QtWidgets-dependent tests", allow_module_level=True)
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
