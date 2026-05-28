@@ -63,6 +63,8 @@ tests/*.json
 # Generated / temporary
 # ========================
 *.png
+!docs/img/*.png
+!shared/*.png
 *.jpg
 *.jpeg
 !shared/*.png
