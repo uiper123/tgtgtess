@@ -1,0 +1,10 @@
+# Development dependencies — pulled in addition to requirements.txt.
+-r requirements.txt
+
+pytest>=8.0
+pytest-cov>=4.1
+ruff>=0.5
+
+# Nuitka is only needed for producing redistributable binaries.
+# Comment out if you only want to run from source.
+nuitka>=2.0

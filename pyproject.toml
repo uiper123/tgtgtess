@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edutest-pro"
+version = "1.3.7"
+description = "Offline LAN exam-testing system with proctoring, dynamic UI scaling, and signed auto-updates"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "uiper123" }]
+keywords = ["education", "testing", "exam", "proctoring", "PySide6", "Qt"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Education :: Testing",
+]
+dependencies = [
+    "PySide6>=6.4,<7.0",
+    "Pillow>=10.0,<12.0",
+    "cryptography>=41,<46",
+    "certifi>=2023.7.22",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.1",
+    "ruff>=0.5",
+    "nuitka>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/uiper123/tgtgtess"
+Issues = "https://github.com/uiper123/tgtgtess/issues"
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+
+# ---------------------------------------------------------------------------
+# Ruff (formatter + linter)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+extend-exclude = ["build", "dist", "updates"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",      # pycodestyle
+    "F",            # pyflakes
+    "I",            # isort
+    "B",            # bugbear
+    "UP",           # pyupgrade
+    "SIM",          # simplify
+    "RUF",          # ruff-specific
+]
+ignore = [
+    "E501",        # line too long — handled by formatter
+    "B008",        # default args via function calls — Qt-style is common
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B", "SIM"]
