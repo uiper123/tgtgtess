@@ -122,7 +122,7 @@ class ResultsMixin:
         self.r_table.setColumnWidth(0, 250)
         self.r_table.setColumnWidth(1, 100)
         self.r_table.setColumnWidth(2, 200)
-        self.r_table.setColumnWidth(3, 130)
+        self.r_table.setColumnWidth(3, 160)
         self.r_table.setColumnWidth(4, 100)
         self.r_table.setColumnWidth(5, 180)
         self.r_table.setSelectionBehavior(QAbstractItemView.SelectRows)

@@ -117,7 +117,7 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
     background-color: #4f46e5;
 }
 #sidebar QLabel#serverStatus {
-    color: #64748b;
+    color: #cbd5e1;
     font-size: 12px;
     font-weight: 500;
     padding: 12px 20px 20px 20px;
@@ -190,6 +190,8 @@ QComboBox::down-arrow {
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
     border-top: 6px solid #64748b;
+    width: 0;
+    height: 0;
     margin-right: 12px;
 }
 QComboBox QFrame {

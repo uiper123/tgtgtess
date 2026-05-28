@@ -421,6 +421,8 @@ class StudentWindow(QMainWindow):
         page = QWidget()
         outer = QVBoxLayout(page)
         outer.setAlignment(Qt.AlignCenter)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addStretch(1)
 
         card = QFrame()
         card.setObjectName("loginCard")
@@ -464,6 +466,7 @@ class StudentWindow(QMainWindow):
         cl.addWidget(ok_btn)
 
         outer.addWidget(card)
+        outer.addStretch(1)
         self._stack.addWidget(page)
 
     # ========================== LOGIC ==========================
