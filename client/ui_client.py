@@ -637,10 +637,13 @@ class StudentWindow(QMainWindow):
         self.client.connect_to_server(ip, port, name, group)
 
     @Slot(list, int, str, str, str)
-    def _on_connected_ok(self, questions, duration, title, section, test_name):
+    def _on_connected_ok(self, questions, duration, title, section, test_name, remaining_seconds):
         self._questions = questions
         self._duration = duration
-        self._remaining = duration * 60
+        # remaining_seconds приходит от сервера. При первом подключении это
+        # duration*60. При ре-коннекте посередине экзамена — реально оставшееся
+        # время. Так закрывается читерство через отключение Wi-Fi.
+        self._remaining = max(0, int(remaining_seconds))
         self._current_q = 0
         self._answers.clear()
         self._test_finished = False

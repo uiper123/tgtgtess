@@ -73,7 +73,7 @@ def _version_tuple(v: str) -> tuple:
 
 class ConnectedStudent:
     """Данные о подключённом студенте."""
-    __slots__ = ('active', 'answers', 'buffer', 'cheat_warnings', 'connect_time', 'finished', 'group', 'name', 'os', 'questions', 'score', 'socket', 'version')
+    __slots__ = ('active', 'answers', 'buffer', 'cheat_warnings', 'connect_time', 'exam_start_time', 'finished', 'group', 'name', 'os', 'questions', 'score', 'socket', 'version')
 
     def __init__(self, socket: QTcpSocket, name: str, group: str):
         self.socket = socket
@@ -89,6 +89,7 @@ class ConnectedStudent:
         self.connect_time = datetime.now()
         self.version = "0.0.0"
         self.os = "windows"
+        self.exam_start_time = None
 
 
 class ExamServer(QObject):
@@ -296,6 +297,63 @@ class ExamServer(QObject):
     def get_active_exams(self) -> Dict[str, Dict[str, Any]]:
         return dict(self._active_exams)
 
+    # ---------- Helpers for `attempts` dict ----------
+    # Исторически attempts[student_key] хранил просто int (число использованных
+    # попыток). Чтобы починить читерство через переподключение, нам нужно ещё
+    # хранить exam_start_time. Делаем структуру dict, но читаем обе формы.
+
+    @staticmethod
+    def _attempt_record(exam: dict, student_key: str) -> dict:
+        """Возвращает (создавая если нужно) запись попыток как dict."""
+        attempts = exam.setdefault('attempts', {})
+        rec = attempts.get(student_key)
+        if isinstance(rec, int):
+            # Миграция из старого int-формата.
+            rec = {'count': rec, 'exam_start_time': None}
+            attempts[student_key] = rec
+        elif rec is None:
+            rec = {'count': 0, 'exam_start_time': None}
+            attempts[student_key] = rec
+        return rec
+
+    @classmethod
+    def _attempt_count(cls, exam: dict, student_key: str) -> int:
+        return cls._attempt_record(exam, student_key).get('count', 0)
+
+    @classmethod
+    def _attempt_inc(cls, exam: dict, student_key: str) -> int:
+        rec = cls._attempt_record(exam, student_key)
+        rec['count'] = rec.get('count', 0) + 1
+        return rec['count']
+
+    @classmethod
+    def _attempt_get_or_init_start_time(cls, exam: dict, student_key: str) -> datetime:
+        """Возвращает exam_start_time текущей попытки. Если он не был задан —
+        ставит datetime.now() и возвращает. Это и есть якорь, который не
+        сбрасывается при переподключении."""
+        rec = cls._attempt_record(exam, student_key)
+        start = rec.get('exam_start_time')
+        if isinstance(start, datetime):
+            return start
+        if isinstance(start, str):
+            try:
+                parsed = datetime.fromisoformat(start)
+                rec['exam_start_time'] = parsed
+                return parsed
+            except ValueError:
+                pass
+        now = datetime.now()
+        rec['exam_start_time'] = now
+        return now
+
+    @classmethod
+    def _attempt_reset_start_time(cls, exam: dict, student_key: str):
+        """Сбрасывает якорь — вызывается только когда попытка реально закрыта
+        (либо студент сдал, либо force_stop, либо лимит времени превышен)."""
+        rec = cls._attempt_record(exam, student_key)
+        rec['exam_start_time'] = None
+
+
     def get_connected_students(self) -> List[ConnectedStudent]:
         return list(self._students.values())
 
@@ -406,7 +464,7 @@ class ExamServer(QObject):
             if self._exam_active and group_key in self._active_exams:
                 exam = self._active_exams[group_key]
                 student_key = name.strip().casefold()
-                attempts_used = exam.setdefault('attempts', {}).get(student_key, 0)
+                attempts_used = self._attempt_count(exam, student_key)
                 max_attempts = exam.get('max_attempts', 1)
                 attempts_left = max(0, max_attempts - attempts_used)
 
@@ -489,7 +547,7 @@ class ExamServer(QObject):
 
         exam = self._active_exams[group_key]
         student_key = name.strip().casefold()
-        attempts_used = exam.setdefault('attempts', {}).get(student_key, 0)
+        attempts_used = self._attempt_count(exam, student_key)
         max_attempts = exam.get('max_attempts', 1)
         if attempts_used >= max_attempts:
             response = {'status': 'error', 'message': 'attempts_exceeded'}
@@ -529,11 +587,22 @@ class ExamServer(QObject):
 
         student.questions = questions_for_student
 
+        # Якорь времени экзамена для конкретной (group, name, attempt).
+        # При первом подключении ставится datetime.now(); при ре-коннекте —
+        # достаётся то же самое значение. Это закрывает читерство через
+        # отключение Wi-Fi для сброса таймера (см. SECURITY.md, R-1).
+        student.exam_start_time = self._attempt_get_or_init_start_time(exam, student_key)
+        elapsed = (datetime.now() - student.exam_start_time).total_seconds()
+        total_seconds = exam['duration'] * 60
+        remaining_seconds = max(0, int(total_seconds - elapsed))
+
         # Отправляем тест
         response = {
             'status': 'success',
             'questions': questions_to_network_payload(questions_for_student),
             'duration': exam['duration'],
+            'remaining_seconds': remaining_seconds,
+            'exam_start_time': student.exam_start_time.isoformat(),
             'title': exam['title'],
             'section': exam['section'],
             'test_name': exam.get('test_name', 'Тест')
@@ -578,7 +647,10 @@ class ExamServer(QObject):
         if group_key in self._active_exams:
             exam = self._active_exams[group_key]
             # Проверка времени (пункт 16 аудита)
-            elapsed = (datetime.now() - student.connect_time).total_seconds()
+            # ⚠ ВАЖНО: используем exam_start_time (якорь первой попытки),
+            # а НЕ connect_time. connect_time сбрасывается при ре-коннекте.
+            anchor = student.exam_start_time or student.connect_time
+            elapsed = (datetime.now() - anchor).total_seconds()
             max_seconds = exam['duration'] * 60 + 60  # +60 сек буфер
             if elapsed > max_seconds:
                 sock.write(pack_message({'status': 'error', 'message': 'time_out'}))
@@ -604,10 +676,12 @@ class ExamServer(QObject):
 
         test_name = ""
         if group_key in self._active_exams:
-            attempts = self._active_exams[group_key].setdefault('attempts', {})
+            exam = self._active_exams[group_key]
             student_key = name.strip().casefold()
-            attempts[student_key] = attempts.get(student_key, 0) + 1
-            test_name = self._active_exams[group_key].get('test_name', '')
+            self._attempt_inc(exam, student_key)
+            # Якорь времени переходит к следующей попытке — сбрасываем.
+            self._attempt_reset_start_time(exam, student_key)
+            test_name = exam.get('test_name', '')
 
         result_entry = {
             'name': name,

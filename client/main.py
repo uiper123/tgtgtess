@@ -125,7 +125,7 @@ class StudentClient(QObject):
         log_message(str)
     """
 
-    connected_ok = Signal(list, int, str, str, str)         # questions, duration, title, section, test_name
+    connected_ok = Signal(list, int, str, str, str, int)    # questions, duration, title, section, test_name, remaining_seconds
     connection_error = Signal(str)           # message
     result_sent = Signal(str)                # score calculated by server
     force_stopped = Signal()                 # force stopped by teacher
@@ -271,7 +271,12 @@ class StudentClient(QObject):
             section = packet.get('section', 'Раздел: Основная часть')
             test_name = packet.get('test_name', '')
             self._test_name = test_name
-            self.connected_ok.emit(questions, duration, title, section, test_name)
+            # remaining_seconds приходит от сервера, если он умеет (v1.3.7+).
+            # Для совместимости со старым сервером — fallback на duration*60.
+            remaining = packet.get('remaining_seconds')
+            if remaining is None:
+                remaining = duration * 60
+            self.connected_ok.emit(questions, duration, title, section, test_name, int(remaining))
         elif status == 'result_confirmed':
             score = packet.get('score', '0/0')
             self.result_sent.emit(score)
