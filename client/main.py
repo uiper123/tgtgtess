@@ -282,6 +282,17 @@ class StudentClient(QObject):
         elif status == 'update_download':
             self._save_update_file(packet)
         elif status == 'update_apply':
+            # Преподаватель нажал «Применить обновление сейчас».
+            # Перед запуском updater'а убеждаемся, что .new файл вообще
+            # был получен и прошёл проверку подписи. Иначе просто логируем —
+            # клиент в киоск-режиме всё равно не может среагировать на UI-ошибку.
+            expected_new = os.path.abspath(sys.argv[0]) + ".new"
+            if not os.path.exists(expected_new):
+                self.log_message.emit(
+                    "⚠️ Получен файл обновления, но он не существует. "
+                    "Обновление отклонено."
+                )
+                return
             self._run_updater()
         elif status == 'update_start':
             self._handle_update_start(packet)
@@ -473,7 +484,14 @@ class StudentClient(QObject):
         return True
 
     def _run_updater(self):
-        """Запускает скрипт замены и перезагружает приложение."""
+        """Запускает скрипт замены и перезагружает приложение.
+
+        Скрипт создаётся в системной temp-директории (а не в CWD —
+        иначе при запуске exe из меню Пуск с CWD=C:\\Windows\\System32
+        мы бы пытались писать в системную папку). Пути экранируются
+        кавычками, чтобы корректно работать с 'Program Files' и
+        прочими директориями с пробелами.
+        """
         import subprocess
         try:
             current_exe = os.path.abspath(sys.argv[0])
@@ -498,19 +516,33 @@ class StudentClient(QObject):
                 self.log_message.emit("Ошибка: файл обновления .new не найден.")
                 return
 
+            import tempfile
+            tmp_dir = tempfile.gettempdir()
+
             if platform.system() == 'Windows':
-                updater_script = "update.bat"
-                with open(updater_script, 'w') as f:
+                # Скрипт пишется в %TEMP%, а не в CWD — иначе exe, запущенный
+                # из меню Пуск (CWD = C:\Windows\System32), пытался бы писать
+                # в системную папку. Все пути экранируются кавычками, чтобы
+                # корректно обрабатывать "Program Files" и т.п.
+                fd, updater_script = tempfile.mkstemp(suffix='.bat', prefix='edutest_update_', dir=tmp_dir)
+                os.close(fd)
+                with open(updater_script, 'w', encoding='utf-8') as f:
                     f.write('@echo off\n')
                     f.write('timeout /t 2 /nobreak > nul\n')
                     f.write(f'del "{current_exe}"\n')
                     f.write(f'move "{update_file}" "{current_exe}"\n')
                     f.write(f'start "" "{current_exe}"\n')
                     f.write('del "%~f0"\n')
-                subprocess.Popen([updater_script], shell=True)
+                # cmd /c вместо shell=True — безопаснее работает с пробелами в путях.
+                subprocess.Popen(
+                    ['cmd.exe', '/c', updater_script],
+                    shell=False,
+                    creationflags=getattr(subprocess, 'DETACHED_PROCESS', 0),
+                )
             else:
-                updater_script = "update.sh"
-                with open(updater_script, 'w') as f:
+                fd, updater_script = tempfile.mkstemp(suffix='.sh', prefix='edutest_update_', dir=tmp_dir)
+                os.close(fd)
+                with open(updater_script, 'w', encoding='utf-8') as f:
                     f.write('#!/bin/bash\n')
                     f.write('sleep 2\n')
                     f.write(f'mv "{update_file}" "{current_exe}"\n')
@@ -518,7 +550,7 @@ class StudentClient(QObject):
                     f.write(f'"{current_exe}" &\n')
                     f.write('rm "$0"\n')
                 os.chmod(updater_script, 0o755)
-                subprocess.Popen(["/bin/bash", updater_script])
+                subprocess.Popen(['/bin/bash', updater_script])
 
             self.update_received.emit(VERSION)
             QApplication.quit()
