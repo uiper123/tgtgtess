@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from shared.parser import get_grade_details
+from shared.version import VERSION
 
 try:
     from .styles import CLIENT_QSS
@@ -63,6 +64,10 @@ class ClientUpdateDialog(QDialog):
         self.title_lbl.setStyleSheet("font-size: 14px; font-weight: bold;")
         layout.addWidget(self.title_lbl)
 
+        current_lbl = QLabel(f"Текущая версия: v{VERSION}")
+        current_lbl.setStyleSheet("font-size: 11px; color: #94a3b8;")
+        layout.addWidget(current_lbl)
+
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
@@ -82,7 +87,7 @@ class StudentWindow(QMainWindow):
     def __init__(self, client, parent=None):
         super().__init__(parent)
         self.client = client
-        self.setWindowTitle("TTGTiSO-Test — Тестирование")
+        self.setWindowTitle(f"TTGTiSO-Test — Тестирование v{VERSION}")
 
         # Установка иконки приложения
         from PySide6.QtGui import QIcon
@@ -176,7 +181,7 @@ class StudentWindow(QMainWindow):
         title.setStyleSheet("font-size: 24px; font-weight: bold; color: #1e293b; border: none;")
         cl.addWidget(title)
 
-        sub = QLabel("")
+        sub = QLabel(f"Клиент студента · версия {VERSION}")
         sub.setAlignment(Qt.AlignCenter)
         sub.setStyleSheet("font-size: 13px; color: #64748b; border: none;")
         cl.addWidget(sub)
@@ -255,6 +260,13 @@ class StudentWindow(QMainWindow):
 
         scroll.setWidget(scroll_content)
         outer.addWidget(scroll)
+
+        # Постоянно видимый футер с версией — чтобы при поддержке
+        # сразу было видно, какая сборка запущена на конкретной машине.
+        version_footer = QLabel(f"EduTest Pro · клиент v{VERSION}")
+        version_footer.setAlignment(Qt.AlignCenter)
+        version_footer.setStyleSheet("font-size: 11px; color: #94a3b8; border: none;")
+        outer.addWidget(version_footer)
         self._stack.addWidget(page)
 
     # ========================== TEST PAGE ==========================

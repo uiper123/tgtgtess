@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.version import VERSION
+
 try:
     from .styles import GLOBAL_QSS, get_scaled_qss
     from .ui_dashboard import DashboardMixin
@@ -60,7 +62,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         super().__init__(parent)
         self.exam_server = exam_server
         self._settings = QSettings("EduTest", "Server")
-        self.setWindowTitle("TTGTiSO-Test — Панель преподавателя")
+        self.setWindowTitle(f"TTGTiSO-Test — Панель преподавателя v{VERSION}")
 
         self.update_checked_signal.connect(self._on_update_checked)
         self.update_downloaded_signal.connect(self._on_update_downloaded)
@@ -213,6 +215,13 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self._status_label = QLabel("Сервер: Выключен")
         self._status_label.setObjectName("serverStatus")
         sb_layout.addWidget(self._status_label)
+
+        # Плашка версии — чтобы преподаватель сразу видел,
+        # какая сборка запущена (важно при поддержке/обновлении).
+        version_lbl = QLabel(f"v{VERSION}")
+        version_lbl.setFixedSize(100, 20)
+        version_lbl.setStyleSheet("background-color: #f1f5f9; color: #64748b; font-size: 10px; border-radius: 4px;")
+        sb_layout.addWidget(version_lbl)
 
         root_layout.addWidget(self.sidebar)
 
