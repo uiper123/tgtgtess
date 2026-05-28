@@ -47,7 +47,7 @@ def _require_qtwidgets():
     """Тесты, импортирующие client.main, нуждаются в QtWidgets
     (он тянет ui_client.py). В headless CI без libEGL — пропускаем."""
     try:
-        import PySide6.QtWidgets  # noqa: F401
+        import PySide6.QtWidgets
     except ImportError as e:
         pytest.skip(f"QtWidgets not available (likely missing libEGL): {e}")
 
