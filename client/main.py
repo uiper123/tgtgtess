@@ -283,13 +283,28 @@ class StudentClient(QObject):
             self._save_update_file(packet)
         elif status == 'update_apply':
             # Преподаватель нажал «Применить обновление сейчас».
-            # Перед запуском updater'а убеждаемся, что .new файл вообще
-            # был получен и прошёл проверку подписи. Иначе просто логируем —
-            # клиент в киоск-режиме всё равно не может среагировать на UI-ошибку.
+            # Перепроверяем .new по sidecar-метаданным — даже если файл
+            # уже был проверен при загрузке, между этим и сейчас он мог
+            # быть повреждён (упал процесс, обрыв сети, ручное вмеша
             expected_new = os.path.abspath(sys.argv[0]) + ".new"
             if not os.path.exists(expected_new):
                 self.log_message.emit(
                     "⚠️ Получен файл обновления, но он не существует. "
+                    "Обновление отклонено."
+                )
+                return
+            if not self._verify_update_bytes(
+                open(expected_new, 'rb').read(),
+                expected_sha256=packet.get('sha256'),
+                signature_b64=packet.get('signature'),
+                sig_algo=packet.get('sig_algo'),
+            ):
+                try:
+                    os.remove(expected_new)
+                except OSError:
+                    pass
+                self.log_message.emit(
+                    "⚠️ Получен файл обновления, но он не валиден. "
                     "Обновление отклонено."
                 )
                 return
@@ -400,6 +415,7 @@ class StudentClient(QObject):
         отдельным флагом в будущем, но по умолчанию — fail closed.
         """
         import base64
+        import shutil
         payload = packet.get('payload')
         if not payload:
             return False
@@ -420,8 +436,40 @@ class StudentClient(QObject):
         try:
             current_exe = os.path.abspath(sys.argv[0])
             update_file = current_exe + ".new"
+            target_dir = os.path.dirname(update_file) or "."
+
+            # Защита G: проверка прав на запись.
+            if not os.access(target_dir, os.W_OK):
+                self.log_message.emit(
+                    f"❌ Нет прав на запись в {target_dir}"
+                )
+                return False
+
+            # Защита G: проверка свободного места (нужно >= 1.5×file_size).
+            file_size = len(data)
+            disk_usage = shutil.disk_usage(target_dir)
+            if disk_usage.free < file_size * 1.5:
+                self.log_message.emit(
+                    f"❌ Недостаточно места на диске: нужно >= {file_size * 1.5} байт, "
+                    f"свободно {disk_usage.free} байт"
+                )
+                return False
+
             with open(update_file, 'wb') as f:
                 f.write(data)
+
+            # Sidecar-метаданные: .sha256 и .sig рядом с .new.
+            # Нужны для повторной проверки в update_apply — если процесс
+            # упал между загрузкой и применением, мы не запустим .new
+            # без подтверждённой подписи.
+            expected_sha256 = packet.get('sha256')
+            if expected_sha256:
+                with open(update_file + '.sha256', 'w') as f:
+                    f.write(expected_sha256)
+            signature_b64 = packet.get('signature')
+            if signature_b64:
+                with open(update_file + '.sig', 'w') as f:
+                    f.write(signature_b64)
             return True
         except Exception as e:
             self.log_message.emit(f"Ошибка при сохранении обновления: {e}")
@@ -567,6 +615,23 @@ class StudentClient(QObject):
         self._update_total_chunks = packet.get('total_chunks', 0)
         self._update_received_chunks = 0
         self._update_file_path = os.path.abspath(sys.argv[0]) + ".new"
+        target_dir = os.path.dirname(self._update_file_path) or "."
+
+        # Проверки прав и места — тот же набор, что и в _save_update_file.
+        file_size = packet.get('file_size', 0)
+        if not os.access(target_dir, os.W_OK):
+            self.log_message.emit(
+                f"❌ Нет прав на запись в {target_dir}"
+            )
+            return
+        import shutil
+        disk_usage = shutil.disk_usage(target_dir)
+        if disk_usage.free < file_size * 1.5:
+            self.log_message.emit(
+                f"❌ Недостаточно места на диске: нужно >= {file_size * 1.5} байт, "
+                f"свободно {disk_usage.free} байт"
+            )
+            return
         # Метаданные подписи — будут проверены в _handle_update_complete.
         self._update_expected_sha256 = packet.get('sha256')
         self._update_signature = packet.get('signature')
@@ -575,7 +640,6 @@ class StudentClient(QObject):
             with open(self._update_file_path, 'wb') as f:
                 pass  # Создаём/очищаем файл
             version = packet.get('version', '?')
-            file_size = packet.get('file_size', 0)
             self.log_message.emit(
                 f"Начало загрузки обновления v{version}: "
                 f"{self._update_total_chunks} чанков, {file_size // 1024 // 1024} МБ"
@@ -651,6 +715,18 @@ class StudentClient(QObject):
             return
 
         self.update_progress_signal.emit(100, "Загрузка завершена! Перезапуск...")
+
+        # Sidecar-метаданные: позволят update_apply повторно проверить файл.
+        try:
+            if self._update_expected_sha256:
+                with open(self._update_file_path + ".sha256", "w") as f:
+                    f.write(self._update_expected_sha256)
+            if self._update_signature:
+                with open(self._update_file_path + ".sig", "w") as f:
+                    f.write(self._update_signature)
+        except OSError as exc:
+            self.log_message.emit(f"⚠️ Не удалось записать sidecar-файлы: {exc}")
+
         self._run_updater()
 
     @property
