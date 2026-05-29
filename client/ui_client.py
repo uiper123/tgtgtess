@@ -642,10 +642,11 @@ class StudentWindow(QMainWindow):
 
         self.client.connect_to_server(ip, port, name, group)
 
-    @Slot(list, int, str, str, str)
+    @Slot(list, int, str, str, str, int, int)
     def _on_connected_ok(self, questions, duration, title, section, test_name, remaining_seconds, cheat_warning_limit=3):
         self._questions = questions
         self._duration = duration
+        self._cheat_warning_limit = int(cheat_warning_limit)
         # remaining_seconds приходит от сервера. При первом подключении это
         # duration*60. При ре-коннекте посередине экзамена — реально оставшееся
         # время. Так закрывается читерство через отключение Wi-Fi.
@@ -713,9 +714,16 @@ class StudentWindow(QMainWindow):
         self._capture_login_window_state()
         self._kiosk_active = True
         self._protection_enabled = False
+        self.hide()
         self.setWindowFlags(
-            Qt.Window | Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint
+            Qt.Window | Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
         )
+        
+        from PySide6.QtWidgets import QApplication
+        screen = QApplication.primaryScreen()
+        if screen:
+            self.setGeometry(screen.geometry())
+            
         self.showFullScreen()
         # Включаем прокторинг с задержкой в 1.5 секунды, когда переход на полный экран полностью завершен
         QTimer.singleShot(1500, self._enable_protection)
@@ -1055,6 +1063,8 @@ class StudentWindow(QMainWindow):
                 if self._stack.currentIndex() == 1:
                     if not self.isActiveWindow():
                         self._handle_focus_loss()
+                    else:
+                        self._focus_loss_debounce = False
         super().changeEvent(event)
 
     def _handle_focus_loss(self):
@@ -1095,3 +1105,4 @@ class StudentWindow(QMainWindow):
             self.showFullScreen()
             self.activateWindow()
             self._focus_loss_debounce = True
+            QTimer.singleShot(2000, lambda: setattr(self, "_focus_loss_debounce", False))

@@ -778,8 +778,8 @@ class ExamServer(QObject):
             tmp_path = path.with_suffix('.tmp')
             with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(self._all_results, f, ensure_ascii=False, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
+                f.flush()
+                os.fsync(f.fileno())
             os.replace(tmp_path, path)
         except Exception as e:
             self.log_message.emit(f"Ошибка записи истории результатов: {e}")

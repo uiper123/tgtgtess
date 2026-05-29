@@ -276,7 +276,8 @@ class StudentClient(QObject):
             remaining = packet.get('remaining_seconds')
             if remaining is None:
                 remaining = duration * 60
-            self.connected_ok.emit(questions, duration, title, section, test_name, int(remaining))
+            cheat_warning_limit = packet.get('cheat_warning_limit', 3)
+            self.connected_ok.emit(questions, duration, title, section, test_name, int(remaining), int(cheat_warning_limit))
         elif status == 'result_confirmed':
             score = packet.get('score', '0/0')
             self.result_sent.emit(score)
