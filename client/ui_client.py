@@ -265,7 +265,7 @@ class StudentWindow(QMainWindow):
 
         # Постоянно видимый футер с версией — чтобы при поддержке
         # сразу было видно, какая сборка запущена на конкретной машине.
-        version_footer = QLabel(f"EduTest Pro · клиент v{VERSION}")
+        version_footer = QLabel(f"TTGTiSO-Test · клиент v{VERSION}")
         version_footer.setAlignment(Qt.AlignCenter)
         version_footer.setStyleSheet("font-size: 11px; color: #a8a29e; border: none;")
         outer.addWidget(version_footer)

@@ -1,4 +1,4 @@
-# Runtime dependencies for EduTest Pro (server + client).
+# Runtime dependencies for TTGTiSO-Test (server + client).
 # Pinned to known-working ranges; update with care.
 
 PySide6>=6.4,<7.0

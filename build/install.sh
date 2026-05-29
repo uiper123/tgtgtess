@@ -1,5 +1,5 @@
 #!/bin/bash
-# Скрипт автоустановки EduTest Pro Student для Alt Linux
+# Скрипт автоустановки TTGTiSO-Test Student для Alt Linux
 
 # Проверка прав суперпользователя (root)
 if [ "$EUID" -ne 0 ]; then
@@ -7,7 +7,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo "=== Начало установки EduTest Pro Student ==="
+echo "=== Начало установки TTGTiSO-Test Student ==="
 
 # Определение директорий
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -55,7 +55,7 @@ cat <<EOF > "$DESKTOP_FILE"
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=EduTest Pro Student
+Name=TTGTiSO-Test Student
 Comment=Система тестирования студентов
 Exec=$INSTALL_DIR/TTGTiSO-Test-student
 Icon=$INSTALL_DIR/icon.png

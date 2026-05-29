@@ -15,7 +15,7 @@ fi
 export DISPLAY="${DISPLAY:-:1}"
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 
-echo "=== EduTest Pro — Тестовый запуск ==="
+echo "=== TTGTiSO-Test — Тестовый запуск ==="
 echo "Запуск сервера преподавателя..."
 "$VENV" "${SCRIPT_DIR}/server/main.py" &
 SERVER_PID=$!

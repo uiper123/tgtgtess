@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 # Конфигурация
-PROJECT_NAME = "EduTest Pro"
+PROJECT_NAME = "TTGTiSO-Test"
 APPS = {
     "server": {"main": "server/main.py", "output": "TTGTiSO-Test-server"},
     "student": {"main": "client/main.py", "output": "TTGTiSO-Test-student"}

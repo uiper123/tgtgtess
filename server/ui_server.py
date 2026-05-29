@@ -219,7 +219,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
 
         # Плашка версии — чтобы преподаватель сразу видел,
         # какая сборка запущена (важно при поддержке/обновлении).
-        version_lbl = QLabel(f"EduTest Pro · v{VERSION}")
+        version_lbl = QLabel(f"TTGTiSO-Test · v{VERSION}")
         version_lbl.setAlignment(Qt.AlignCenter)
         version_lbl.setStyleSheet(
             "background-color: transparent; color: #78716c; font-size: 10.5px; padding: 10px 12px; border-top: 1px solid #292524;"

@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # ---------------------------------------------------------------------------
-# EduTest Pro — Server UI styles
+# TTGTiSO-Test — Server UI styles
 #
 # Design system v2 ("Editorial"):
 #   * Warm stone neutrals (Tailwind stone scale) instead of cool slate.

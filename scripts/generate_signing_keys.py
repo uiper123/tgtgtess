@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 scripts/generate_signing_keys.py — генерирует пару ключей Ed25519
-для подписи авто-обновлений EduTest Pro.
+для подписи авто-обновлений TTGTiSO-Test.
 
 Запуск:
     python scripts/generate_signing_keys.py

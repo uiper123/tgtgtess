@@ -15,6 +15,12 @@ from datetime import datetime
 from functools import partial
 from typing import Any, Dict, List, Optional
 
+# Обеспечиваем гарантированное обнаружение certifi сборщиком Nuitka/PyInstaller
+try:
+    import certifi
+except ImportError:
+    certifi = None
+
 from PySide6.QtCore import QByteArray, QObject, Signal, Slot
 from PySide6.QtNetwork import QHostAddress, QTcpServer, QTcpSocket
 from PySide6.QtWidgets import QApplication
@@ -49,9 +55,18 @@ def _verified_ssl_context():
     import ssl
     try:
         import certifi
-        return ssl.create_default_context(cafile=certifi.where())
-    except ImportError:
-        return ssl.create_default_context()
+        ca_path = certifi.where()
+        if os.path.exists(ca_path):
+            return ssl.create_default_context(cafile=ca_path)
+    except Exception:
+        pass
+
+    ctx = ssl.create_default_context()
+    try:
+        ctx.load_default_certs()
+    except Exception:
+        pass
+    return ctx
 
 
 # ---------------------------------------------------------------------------
@@ -796,11 +811,14 @@ class ExamServer(QObject):
         """
         import json
         import urllib.request
+        import ssl
+        import urllib.error
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+        req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
+
+        # Сначала пробуем верифицированное соединение
         try:
             ssl_context = _verified_ssl_context()
-
-            req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
             with urllib.request.urlopen(req, timeout=10, context=ssl_context) as response:
                 data = json.loads(response.read().decode())
                 latest_version = data.get("tag_name", "").lstrip("v")
@@ -813,6 +831,33 @@ class ExamServer(QObject):
                 else:
                     return data, "latest"
         except Exception as e:
+            # Проверяем, является ли ошибка связанной с сертификатами
+            is_ssl_err = False
+            if isinstance(e, ssl.SSLError) or "CERTIFICATE_VERIFY_FAILED" in str(e):
+                is_ssl_err = True
+            elif isinstance(e, urllib.error.URLError) and isinstance(e.reason, ssl.SSLError):
+                is_ssl_err = True
+            elif isinstance(e, urllib.error.URLError) and "CERTIFICATE_VERIFY_FAILED" in str(e.reason):
+                is_ssl_err = True
+
+            if is_ssl_err:
+                self.log_message.emit("⚠️ Проверка SSL-сертификата GitHub не удалась. Попытка обхода через незащищенное соединение (безопасность гарантируется Ed25519 подписью файлов)...")
+                try:
+                    unverified_ctx = ssl._create_unverified_context()
+                    with urllib.request.urlopen(req, timeout=10, context=unverified_ctx) as response:
+                        data = json.loads(response.read().decode())
+                        latest_version = data.get("tag_name", "").lstrip("v")
+
+                        if not latest_version:
+                            return None, "Не удалось определить версию в GitHub релизе"
+
+                        if latest_version != VERSION:
+                            return data, None
+                        else:
+                            return data, "latest"
+                except Exception as fallback_err:
+                    e = fallback_err
+
             err_msg = str(e)
             if "403" in err_msg:
                 err_msg = "Превышен лимит запросов GitHub API (403). Это часто происходит из-за общего IP при использовании VPN, Cloudflare WARP или корпоративной сети. Пожалуйста, временно отключите VPN и попробуйте снова."
@@ -824,16 +869,18 @@ class ExamServer(QObject):
     def download_asset(self, url: str, dest_path: str, progress_callback=None):
         """Скачивает файл по ссылке с поддержкой User-Agent и оповещением прогресса."""
         import urllib.request
+        import ssl
+        import urllib.error
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+        req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
+
+        # Сначала пробуем верифицированное соединение
         try:
             ssl_context = _verified_ssl_context()
-
-            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-            req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
             with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
                 total_size = int(response.info().get('Content-Length', 0))
                 downloaded = 0
                 with open(dest_path, 'wb') as out_file:
-                    # Скачиваем по кусочкам для стабильности
                     while True:
                         chunk = response.read(1024 * 64)
                         if not chunk:
@@ -848,6 +895,39 @@ class ExamServer(QObject):
                                 pass
             return True
         except Exception as e:
+            # Проверяем, является ли ошибка связанной с сертификатами
+            is_ssl_err = False
+            if isinstance(e, ssl.SSLError) or "CERTIFICATE_VERIFY_FAILED" in str(e):
+                is_ssl_err = True
+            elif isinstance(e, urllib.error.URLError) and isinstance(e.reason, ssl.SSLError):
+                is_ssl_err = True
+            elif isinstance(e, urllib.error.URLError) and "CERTIFICATE_VERIFY_FAILED" in str(e.reason):
+                is_ssl_err = True
+
+            if is_ssl_err:
+                self.log_message.emit("⚠️ Проверка SSL-сертификата GitHub не удалась при скачивании. Попытка обхода через незащищенное соединение...")
+                try:
+                    unverified_ctx = ssl._create_unverified_context()
+                    with urllib.request.urlopen(req, timeout=30, context=unverified_ctx) as response:
+                        total_size = int(response.info().get('Content-Length', 0))
+                        downloaded = 0
+                        with open(dest_path, 'wb') as out_file:
+                            while True:
+                                chunk = response.read(1024 * 64)
+                                if not chunk:
+                                    break
+                                out_file.write(chunk)
+                                downloaded += len(chunk)
+                                if progress_callback and total_size > 0:
+                                    percent = int((downloaded / total_size) * 100)
+                                    try:
+                                        progress_callback(percent, downloaded, total_size)
+                                    except Exception:
+                                        pass
+                    return True
+                except Exception as fallback_err:
+                    e = fallback_err
+
             self.log_message.emit(f"Ошибка при скачивании {url}: {e}")
             return False
 

@@ -115,7 +115,7 @@ jobs:
             tag_message=$(git log -1 --pretty=%B)
           fi
 
-          echo "### 🚀 Релиз EduTest Pro $tag" > changelog.md
+          echo "### 🚀 Релиз TTGTiSO-Test $tag" > changelog.md
           echo "" >> changelog.md
           echo "#### 📝 Описание изменений:" >> changelog.md
           echo "$tag_message" >> changelog.md

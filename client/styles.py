@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # ---------------------------------------------------------------------------
-# EduTest Pro — Student Client UI styles
+# TTGTiSO-Test — Student Client UI styles
 # Design system matches the server side (see server/styles.py for tokens).
 # ---------------------------------------------------------------------------
 
