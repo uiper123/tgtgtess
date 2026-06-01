@@ -85,3 +85,4 @@ class AboutMixin:
         
         scroll.setWidget(content)
         layout.addWidget(scroll)
+        self.stacked_widget.addWidget(self.about_page)
