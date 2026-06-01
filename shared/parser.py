@@ -66,9 +66,12 @@ def compare_written_answer(student_ans: str, correct_ans: str) -> bool:
     """
     Сравнивает ответ студента с правильным ответом без учёта регистра.
     Для числовых ответов с плавающей точкой поддерживает как точки, так и запятые.
+    Удаляет лишние пробелы между словами.
     """
-    s_clean = student_ans.strip().lower()
-    c_clean = correct_ans.strip().lower()
+    import re
+    # Удаляем лишние пробелы (например, двойные пробелы между словами)
+    s_clean = re.sub(r'\s+', ' ', student_ans.strip().lower())
+    c_clean = re.sub(r'\s+', ' ', correct_ans.strip().lower())
 
     if s_clean == c_clean:
         return True
@@ -433,15 +436,18 @@ def calculate_score(
             if not selected:
                 continue
             import re
-            correct_blanks = [b.strip().lower() for b in re.findall(r'\[(.*?)\]', q['text'])]
-            total_blanks = len(correct_blanks)
+            blanks_matches = re.findall(r'\[(.*?)\]', q['text'])
+            total_blanks = len(blanks_matches)
             if total_blanks == 0:
                 continue
             
             correct_count = 0
             for i, sel_str in enumerate(selected):
-                if i < total_blanks and compare_written_answer(sel_str, correct_blanks[i]):
-                    correct_count += 1
+                if i < total_blanks:
+                    # Пропуск может иметь несколько вариантов, разделенных '|' (например, [Python|Пайтон])
+                    acceptable_answers = [ans.strip() for ans in blanks_matches[i].split('|')]
+                    if any(compare_written_answer(sel_str, acc) for acc in acceptable_answers):
+                        correct_count += 1
                     
             if partial_multiple:
                 score += correct_count / total_blanks
