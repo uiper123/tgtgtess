@@ -60,6 +60,9 @@ def _candidate_public_key_paths() -> list[Path]:
     """Где искать публичный ключ. Первый существующий файл выигрывает."""
     candidates: list[Path] = []
 
+    # 0) Домашняя директория пользователя — для TOFU (Trust On First Use)
+    candidates.append(Path.home() / ".edutest" / PUBLIC_KEY_FILENAME)
+
     # 1) Рядом с этим файлом — для запуска из исходников и для PyInstaller-сборок,
     #    где shared/ копируется как data-файл.
     candidates.append(Path(__file__).resolve().parent / PUBLIC_KEY_FILENAME)
@@ -83,6 +86,85 @@ def find_public_key_path() -> Optional[Path]:
         if p.is_file():
             return p
     return None
+
+
+def has_locally_saved_key() -> bool:
+    """Проверяет, сохранен ли публичный ключ в домашней директории (~/.edutest)."""
+    return (Path.home() / ".edutest" / PUBLIC_KEY_FILENAME).is_file()
+
+
+def save_public_key(pem_content: str) -> bool:
+    """
+    Сохраняет публичный ключ в ~/.edutest/update_public_key.pem.
+    Используется клиентом для реализации схемы TOFU (Trust On First Use).
+    """
+    try:
+        dest_path = Path.home() / ".edutest" / PUBLIC_KEY_FILENAME
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.write_text(pem_content.strip() + "\n", encoding="utf-8")
+        return True
+    except Exception:
+        return False
+
+
+def get_public_key_pem() -> Optional[str]:
+    """Возвращает PEM-представление публичного ключа (или None, если его нет)."""
+    path = find_public_key_path()
+    if path and path.is_file():
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except Exception:
+            return None
+    return None
+
+
+def generate_and_save_keys() -> tuple[Path, Path]:
+    """
+    Генерирует новую пару Ed25519 ключей.
+    Приватный сохраняет в ~/.edutest/update_private_key.pem.
+    Публичный сохраняет в ~/.edutest/update_public_key.pem и в shared/update_public_key.pem (если доступен для записи).
+    """
+    if not _CRYPTO_AVAILABLE:
+        raise RuntimeError("Пакет `cryptography` не установлен")
+
+    priv_dir = Path.home() / ".edutest"
+    priv_dir.mkdir(parents=True, exist_ok=True)
+    priv_path = priv_dir / "update_private_key.pem"
+
+    pub_path_home = priv_dir / PUBLIC_KEY_FILENAME
+
+    # Генерируем ключ
+    key = Ed25519PrivateKey.generate()
+
+    pub_pem = key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    priv_pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    # Записываем приватный ключ
+    priv_path.write_bytes(priv_pem)
+    try:
+        os.chmod(priv_path, 0o600)
+    except OSError:
+        pass
+
+    # Записываем публичный ключ в домашнюю директорию
+    pub_path_home.write_bytes(pub_pem)
+
+    # Пытаемся записать в shared/update_public_key.pem (если есть права)
+    pub_path_shared = Path(__file__).resolve().parent / PUBLIC_KEY_FILENAME
+    try:
+        if pub_path_shared.parent.is_dir():
+            pub_path_shared.write_bytes(pub_pem)
+    except Exception:
+        pass
+
+    return priv_path, pub_path_home
 
 
 # ---------------------------------------------------------------------------

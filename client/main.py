@@ -263,6 +263,17 @@ class StudentClient(QObject):
             self._handle_response(packet)
 
     def _handle_response(self, packet: dict):
+        # TOFU (Trust On First Use) для публичного ключа обновлений.
+        pub_key = packet.get('public_key')
+        if pub_key:
+            from shared.security import has_locally_saved_key, save_public_key
+            if not has_locally_saved_key():
+                if save_public_key(pub_key):
+                    self.log_message.emit(
+                        "⚠️ Публичный ключ сервера успешно сохранён локально (TOFU). "
+                        "Все последующие обновления будут строго проверяться по этой цифровой подписи."
+                    )
+
         status = packet.get('status')
         if status == 'success':
             questions = packet.get('questions', [])

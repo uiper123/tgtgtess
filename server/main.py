@@ -167,8 +167,35 @@ class ExamServer(QObject):
         self._all_results: List[Dict[str, Any]] = []
         self._load_all_results_from_file()
 
+    def _ensure_signing_keys(self):
+        """Проверяет наличие ключей подписи и генерирует их при отсутствии."""
+        try:
+            key_candidates = []
+            env_key = os.environ.get("EDUTEST_PRIVATE_KEY")
+            if env_key:
+                key_candidates.append(env_key)
+            key_candidates.append(os.path.expanduser("~/.edutest/update_private_key.pem"))
+
+            has_key = False
+            for kp in key_candidates:
+                if os.path.isfile(kp):
+                    has_key = True
+                    break
+
+            if not has_key:
+                self.log_message.emit("⚠️ Приватный ключ подписи не найден. Автоматическая генерация новой пары ключей...")
+                from shared.security import generate_and_save_keys
+                priv_path, pub_path = generate_and_save_keys()
+                self.log_message.emit(f"✅ Успешно сгенерирована новая пара ключей.")
+                self.log_message.emit(f"   Приватный: {priv_path}")
+                self.log_message.emit(f"   Публичный: {pub_path}")
+        except Exception as e:
+            self.log_message.emit(f"❌ Не удалось автоматически сгенерировать ключи подписи: {e}")
+
     def start_background_listening(self, port=None):
         """Запускает прослушивание порта сервером для фоновых дежурных подключений."""
+        self._ensure_signing_keys()
+
         if port is None:
             port = self.DEFAULT_PORT
 
@@ -545,6 +572,10 @@ class ExamServer(QObject):
 
             # Отправляем подтверждение idle-подключения
             response = {'status': 'idle_connected', 'version': VERSION}
+            from shared.security import get_public_key_pem
+            pub_key = get_public_key_pem()
+            if pub_key:
+                response['public_key'] = pub_key
             sock.write(pack_message(response))
             sock.flush()
             return
@@ -624,6 +655,10 @@ class ExamServer(QObject):
             'test_name': exam.get('test_name', 'Тест'),
             'cheat_warning_limit': exam.get('cheat_warning_limit', 3),
         }
+        from shared.security import get_public_key_pem
+        pub_key = get_public_key_pem()
+        if pub_key:
+            response['public_key'] = pub_key
         sock.write(pack_message(response))
         sock.flush()
 
@@ -988,6 +1023,7 @@ class ExamServer(QObject):
         if use_single_packet:
             _progress(20, "Кодирование (base64)...")
             payload_b64 = base64.b64encode(file_bytes).decode()
+            from shared.security import get_public_key_pem
             packet = {
                 'status': 'update_available' if apply_immediately else 'update_download',
                 'version': version_field,
@@ -996,6 +1032,7 @@ class ExamServer(QObject):
                 'sha256': file_hash,
                 'signature': signature_b64,
                 'sig_algo': 'ed25519' if signature_b64 else None,
+                'public_key': get_public_key_pem(),
             }
             _progress(60, "Отправка пакета...")
             sock.write(pack_message(packet))
@@ -1018,6 +1055,7 @@ class ExamServer(QObject):
 
         total_chunks = (file_size + UPDATE_CHUNK_SIZE - 1) // UPDATE_CHUNK_SIZE
 
+        from shared.security import get_public_key_pem
         start_packet = {
             'status': 'update_start',
             'version': version_field,
@@ -1027,6 +1065,7 @@ class ExamServer(QObject):
             'sha256': file_hash,
             'signature': signature_b64,
             'sig_algo': 'ed25519' if signature_b64 else None,
+            'public_key': get_public_key_pem(),
         }
         sock.write(pack_message(start_packet))
         sock.flush()
@@ -1046,12 +1085,14 @@ class ExamServer(QObject):
             mb_sent = min((i + 1) * UPDATE_CHUNK_SIZE, file_size) / (1024 * 1024)
             _progress(pct, f"Передача: {pct}% ({mb_sent:.1f} / {mb_total:.1f} МБ)")
 
+        from shared.security import get_public_key_pem
         sock.write(pack_message({
             'status': 'update_complete',
             'sha256': file_hash,
             'signature': signature_b64,
             'sig_algo': 'ed25519' if signature_b64 else None,
             'apply': apply_immediately,
+            'public_key': get_public_key_pem(),
         }))
         sock.flush()
         _progress(100, "Передача завершена!")
@@ -1091,6 +1132,24 @@ class ExamServer(QObject):
         if env_key:
             key_candidates.append(env_key)
         key_candidates.append(os.path.expanduser("~/.edutest/update_private_key.pem"))
+
+        # Проверим наличие хоть одного приватного ключа. Если нет - генерируем.
+        has_key = False
+        for kp in key_candidates:
+            if os.path.isfile(kp):
+                has_key = True
+                break
+
+        if not has_key:
+            self.log_message.emit("⚠️ Приватный ключ подписи не найден. Автоматическая генерация новой пары ключей...")
+            try:
+                from shared.security import generate_and_save_keys
+                priv_path, pub_path = generate_and_save_keys()
+                self.log_message.emit(f"✅ Успешно сгенерирована новая пара ключей.")
+                self.log_message.emit(f"   Приватный: {priv_path}")
+                self.log_message.emit(f"   Публичный: {pub_path}")
+            except Exception as e:
+                self.log_message.emit(f"❌ Не удалось автоматически сгенерировать ключи подписи: {e}")
 
         for kp in key_candidates:
             if os.path.isfile(kp):

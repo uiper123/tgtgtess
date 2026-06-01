@@ -81,3 +81,30 @@ def test_sha256_hex():
         security.sha256_hex(b"hello")
         == "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
     )
+
+
+def test_key_generation_and_saving(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    # Временно перенаправляем пути поиска публичного ключа только на локальный путь
+    local_pub_path = tmp_path / ".edutest" / security.PUBLIC_KEY_FILENAME
+    monkeypatch.setattr(security, "_candidate_public_key_paths", lambda: [local_pub_path])
+
+    # Убеждаемся, что локального ключа изначально нет
+    assert security.has_locally_saved_key() is False
+    assert security.get_public_key_pem() is None
+
+    # Генерируем новую пару ключей
+    priv_path, pub_path = security.generate_and_save_keys()
+
+    assert priv_path.exists()
+    assert pub_path.exists()
+    assert security.has_locally_saved_key() is True
+
+    pub_pem = security.get_public_key_pem()
+    assert pub_pem is not None
+    assert "-----BEGIN PUBLIC KEY-----" in pub_pem
+
+    # Тестируем ручное сохранение публичного ключа
+    assert security.save_public_key("dummy public key content") is True
+    assert (tmp_path / ".edutest" / security.PUBLIC_KEY_FILENAME).read_text() == "dummy public key content\n"
