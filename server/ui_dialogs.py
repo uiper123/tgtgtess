@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.widgets import StyledComboBox
+
 try:
     from shared.parser import get_grade_details
     from shared.styles import get_scaled_qss
@@ -106,7 +108,8 @@ class StudentAnswersDialog(QDialog):
         )
 
         scroll_content = QWidget()
-        scroll_content.setStyleSheet("background-color: #ffffff;")
+        scroll_content.setObjectName("scroll_content")
+        scroll_content.setStyleSheet("#scroll_content { background-color: #ffffff; }")
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(12)
         scroll_layout.setContentsMargins(16, 16, 16, 16)
@@ -177,6 +180,8 @@ class StudentAnswersDialog(QDialog):
 
                 if q.get('written'):
                     sel_lbl = QLabel(f"Ответ студента: {student_ans[0] if student_ans else '[нет ответа]'}")
+                elif q.get('matching'):
+                    sel_lbl = QLabel(f"Сопоставлено:\n" + "\n".join(f"• {pa}" for pa in student_ans) if student_ans else "Сопоставлено: [нет ответа]")
                 else:
                     sel_lbl = QLabel(f"Выбрано: {', '.join(student_ans) if student_ans else '[нет ответа]'}")
                 sel_lbl.setWordWrap(True)
@@ -187,6 +192,9 @@ class StudentAnswersDialog(QDialog):
 
                 if q.get('written'):
                     cor_lbl = QLabel(f"Правильные варианты: {', '.join(correct_answers)}")
+                elif q.get('matching'):
+                    correct_pairs_list = [f"• {a.get('key')} = {a.get('value')}" for a in q.get('answers', [])]
+                    cor_lbl = QLabel(f"Правильные пары соответствия:\n" + "\n".join(correct_pairs_list))
                 else:
                     cor_lbl = QLabel(f"Правильный ответ: {', '.join(correct_answers)}")
                 cor_lbl.setWordWrap(True)
@@ -245,17 +253,20 @@ class EditQuestionDialog(QDialog):
         type_lbl = _section_label("Тип вопроса")
         type_lay.addWidget(type_lbl)
 
-        self.q_type_combo = QComboBox()
+        self.q_type_combo = StyledComboBox()
         self.q_type_combo.addItems([
             "Одиночный выбор",
             "Множественный выбор",
-            "Письменный ответ"
+            "Письменный ответ",
+            "Соответствие"
         ])
 
         if self.question.get("written", False):
             self.q_type_combo.setCurrentIndex(2)
         elif self.question.get("multiple", False):
             self.q_type_combo.setCurrentIndex(1)
+        elif self.question.get("matching", False):
+            self.q_type_combo.setCurrentIndex(3)
         else:
             self.q_type_combo.setCurrentIndex(0)
 
@@ -295,7 +306,8 @@ class EditQuestionDialog(QDialog):
             "QScrollArea > QWidget > QWidget { background-color: #ffffff; }"
         )
         self.scroll_content = QWidget()
-        self.scroll_content.setStyleSheet("background-color: #ffffff;")
+        self.scroll_content.setObjectName("scroll_content")
+        self.scroll_content.setStyleSheet("#scroll_content { background-color: #ffffff; }")
         self.scroll_content_layout = QVBoxLayout(self.scroll_content)
         self.scroll_content_layout.setSpacing(8)
         self.scroll_content_layout.setContentsMargins(10, 10, 10, 10)
@@ -334,15 +346,19 @@ class EditQuestionDialog(QDialog):
 
     def _on_type_changed(self, index):
         is_written = (index == 2)
+        is_matching = (index == 3)
         if is_written:
             self.ans_title_lbl.setText("Правильные варианты ответа (студент должен ввести любой из них):")
             self.add_ans_btn.setText("Добавить правильный вариант")
+        elif is_matching:
+            self.ans_title_lbl.setText("Пары соответствия в формате 'Ключ = Значение' (например: HTTP = 80):")
+            self.add_ans_btn.setText("Добавить пару соответствия")
         else:
             self.ans_title_lbl.setText("Варианты ответов:")
             self.add_ans_btn.setText("Добавить вариант ответа")
 
         for row in self.answer_rows:
-            if is_written:
+            if is_written or is_matching:
                 row["cb"].setChecked(True)
                 row["cb"].hide()
             else:
@@ -366,7 +382,8 @@ class EditQuestionDialog(QDialog):
         # Checkbox for marking as correct
         correct_cb = QCheckBox()
         is_written = (self.q_type_combo.currentIndex() == 2)
-        if is_written:
+        is_matching = (self.q_type_combo.currentIndex() == 3)
+        if is_written or is_matching:
             correct_cb.setChecked(True)
             correct_cb.hide()
         else:
@@ -437,20 +454,40 @@ class EditQuestionDialog(QDialog):
         q_type_idx = self.q_type_combo.currentIndex()
         is_written = (q_type_idx == 2)
         is_multiple = (q_type_idx == 1)
+        is_matching = (q_type_idx == 3)
 
         for row in self.answer_rows:
             ans_text = row["input"].text().strip()
             if ans_text:
-                answers_list.append({
-                    "text": ans_text,
-                    "correct": True if is_written else row["cb"].isChecked()
-                })
+                if is_matching:
+                    if '=' in ans_text:
+                        parts = ans_text.split('=', 1)
+                        key_part = parts[0].strip()
+                        val_part = parts[1].strip()
+                        answers_list.append({
+                            "text": ans_text,
+                            "key": key_part,
+                            "value": val_part,
+                            "correct": True
+                        })
+                    else:
+                        answers_list.append({
+                            "text": ans_text,
+                            "key": ans_text,
+                            "value": ans_text,
+                            "correct": True
+                        })
+                else:
+                    answers_list.append({
+                        "text": ans_text,
+                        "correct": True if is_written else row["cb"].isChecked()
+                    })
 
         if not answers_list:
             QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один правильный вариант ответа!" if is_written else "Добавьте хотя бы один вариант ответа!")
             return
 
-        if not is_written:
+        if not is_written and not is_matching:
             correct_count = sum(1 for a in answers_list if a["correct"])
             if correct_count == 0:
                 QMessageBox.warning(self, "Предупреждение", "Выберите хотя бы один правильный вариант ответа (отметьте галочкой)!")
@@ -459,6 +496,7 @@ class EditQuestionDialog(QDialog):
         self.question["text"] = text
         self.question["multiple"] = is_multiple
         self.question["written"] = is_written
+        self.question["matching"] = is_matching
         self.question["answers"] = answers_list
 
         self.accept()
@@ -820,7 +858,8 @@ class UpdateProgressDialog(QDialog):
         scroll.setStyleSheet("QScrollArea { border: 1px solid #e7e5e4; border-radius: 8px; background-color: #ffffff; }")
 
         self.scroll_content = QWidget()
-        self.scroll_content.setStyleSheet("background-color: #ffffff;")
+        self.scroll_content.setObjectName("scroll_content")
+        self.scroll_content.setStyleSheet("#scroll_content { background-color: #ffffff; }")
         self.scroll_layout = QVBoxLayout(self.scroll_content)
         self.scroll_layout.setSpacing(12)
         self.scroll_layout.setContentsMargins(12, 12, 12, 12)

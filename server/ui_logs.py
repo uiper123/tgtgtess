@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.widgets import StyledComboBox
+
 
 # Severity buckets used by the log filter. Matches the keyword colour rules
 # in ui_server._append_log so the two stay in sync.
@@ -85,7 +87,7 @@ class LogsMixin:
         self._log_search.textChanged.connect(self._render_log_entries)
         f_lay.addWidget(self._log_search, 3)
 
-        self._log_severity = QComboBox()
+        self._log_severity = StyledComboBox()
         self._log_severity.addItems([
             "Все события",
             "Ошибки",

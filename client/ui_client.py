@@ -27,6 +27,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.widgets import StyledComboBox
+
 from shared.parser import get_grade_details
 from shared.version import VERSION
 from shared.styles import inject_icon_paths
@@ -200,7 +202,7 @@ class StudentWindow(QMainWindow):
         lbl2 = QLabel("Группа")
         lbl2.setStyleSheet("font-size: 12px; font-weight: bold; color: #78716c; border: none;")
         cl.addWidget(lbl2)
-        self._group_input = QComboBox()
+        self._group_input = StyledComboBox()
         self._group_input.setEditable(True)
         self._group_input.lineEdit().setPlaceholderText("ИСП-311")
         self._group_input.currentTextChanged.connect(self._on_inputs_for_attempts_changed)
@@ -345,7 +347,8 @@ class StudentWindow(QMainWindow):
         # Main Title Section
         # ----------------------------------------------------
         title_section = QWidget()
-        title_section.setStyleSheet("background-color: #fafaf9; border: none;")
+        title_section.setObjectName("title_section")
+        title_section.setStyleSheet("#title_section { background-color: #fafaf9; border: none; }")
         ts_layout = QHBoxLayout(title_section)
         ts_layout.setContentsMargins(40, 24, 40, 0)
 
@@ -366,10 +369,11 @@ class StudentWindow(QMainWindow):
         # ----------------------------------------------------
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("border: none; background-color: #fafaf9;")
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: #fafaf9; }")
 
         self._q_container = QWidget()
-        self._q_container.setStyleSheet("background-color: #fafaf9;")
+        self._q_container.setObjectName("q_container")
+        self._q_container.setStyleSheet("#q_container { background-color: #fafaf9; }")
         self._q_layout = QVBoxLayout(self._q_container)
         self._q_layout.setContentsMargins(40, 16, 40, 16)
         self._q_layout.setSpacing(16)
@@ -799,6 +803,10 @@ class StudentWindow(QMainWindow):
             hint = QLabel("Множественный выбор — выберите все правильные варианты")
             hint.setStyleSheet("color: #f59e0b; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
             card_layout.addWidget(hint)
+        elif q.get('matching'):
+            hint = QLabel("Установление соответствия — сопоставьте элементы слева с выпадающим списком справа")
+            hint.setStyleSheet("color: #0d9488; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
+            card_layout.addWidget(hint)
 
         # Image (if present)
         image_data = q.get('image_data')
@@ -878,6 +886,47 @@ class StudentWindow(QMainWindow):
             ans_input.textChanged.connect(self._on_answer_changed)
             card_layout.addWidget(ans_input)
             self._answer_widgets.append(ans_input)
+        elif q.get('matching'):
+            from PySide6.QtWidgets import QGridLayout
+            grid = QGridLayout()
+            grid.setContentsMargins(52, 0, 0, 0)
+            grid.setSpacing(12)
+            
+            keys = q.get('keys', [])
+            shuffled_options = q.get('answers', [])
+            combo_options = ["-- Выберите --"] + shuffled_options
+            
+            prev_answers_map = {}
+            for pa in previous_answers:
+                if '=' in pa:
+                    parts = pa.split('=', 1)
+                    prev_answers_map[parts[0].strip()] = parts[1].strip()
+
+            for i, key_text in enumerate(keys):
+                key_lbl = QLabel(key_text)
+                key_lbl.setStyleSheet("font-size: 14px; font-weight: 500; color: #44403c; border: none; background: transparent;")
+                
+                combo = StyledComboBox()
+                combo.addItems(combo_options)
+                combo.setMinimumWidth(240)
+                combo.setCursor(Qt.PointingHandCursor)
+                
+                saved_val = prev_answers_map.get(key_text)
+                if saved_val and saved_val in combo_options:
+                    combo.setCurrentText(saved_val)
+                else:
+                    combo.setCurrentIndex(0)
+                
+                combo.currentTextChanged.connect(self._on_answer_changed)
+                
+                grid.addWidget(key_lbl, i, 0)
+                grid.addWidget(combo, i, 1)
+                self._answer_widgets.append((key_text, combo))
+                
+            grid_container = QWidget()
+            grid_container.setLayout(grid)
+            # No stylesheet needed, QWidget is transparent by default.
+            card_layout.addWidget(grid_container)
         elif q.get('multiple'):
             for ans_text in answers:
                 cb = QCheckBox(ans_text)
@@ -948,6 +997,11 @@ class StudentWindow(QMainWindow):
                 w = self._answer_widgets[0]
                 if isinstance(w, QLineEdit):
                     selected.append(w.text().strip())
+        elif q.get('matching'):
+            for key_text, combo in self._answer_widgets:
+                sel_val = combo.currentText()
+                if sel_val != "-- Выберите --":
+                    selected.append(f"{key_text} = {sel_val}")
         else:
             for w in self._answer_widgets:
                 if isinstance(w, (QRadioButton, QCheckBox)) and w.isChecked():

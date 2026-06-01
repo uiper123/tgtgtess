@@ -228,7 +228,7 @@ class ExamServer(QObject):
         self.log_message.emit(f"Загружен тест: {os.path.basename(filepath)} ({count} вопросов)")
         return count
 
-    def start_exam(self, group: str, duration: int, questions: list, title: str, section: str, test_name: str, port: int = None, partial_multiple: bool = True, random_order: bool = False, max_attempts: int = 1, questions_limit: int = None, cheat_warning_limit: int = 3):
+    def start_exam(self, group: str, duration: int, questions: list, title: str, section: str, test_name: str, port: int = None, partial_multiple: bool = True, random_order: bool = False, max_attempts: int = 1, questions_limit: int = None, cheat_warning_limit: int = 3, shuffle_answers: bool = False):
         """Запускает экзамен для конкретной группы: открывает TCP-порт и добавляет в список активных."""
         if not questions:
             self.server_error.emit("Сначала загрузите или выберите файл теста!")
@@ -239,12 +239,13 @@ class ExamServer(QObject):
             'group': group.strip(),
             'test_name': test_name,
             'questions': questions,
-            'network_payload': questions_to_network_payload(questions),
+            'network_payload': questions_to_network_payload(questions, shuffle_answers=shuffle_answers),
             'duration': duration,
             'title': title,
             'section': section,
             'partial_multiple': partial_multiple,
             'random_order': random_order,
+            'shuffle_answers': shuffle_answers,
             'max_attempts': max(1, int(max_attempts)),
             'attempts': {},
             'questions_limit': questions_limit,
@@ -646,7 +647,7 @@ class ExamServer(QObject):
         # Отправляем тест
         response = {
             'status': 'success',
-            'questions': questions_to_network_payload(questions_for_student),
+            'questions': questions_to_network_payload(questions_for_student, shuffle_answers=exam.get('shuffle_answers', False)),
             'duration': exam['duration'],
             'remaining_seconds': remaining_seconds,
             'exam_start_time': student.exam_start_time.isoformat(),

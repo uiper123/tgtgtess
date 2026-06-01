@@ -75,7 +75,7 @@ QFrame#loginCard {
 }
 
 /* --- Inputs --- */
-QLineEdit, QComboBox {
+QLineEdit, QComboBox, StyledComboBox {
     background-color: #ffffff;
     border: 1px solid #e7e5e4;
     border-radius: 8px;
@@ -83,47 +83,62 @@ QLineEdit, QComboBox {
     font-size: 14px;
     color: #1c1917;
 }
-QComboBox {
+QComboBox, StyledComboBox {
     padding-right: 36px;
     min-height: 24px;
 }
-QLineEdit:hover, QComboBox:hover { border-color: #d6d3d1; }
-QLineEdit:focus, QComboBox:focus {
+QLineEdit:hover, QComboBox:hover, StyledComboBox:hover { border-color: #d6d3d1; }
+QLineEdit:focus, QComboBox:focus, StyledComboBox:focus {
     border: 1px solid #2563eb;
 }
-QComboBox QLineEdit {
+QComboBox QLineEdit, StyledComboBox QLineEdit {
     background: transparent;
     border: none;
     padding: 0px;
     margin: 0px;
 }
-QComboBox::drop-down {
+QComboBox::drop-down, StyledComboBox::drop-down {
     width: 32px;
     border: none;
     border-top-right-radius: 8px;
     border-bottom-right-radius: 8px;
 }
-QComboBox::down-arrow {
+QComboBox::down-arrow, StyledComboBox::down-arrow {
     image: url({ICON:chevron-down});
     width: 12px;
     height: 12px;
 }
-QComboBox QFrame {
+QComboBox QFrame, StyledComboBox QFrame {
     border: 1px solid #e7e5e4;
     border-radius: 8px;
     background-color: #ffffff;
 }
 QComboBox QAbstractItemView {
     background-color: #ffffff;
-    border: none;
+    background: #ffffff;
+    color: #1c1917;
+    border: 1px solid #e7e5e4;
     padding: 6px;
     selection-background-color: #f5f5f4;
     selection-color: #1c1917;
     outline: 0px;
 }
 QComboBox QAbstractItemView::item {
+    background-color: #ffffff;
+    background: #ffffff;
+    color: #1c1917;
     min-height: 30px;
     padding: 6px 12px;
+}
+QComboBox QAbstractItemView::item:hover {
+    background-color: #f5f5f4;
+    background: #f5f5f4;
+    color: #1c1917;
+}
+QComboBox QAbstractItemView::item:selected {
+    background-color: #f5f5f4;
+    background: #f5f5f4;
+    color: #1c1917;
 }
 
 /* --- Buttons --- */

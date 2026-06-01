@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.widgets import StyledComboBox
+
 from shared.parser import questions_to_network_payload
 
 try:
@@ -95,17 +97,15 @@ class DashboardMixin:
         filter_lay.addWidget(self.search_input, 3)
 
         # 2. Выпадающий список статусов
-        self.status_filter = QComboBox()
+        self.status_filter = StyledComboBox()
         self.status_filter.addItems(["Все статусы", "Готовые тесты", "Пустые тесты"])
-        self.status_filter.setStyleSheet(
-            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #d6d3d1; background-color: #ffffff; min-width: 140px; }"
-            "QComboBox:focus { border: 1px solid #2563eb; }"
-        )
+        self.status_filter.setMinimumWidth(140)
+        self.status_filter.setCursor(Qt.PointingHandCursor)
         self.status_filter.currentIndexChanged.connect(self._update_dashboard_stats)
         filter_lay.addWidget(self.status_filter, 1)
 
         # 3. Выпадающий список сортировки
-        self.sort_filter = QComboBox()
+        self.sort_filter = StyledComboBox()
         self.sort_filter.addItems([
             "Сортировка: По умолчанию",
             "Сортировка: Название (А-Я)",
@@ -113,10 +113,8 @@ class DashboardMixin:
             "Вопросы: Меньше -> Больше",
             "Вопросы: Больше -> Меньше"
         ])
-        self.sort_filter.setStyleSheet(
-            "QComboBox { padding: 6px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #d6d3d1; background-color: #ffffff; min-width: 180px; }"
-            "QComboBox:focus { border: 1px solid #2563eb; }"
-        )
+        self.sort_filter.setMinimumWidth(180)
+        self.sort_filter.setCursor(Qt.PointingHandCursor)
         self.sort_filter.currentIndexChanged.connect(self._update_dashboard_stats)
         filter_lay.addWidget(self.sort_filter, 1)
 

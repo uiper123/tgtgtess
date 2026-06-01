@@ -96,8 +96,8 @@ def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
     question.pop('_text_lines', None)
 
     # Если в вопросе несколько правильных ответов, то по умолчанию выставляем множественный выбор
-    # Но только если это не письменный вопрос
-    if not question.get('written', False):
+    # Но только если это не письменный вопрос и не соответствие
+    if not question.get('written', False) and not question.get('matching', False):
         correct_count = sum(1 for a in question.get('answers', []) if a.get('correct', False))
         if correct_count > 1:
             question['multiple'] = True
@@ -164,26 +164,31 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
 
             rest = stripped[1:].strip()
 
-            # Проверяем старый формат: "?N" или "?N (С множественным выбором)" или "?N (Письменный ответ)"
-            old_match = re.match(r'^(\d+)\s*(\(С множественным выбором\)|\(Письменный ответ\)|\(Письменно\))?$', rest, re.IGNORECASE)
+            # Проверяем старый формат: "?N" или "?N (С множественным выбором)" или "?N (Письменный ответ)" или "?N (Соответствие)"
+            old_match = re.match(r'^(\d+)\s*(\(С множественным выбором\)|\(Письменный ответ\)|\(Письменно\)|\(Соответствие\))?$', rest, re.IGNORECASE)
             if old_match:
                 q_number = int(old_match.group(1))
                 marker = old_match.group(2)
                 is_multiple = False
                 is_written = False
+                is_matching = False
                 if marker:
                     if "множественн" in marker.lower():
                         is_multiple = True
                     elif "письмен" in marker.lower():
                         is_written = True
+                    elif "соответствие" in marker.lower():
+                        is_matching = True
                 text_part = ""
             else:
                 # Новый формат
                 is_multiple = False
                 is_written = False
+                is_matching = False
                 mult_marker = "(С множественным выбором)"
                 written_marker = "(Письменный ответ)"
                 written_marker_alt = "(Письменно)"
+                matching_marker = "(Соответствие)"
 
                 if rest.lower().startswith(mult_marker.lower()):
                     is_multiple = True
@@ -194,6 +199,9 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 elif rest.lower().startswith(written_marker_alt.lower()):
                     is_written = True
                     text_part = rest[len(written_marker_alt):].strip()
+                elif rest.lower().startswith(matching_marker.lower()):
+                    is_matching = True
+                    text_part = rest[len(matching_marker):].strip()
                 else:
                     text_part = rest
                 q_number = len(questions) + 1
@@ -202,6 +210,7 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 'number': q_number,
                 'multiple': is_multiple,
                 'written': is_written,
+                'matching': is_matching,
                 'image_data': None,
                 'answers': [],
                 '_text_lines': [text_part] if text_part else [],
@@ -238,12 +247,30 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
         # Проверяем вариант ответа: правильный (+) или неправильный (-)
         if stripped.startswith('+'):
             answer_text = stripped[1:].strip()
-            current['answers'].append({'text': answer_text, 'correct': True})
+            if current.get('matching', False):
+                if '=' in answer_text:
+                    parts = answer_text.split('=', 1)
+                    key_part = parts[0].strip()
+                    val_part = parts[1].strip()
+                    current['answers'].append({'text': answer_text, 'key': key_part, 'value': val_part, 'correct': True})
+                else:
+                    current['answers'].append({'text': answer_text, 'key': answer_text, 'value': answer_text, 'correct': True})
+            else:
+                current['answers'].append({'text': answer_text, 'correct': True})
             continue
 
         if stripped.startswith('-'):
             answer_text = stripped[1:].strip()
-            current['answers'].append({'text': answer_text, 'correct': False})
+            if current.get('matching', False):
+                if '=' in answer_text:
+                    parts = answer_text.split('=', 1)
+                    key_part = parts[0].strip()
+                    val_part = parts[1].strip()
+                    current['answers'].append({'text': answer_text, 'key': key_part, 'value': val_part, 'correct': True})
+                else:
+                    current['answers'].append({'text': answer_text, 'key': answer_text, 'value': answer_text, 'correct': True})
+            else:
+                current['answers'].append({'text': answer_text, 'correct': False})
             continue
 
         # Всё остальное — текст вопроса (может быть многострочным)
@@ -263,22 +290,47 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
 # Утилиты для подготовки данных к сетевой передаче
 # ---------------------------------------------------------------------------
 
-def questions_to_network_payload(questions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def questions_to_network_payload(questions: List[Dict[str, Any]], shuffle_answers: bool = False) -> List[Dict[str, Any]]:
     """
     Преобразует список вопросов в формат, пригодный для отправки клиенту
     по сети (без поля 'correct' в ответах — студент не должен его видеть).
     Для письменных вопросов ответы не отправляются вовсе, чтобы предотвратить читерство.
     """
+    import random
     payload = []
     for q in questions:
-        payload.append({
+        is_matching = q.get('matching', False)
+        if q.get('written', False):
+            answers = []
+            keys = []
+        elif is_matching:
+            # Для соответствия отправляем keys и answers (значения)
+            keys = [a.get('key', '') for a in q['answers']]
+            answers = [a.get('value', '') for a in q['answers']]
+            
+            # Всегда перемешиваем варианты ответов (дистракторы), чтобы не показывать правильные пары сразу
+            answers = list(answers)
+            random.shuffle(answers)
+        else:
+            answers = [a['text'] for a in q['answers']]
+            keys = []
+            if shuffle_answers:
+                answers = list(answers)
+                random.shuffle(answers)
+
+        item = {
             'number': q['number'],
             'text': q['text'],
             'multiple': q['multiple'],
             'written': q.get('written', False),
+            'matching': is_matching,
             'image_data': q['image_data'],
-            'answers': [a['text'] for a in q['answers']] if not q.get('written', False) else [],
-        })
+            'answers': answers,
+        }
+        if is_matching:
+            item['keys'] = keys
+            
+        payload.append(item)
     return payload
 
 
@@ -318,6 +370,30 @@ def calculate_score(
                     break
             if is_correct:
                 score += 1.0
+            continue
+
+        if q.get('matching', False):
+            if not selected:
+                continue
+            correct_pairs = 0
+            total_pairs = len(q['answers'])
+            if total_pairs == 0:
+                continue
+            
+            correct_map = {a.get('key', '').strip().lower(): a.get('value', '').strip().lower() for a in q['answers']}
+            for sel_str in selected:
+                if '=' in sel_str:
+                    parts = sel_str.split('=', 1)
+                    s_key = parts[0].strip().lower()
+                    s_val = parts[1].strip().lower()
+                    if s_key in correct_map and correct_map[s_key] == s_val:
+                        correct_pairs += 1
+            
+            if partial_multiple:
+                score += correct_pairs / total_pairs
+            else:
+                if correct_pairs == total_pairs:
+                    score += 1.0
             continue
 
         selected_set = set(str(s).strip() for s in selected)

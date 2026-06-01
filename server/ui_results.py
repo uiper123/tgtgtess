@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.widgets import StyledComboBox
+
 from shared.parser import get_grade_details, parse_test_file
 
 try:
@@ -88,7 +90,7 @@ class ResultsMixin:
         group_lay.setSpacing(4)
         group_lbl = QLabel("Группа")
         group_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #78716c; border: none; background: transparent;")
-        self.r_group_filter = QComboBox()
+        self.r_group_filter = StyledComboBox()
         self.r_group_filter.currentIndexChanged.connect(self._update_results_table)
         group_lay.addWidget(group_lbl)
         group_lay.addWidget(self.r_group_filter)
@@ -99,7 +101,7 @@ class ResultsMixin:
         sort_lay.setSpacing(4)
         sort_lbl = QLabel("Сортировка")
         sort_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #78716c; border: none; background: transparent;")
-        self.r_sort_filter = QComboBox()
+        self.r_sort_filter = StyledComboBox()
         self.r_sort_filter.addItems([
             "По умолчанию",
             "Имя (А-Я)",

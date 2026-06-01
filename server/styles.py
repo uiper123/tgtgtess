@@ -192,7 +192,7 @@ QSpinBox::up-arrow { image: url({ICON:chevron-up}); width: 9px; height: 9px; }
 QSpinBox::down-arrow { image: url({ICON:chevron-down}); width: 9px; height: 9px; }
 QSpinBox::up-arrow:hover, QSpinBox::down-arrow:hover { width: 10px; height: 10px; }
 
-QComboBox {
+QComboBox, StyledComboBox {
     background-color: #ffffff;
     border: 1px solid #e7e5e4;
     border-radius: 8px;
@@ -201,9 +201,9 @@ QComboBox {
     color: #1c1917;
     min-height: 22px;
 }
-QComboBox:hover { border-color: #d6d3d1; }
-QComboBox:focus { border: 1px solid #2563eb; }
-QComboBox::drop-down {
+QComboBox:hover, StyledComboBox:hover { border-color: #d6d3d1; }
+QComboBox:focus, StyledComboBox:focus { border: 1px solid #2563eb; }
+QComboBox::drop-down, StyledComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: top right;
     width: 30px;
@@ -211,24 +211,42 @@ QComboBox::drop-down {
     border-top-right-radius: 8px;
     border-bottom-right-radius: 8px;
 }
-QComboBox::down-arrow {
+QComboBox::down-arrow, StyledComboBox::down-arrow {
     image: url({ICON:chevron-down});
     width: 12px;
     height: 12px;
 }
-QComboBox QFrame {
+QComboBox QFrame, StyledComboBox QFrame {
     border: 1px solid #e7e5e4;
     border-radius: 8px;
     background-color: #ffffff;
 }
 QComboBox QAbstractItemView {
     background-color: #ffffff;
-    border: none;
+    background: #ffffff;
+    color: #1c1917;
+    border: 1px solid #e7e5e4;
+    padding: 6px;
     selection-background-color: #f5f5f4;
     selection-color: #1c1917;
-    color: #1c1917;
-    padding: 6px;
     outline: 0px;
+}
+QComboBox QAbstractItemView::item {
+    background-color: #ffffff;
+    background: #ffffff;
+    color: #1c1917;
+    min-height: 30px;
+    padding: 6px 12px;
+}
+QComboBox QAbstractItemView::item:hover {
+    background-color: #f5f5f4;
+    background: #f5f5f4;
+    color: #1c1917;
+}
+QComboBox QAbstractItemView::item:selected {
+    background-color: #f5f5f4;
+    background: #f5f5f4;
+    color: #1c1917;
 }
 
 /* --- Checkboxes --- */

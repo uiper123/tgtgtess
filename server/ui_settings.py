@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.widgets import StyledComboBox
+
 try:
     from .ui_dialogs import (
         DropZoneWidget,
@@ -145,6 +147,11 @@ class SettingsMixin:
         self.def_random_order_cb.setChecked(self._settings.value("default_random_order", False, type=bool))
         s2_layout.addWidget(self.def_random_order_cb)
 
+        self.def_shuffle_answers_cb = QCheckBox("Перемешивать варианты ответов у студентов по умолчанию")
+        self.def_shuffle_answers_cb.setCursor(Qt.PointingHandCursor)
+        self.def_shuffle_answers_cb.setChecked(self._settings.value("default_shuffle_answers", False, type=bool))
+        s2_layout.addWidget(self.def_shuffle_answers_cb)
+
         self.def_partial_cb = QCheckBox("Разрешить частичный зачет баллов для множественного выбора по умолчанию")
         self.def_partial_cb.setCursor(Qt.PointingHandCursor)
         self.def_partial_cb.setChecked(self._settings.value("default_partial_multiple", True, type=bool))
@@ -205,7 +212,7 @@ class SettingsMixin:
         grid4 = QGridLayout()
         grid4.setSpacing(12)
 
-        self.scale_combo = QComboBox()
+        self.scale_combo = StyledComboBox()
         self.scale_combo.addItems(["80%", "100%", "125%", "150%", "175%", "200%"])
 
         saved_scale = self._settings.value("ui_scale", "100%")
@@ -318,6 +325,7 @@ class SettingsMixin:
         def_q_limit = self.def_q_limit_spin.value()
         def_attempts = self.def_attempts_spin.value()
         def_random_order = self.def_random_order_cb.isChecked()
+        def_shuffle_answers = self.def_shuffle_answers_cb.isChecked()
         def_partial = self.def_partial_cb.isChecked()
 
         g5 = self.g5_spin.value()
@@ -340,6 +348,7 @@ class SettingsMixin:
         self._settings.setValue("default_questions_limit", def_q_limit)
         self._settings.setValue("default_attempts", def_attempts)
         self._settings.setValue("default_random_order", def_random_order)
+        self._settings.setValue("default_shuffle_answers", def_shuffle_answers)
         self._settings.setValue("default_partial_multiple", def_partial)
 
         self._settings.setValue("grade_5_min", g5)
@@ -361,6 +370,8 @@ class SettingsMixin:
             self._attempts_limit_spin.setValue(def_attempts)
         if hasattr(self, "_random_order_cb"):
             self._random_order_cb.setChecked(def_random_order)
+        if hasattr(self, "_shuffle_answers_cb"):
+            self._shuffle_answers_cb.setChecked(def_shuffle_answers)
         if hasattr(self, "_partial_multiple_cb"):
             self._partial_multiple_cb.setChecked(def_partial)
 
@@ -385,6 +396,7 @@ class SettingsMixin:
             self.def_q_limit_spin.setValue(10)
             self.def_attempts_spin.setValue(1)
             self.def_random_order_cb.setChecked(False)
+            self.def_shuffle_answers_cb.setChecked(False)
             self.def_partial_cb.setChecked(True)
             self.g5_spin.setValue(90)
             self.g4_spin.setValue(70)

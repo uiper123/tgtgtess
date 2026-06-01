@@ -145,6 +145,17 @@ class ExamsMixin:
         rnd_col.addWidget(self._random_order_cb)
         options_layout.addLayout(rnd_col, 1)
 
+        # Перемешивание ответов
+        shuffle_answers_col = QVBoxLayout()
+        shuffle_answers_label = QLabel("Перемешивать ответы")
+        shuffle_answers_label.setStyleSheet("font-size: 12px; color: #78716c; font-weight: bold;")
+        shuffle_answers_col.addWidget(shuffle_answers_label)
+        self._shuffle_answers_cb = QCheckBox("Перемешать ответы")
+        self._shuffle_answers_cb.setCursor(Qt.PointingHandCursor)
+        self._shuffle_answers_cb.setChecked(self._settings.value("default_shuffle_answers", False, type=bool))
+        shuffle_answers_col.addWidget(self._shuffle_answers_cb)
+        options_layout.addLayout(shuffle_answers_col, 1)
+
         # Частичный зачёт множественных вопросов
         partial_col = QVBoxLayout()
         partial_label = QLabel("Проверка ответов")
@@ -344,6 +355,7 @@ class ExamsMixin:
             max_attempts=self._attempts_limit_spin.value(),
             cheat_warning_limit=self._cheat_warning_spin.value(),
             questions_limit=limit,
+            shuffle_answers=self._shuffle_answers_cb.isChecked(),
         )
 
         # Обновляем надпись статуса сервера

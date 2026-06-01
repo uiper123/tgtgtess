@@ -11,6 +11,7 @@ from shared.parser import (
     compare_written_answer,
     parse_test_file,
     questions_to_network_payload,
+    calculate_score,
 )
 
 # ---------------------------------------------------------------------------
@@ -214,3 +215,68 @@ def test_network_payload_strips_correctness(tmp_test_file):
 )
 def test_compare_written_answer(student, correct, expected):
     assert compare_written_answer(student, correct) is expected
+
+
+def test_network_payload_shuffles_answers(tmp_test_file):
+    path = tmp_test_file(
+        "?1\nQ?\n+Ответ А\n-Ответ Б\n-Ответ В\n-Ответ Г\n-Ответ Д\n"
+    )
+    questions = parse_test_file(path)
+
+    # Без перемешивания порядок должен совпадать
+    payload_normal = questions_to_network_payload(questions, shuffle_answers=False)
+    assert payload_normal[0]["answers"] == ["Ответ А", "Ответ Б", "Ответ В", "Ответ Г", "Ответ Д"]
+
+    # С перемешиванием (поскольку это вероятностный тест с 5 вариантами, 120 перестановок,
+    # мы можем сделать несколько попыток и убедиться, что хотя бы раз порядок отличается).
+    different = False
+    for _ in range(20):
+        payload_shuffled = questions_to_network_payload(questions, shuffle_answers=True)
+        if payload_shuffled[0]["answers"] != ["Ответ А", "Ответ Б", "Ответ В", "Ответ Г", "Ответ Д"]:
+            different = True
+            break
+    assert different, "Порядок вариантов ответов должен был измениться при перемешивании"
+
+
+def test_matching_questions(tmp_test_file):
+    # 1. Тест парсинга
+    path = tmp_test_file(
+        "?1 (Соответствие)\n"
+        "Сопоставьте протокол и его порт:\n"
+        "+ HTTP = 80\n"
+        "+ HTTPS = 443\n"
+        "+ SSH = 22\n"
+    )
+    questions = parse_test_file(path)
+    assert len(questions) == 1
+    q = questions[0]
+    assert q["matching"] is True
+    assert q["text"] == "Сопоставьте протокол и его порт:"
+    assert len(q["answers"]) == 3
+    assert q["answers"][0]["key"] == "HTTP"
+    assert q["answers"][0]["value"] == "80"
+
+    # 2. Тест формирования сетевого пакета
+    payload = questions_to_network_payload(questions)
+    assert payload[0]["matching"] is True
+    assert payload[0]["keys"] == ["HTTP", "HTTPS", "SSH"]
+    # Значения должны быть перемешаны
+    assert set(payload[0]["answers"]) == {"80", "443", "22"}
+
+    # 3. Тест подсчета баллов (calculate_score)
+    # Полностью правильные ответы
+    score_full = calculate_score(questions, {1: ["HTTP = 80", "HTTPS = 443", "SSH = 22"]}, partial_multiple=True)
+    assert score_full == "1/1"
+
+    # Частично правильные ответы (2 из 3 верных) при partial_multiple=True
+    score_partial = calculate_score(questions, {1: ["HTTP = 80", "HTTPS = 443", "SSH = 999"]}, partial_multiple=True)
+    # 2/3 = 0.67
+    assert score_partial.split('/')[0] == "0.67"
+
+    # Частично правильные ответы при partial_multiple=False (оценка должна быть 0)
+    score_partial_strict = calculate_score(questions, {1: ["HTTP = 80", "HTTPS = 443", "SSH = 999"]}, partial_multiple=False)
+    assert score_partial_strict == "0/1"
+
+    # Полностью неверные ответы
+    score_wrong = calculate_score(questions, {1: ["HTTP = 999", "HTTPS = 999", "SSH = 999"]}, partial_multiple=True)
+    assert score_wrong == "0/1"

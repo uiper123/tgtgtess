@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shared.widgets import StyledComboBox
+
 from shared.parser import parse_test_file, questions_to_network_payload
 
 try:
@@ -130,12 +132,13 @@ class QuestionsMixin:
         self.q_search.textChanged.connect(self._update_questions_table)
         f_lay.addWidget(self.q_search, 3)
 
-        self.q_type_filter = QComboBox()
+        self.q_type_filter = StyledComboBox()
         self.q_type_filter.addItems([
             "Все типы",
             "Одиночный выбор",
             "Множественный выбор",
             "Письменный ответ",
+            "Соответствие",
         ])
         self.q_type_filter.currentIndexChanged.connect(self._update_questions_table)
         f_lay.addWidget(self.q_type_filter, 1)
@@ -245,11 +248,14 @@ class QuestionsMixin:
             # Type filter
             is_written = bool(q.get("written"))
             is_multiple = bool(q.get("multiple"))
-            if type_idx == 1 and (is_written or is_multiple):
+            is_matching = bool(q.get("matching"))
+            if type_idx == 1 and (is_written or is_multiple or is_matching):
                 continue
             if type_idx == 2 and not is_multiple:
                 continue
             if type_idx == 3 and not is_written:
+                continue
+            if type_idx == 4 and not is_matching:
                 continue
 
             # Search filter (case-insensitive substring in question text or any answer)
@@ -266,6 +272,8 @@ class QuestionsMixin:
 
             if is_written:
                 type_str = "Письменный"
+            elif is_matching:
+                type_str = "Соответствие"
             else:
                 type_str = "Множественный" if is_multiple else "Одиночный"
             self.q_table.setItem(row, 2, QTableWidgetItem(type_str))
@@ -349,6 +357,8 @@ class QuestionsMixin:
                         prefix_q += " (Письменный ответ)"
                     elif q.get('multiple'):
                         prefix_q += " (С множественным выбором)"
+                    elif q.get('matching'):
+                        prefix_q += " (Соответствие)"
                     lines.append(f"{prefix_q} {q.get('text', '')}")
                     if q.get('image_data'):
                         lines.append(f"@image_base64: {q.get('image_data')}")
