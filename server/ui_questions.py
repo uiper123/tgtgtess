@@ -274,6 +274,10 @@ class QuestionsMixin:
                 type_str = "Письменный"
             elif is_matching:
                 type_str = "Соответствие"
+            elif q.get("ordering"):
+                type_str = "Порядок"
+            elif q.get("blanks"):
+                type_str = "Пропуски"
             else:
                 type_str = "Множественный" if is_multiple else "Одиночный"
             self.q_table.setItem(row, 2, QTableWidgetItem(type_str))
@@ -359,6 +363,10 @@ class QuestionsMixin:
                         prefix_q += " (С множественным выбором)"
                     elif q.get('matching'):
                         prefix_q += " (Соответствие)"
+                    elif q.get('ordering'):
+                        prefix_q += " (Порядок)"
+                    elif q.get('blanks'):
+                        prefix_q += " (Пропуски)"
                     lines.append(f"{prefix_q} {q.get('text', '')}")
                     if q.get('image_data'):
                         lines.append(f"@image_base64: {q.get('image_data')}")

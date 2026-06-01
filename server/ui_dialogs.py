@@ -258,7 +258,9 @@ class EditQuestionDialog(QDialog):
             "Одиночный выбор",
             "Множественный выбор",
             "Письменный ответ",
-            "Соответствие"
+            "Соответствие",
+            "Порядок",
+            "Пропуски в тексте"
         ])
 
         if self.question.get("written", False):
@@ -267,6 +269,10 @@ class EditQuestionDialog(QDialog):
             self.q_type_combo.setCurrentIndex(1)
         elif self.question.get("matching", False):
             self.q_type_combo.setCurrentIndex(3)
+        elif self.question.get("ordering", False):
+            self.q_type_combo.setCurrentIndex(4)
+        elif self.question.get("blanks", False):
+            self.q_type_combo.setCurrentIndex(5)
         else:
             self.q_type_combo.setCurrentIndex(0)
 
@@ -383,7 +389,9 @@ class EditQuestionDialog(QDialog):
         correct_cb = QCheckBox()
         is_written = (self.q_type_combo.currentIndex() == 2)
         is_matching = (self.q_type_combo.currentIndex() == 3)
-        if is_written or is_matching:
+        is_ordering = (self.q_type_combo.currentIndex() == 4)
+        is_blanks = (self.q_type_combo.currentIndex() == 5)
+        if is_written or is_matching or is_ordering or is_blanks:
             correct_cb.setChecked(True)
             correct_cb.hide()
         else:
@@ -455,6 +463,8 @@ class EditQuestionDialog(QDialog):
         is_written = (q_type_idx == 2)
         is_multiple = (q_type_idx == 1)
         is_matching = (q_type_idx == 3)
+        is_ordering = (q_type_idx == 4)
+        is_blanks = (q_type_idx == 5)
 
         for row in self.answer_rows:
             ans_text = row["input"].text().strip()
@@ -480,14 +490,20 @@ class EditQuestionDialog(QDialog):
                 else:
                     answers_list.append({
                         "text": ans_text,
-                        "correct": True if is_written else row["cb"].isChecked()
+                        "correct": True if (is_written or is_ordering or is_blanks) else row["cb"].isChecked()
                     })
 
-        if not answers_list:
-            QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один правильный вариант ответа!" if is_written else "Добавьте хотя бы один вариант ответа!")
+        if not answers_list and not is_blanks:
+            QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один вариант ответа!")
             return
+            
+        if is_blanks:
+            import re
+            if not re.search(r'\[(.*?)\]', text):
+                QMessageBox.warning(self, "Предупреждение", "Вопрос типа 'Пропуски' должен содержать хотя бы один пропуск в квадратных скобках (например: Язык [Python] является...).")
+                return
 
-        if not is_written and not is_matching:
+        if not is_written and not is_matching and not is_ordering and not is_blanks:
             correct_count = sum(1 for a in answers_list if a["correct"])
             if correct_count == 0:
                 QMessageBox.warning(self, "Предупреждение", "Выберите хотя бы один правильный вариант ответа (отметьте галочкой)!")
@@ -497,6 +513,8 @@ class EditQuestionDialog(QDialog):
         self.question["multiple"] = is_multiple
         self.question["written"] = is_written
         self.question["matching"] = is_matching
+        self.question["ordering"] = is_ordering
+        self.question["blanks"] = is_blanks
         self.question["answers"] = answers_list
 
         self.accept()

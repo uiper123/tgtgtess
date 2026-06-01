@@ -787,7 +787,11 @@ class StudentWindow(QMainWindow):
         header_layout.addWidget(badge)
 
         # Question text
-        q_text = QLabel(q.get('text', ''))
+        q_text_str = q.get('text', '')
+        if q.get('blanks'):
+            q_text_str = q_text_str.replace('{blank}', '________')
+            
+        q_text = QLabel(q_text_str)
         q_text.setWordWrap(True)
         q_text.setProperty("class", "qText")
         q_text.setStyleSheet("font-size: 18px; font-weight: bold; color: #1c1917; border: none;")
@@ -806,6 +810,14 @@ class StudentWindow(QMainWindow):
         elif q.get('matching'):
             hint = QLabel("Установление соответствия — сопоставьте элементы слева с выпадающим списком справа")
             hint.setStyleSheet("color: #0d9488; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
+            card_layout.addWidget(hint)
+        elif q.get('ordering'):
+            hint = QLabel("Упорядочивание — перетащите элементы, чтобы выстроить их в правильном порядке")
+            hint.setStyleSheet("color: #8b5cf6; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
+            card_layout.addWidget(hint)
+        elif q.get('blanks'):
+            hint = QLabel("Заполнение пропусков — впишите слова или выберите из списка для каждого пропуска")
+            hint.setStyleSheet("color: #ec4899; font-size: 13px; font-weight: bold; border: none; margin-left: 52px;")
             card_layout.addWidget(hint)
 
         # Image (if present)
@@ -927,6 +939,66 @@ class StudentWindow(QMainWindow):
             grid_container.setLayout(grid)
             # No stylesheet needed, QWidget is transparent by default.
             card_layout.addWidget(grid_container)
+        elif q.get('ordering'):
+            from PySide6.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
+            list_widget = QListWidget()
+            list_widget.setDragDropMode(QAbstractItemView.InternalMove)
+            list_widget.setCursor(Qt.PointingHandCursor)
+            list_widget.setSpacing(6)
+            list_widget.setStyleSheet(
+                "QListWidget { background: transparent; border: none; outline: 0px; margin-left: 52px; }"
+                "QListWidget::item { padding: 12px; background-color: #ffffff; border: 1px solid #d6d3d1; border-radius: 8px; font-size: 14px; }"
+                "QListWidget::item:selected { background-color: #f5f5f4; color: #1c1917; }"
+            )
+            
+            answers_to_show = previous_answers if previous_answers else q.get('answers', [])
+            for ans_text in answers_to_show:
+                item = QListWidgetItem(ans_text)
+                list_widget.addItem(item)
+                
+            list_widget.model().rowsMoved.connect(self._on_answer_changed)
+            
+            item_count = len(answers_to_show)
+            # Height: item ~45px + spacing 6px
+            list_widget.setFixedHeight(item_count * 52 + 10)
+            
+            card_layout.addWidget(list_widget)
+            self._answer_widgets.append(list_widget)
+        elif q.get('blanks'):
+            from PySide6.QtWidgets import QFormLayout
+            form = QFormLayout()
+            form.setContentsMargins(52, 0, 0, 0)
+            form.setSpacing(12)
+            
+            blanks_count = q.get('text', '').count('{blank}')
+            options = q.get('answers', [])
+            
+            for i in range(blanks_count):
+                saved_val = previous_answers[i] if i < len(previous_answers) else ""
+                if options:
+                    inp = StyledComboBox()
+                    inp.addItems(["-- Выберите --"] + options)
+                    if saved_val in options:
+                        inp.setCurrentText(saved_val)
+                    inp.currentTextChanged.connect(self._on_answer_changed)
+                else:
+                    inp = QLineEdit()
+                    inp.setPlaceholderText(f"Пропуск {i+1}...")
+                    inp.setText(saved_val)
+                    inp.setStyleSheet(
+                        "QLineEdit { background-color: #ffffff; border: 1px solid #d6d3d1; border-radius: 6px; padding: 8px 12px; font-size: 14px; }"
+                        "QLineEdit:focus { border: 1px solid #2563eb; }"
+                    )
+                    inp.textChanged.connect(self._on_answer_changed)
+                
+                lbl = QLabel(f"Пропуск {i+1}:")
+                lbl.setStyleSheet("font-size: 14px; font-weight: 500; color: #44403c; border: none; background: transparent;")
+                form.addRow(lbl, inp)
+                self._answer_widgets.append(inp)
+                
+            form_container = QWidget()
+            form_container.setLayout(form)
+            card_layout.addWidget(form_container)
         elif q.get('multiple'):
             for ans_text in answers:
                 cb = QCheckBox(ans_text)
@@ -1002,6 +1074,20 @@ class StudentWindow(QMainWindow):
                 sel_val = combo.currentText()
                 if sel_val != "-- Выберите --":
                     selected.append(f"{key_text} = {sel_val}")
+        elif q.get('ordering'):
+            if self._answer_widgets:
+                from PySide6.QtWidgets import QListWidget
+                w = self._answer_widgets[0]
+                if isinstance(w, QListWidget):
+                    for i in range(w.count()):
+                        selected.append(w.item(i).text())
+        elif q.get('blanks'):
+            for w in self._answer_widgets:
+                if isinstance(w, QLineEdit):
+                    selected.append(w.text().strip())
+                elif isinstance(w, StyledComboBox):
+                    val = w.currentText()
+                    selected.append(val if val != "-- Выберите --" else "")
         else:
             for w in self._answer_widgets:
                 if isinstance(w, (QRadioButton, QCheckBox)) and w.isChecked():

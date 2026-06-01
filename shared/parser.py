@@ -96,8 +96,8 @@ def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
     question.pop('_text_lines', None)
 
     # Если в вопросе несколько правильных ответов, то по умолчанию выставляем множественный выбор
-    # Но только если это не письменный вопрос и не соответствие
-    if not question.get('written', False) and not question.get('matching', False):
+    # Но только если это не письменный вопрос, не соответствие, не порядок и не пропуски
+    if not question.get('written', False) and not question.get('matching', False) and not question.get('ordering', False) and not question.get('blanks', False):
         correct_count = sum(1 for a in question.get('answers', []) if a.get('correct', False))
         if correct_count > 1:
             question['multiple'] = True
@@ -172,6 +172,8 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 is_multiple = False
                 is_written = False
                 is_matching = False
+                is_ordering = False
+                is_blanks = False
                 if marker:
                     if "множественн" in marker.lower():
                         is_multiple = True
@@ -185,10 +187,14 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 is_multiple = False
                 is_written = False
                 is_matching = False
+                is_ordering = False
+                is_blanks = False
                 mult_marker = "(С множественным выбором)"
                 written_marker = "(Письменный ответ)"
                 written_marker_alt = "(Письменно)"
                 matching_marker = "(Соответствие)"
+                ordering_marker = "(Порядок)"
+                blanks_marker = "(Пропуски)"
 
                 if rest.lower().startswith(mult_marker.lower()):
                     is_multiple = True
@@ -202,6 +208,12 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 elif rest.lower().startswith(matching_marker.lower()):
                     is_matching = True
                     text_part = rest[len(matching_marker):].strip()
+                elif rest.lower().startswith(ordering_marker.lower()):
+                    is_ordering = True
+                    text_part = rest[len(ordering_marker):].strip()
+                elif rest.lower().startswith(blanks_marker.lower()):
+                    is_blanks = True
+                    text_part = rest[len(blanks_marker):].strip()
                 else:
                     text_part = rest
                 q_number = len(questions) + 1
@@ -211,6 +223,8 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
                 'multiple': is_multiple,
                 'written': is_written,
                 'matching': is_matching,
+                'ordering': is_ordering,
+                'blanks': is_blanks,
                 'image_data': None,
                 'answers': [],
                 '_text_lines': [text_part] if text_part else [],
@@ -311,6 +325,23 @@ def questions_to_network_payload(questions: List[Dict[str, Any]], shuffle_answer
             # Всегда перемешиваем варианты ответов (дистракторы), чтобы не показывать правильные пары сразу
             answers = list(answers)
             random.shuffle(answers)
+        elif q.get('ordering', False):
+            answers = [a['text'] for a in q['answers']]
+            keys = []
+            # Всегда перемешиваем порядок, чтобы студент его собирал
+            answers = list(answers)
+            random.shuffle(answers)
+        elif q.get('blanks', False):
+            # Извлекаем текст для отправки, скрывая правильные слова
+            import re
+            # Заменяем всё в квадратных скобках на {blank}
+            q_text_to_send = re.sub(r'\[(.*?)\]', '{blank}', q['text'])
+            keys = []
+            # Варианты ответов (если предоставлен банк слов)
+            answers = [a['text'] for a in q['answers']]
+            if shuffle_answers and answers:
+                answers = list(answers)
+                random.shuffle(answers)
         else:
             answers = [a['text'] for a in q['answers']]
             keys = []
@@ -320,10 +351,12 @@ def questions_to_network_payload(questions: List[Dict[str, Any]], shuffle_answer
 
         item = {
             'number': q['number'],
-            'text': q['text'],
+            'text': q_text_to_send if q.get('blanks', False) else q['text'],
             'multiple': q['multiple'],
             'written': q.get('written', False),
             'matching': is_matching,
+            'ordering': q.get('ordering', False),
+            'blanks': q.get('blanks', False),
             'image_data': q['image_data'],
             'answers': answers,
         }
@@ -393,6 +426,47 @@ def calculate_score(
                 score += correct_pairs / total_pairs
             else:
                 if correct_pairs == total_pairs:
+                    score += 1.0
+            continue
+
+        if q.get('ordering', False):
+            if not selected:
+                continue
+            correct_order = [a['text'].strip() for a in q['answers']]
+            total_items = len(correct_order)
+            if total_items == 0:
+                continue
+            
+            correct_positions = 0
+            for i, sel_str in enumerate(selected):
+                if i < total_items and sel_str.strip() == correct_order[i]:
+                    correct_positions += 1
+            
+            if partial_multiple:
+                score += correct_positions / total_items
+            else:
+                if correct_positions == total_items:
+                    score += 1.0
+            continue
+
+        if q.get('blanks', False):
+            if not selected:
+                continue
+            import re
+            correct_blanks = [b.strip().lower() for b in re.findall(r'\[(.*?)\]', q['text'])]
+            total_blanks = len(correct_blanks)
+            if total_blanks == 0:
+                continue
+            
+            correct_count = 0
+            for i, sel_str in enumerate(selected):
+                if i < total_blanks and compare_written_answer(sel_str, correct_blanks[i]):
+                    correct_count += 1
+                    
+            if partial_multiple:
+                score += correct_count / total_blanks
+            else:
+                if correct_count == total_blanks:
                     score += 1.0
             continue
 
