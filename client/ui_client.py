@@ -944,12 +944,15 @@ class StudentWindow(QMainWindow):
             list_widget = QListWidget()
             list_widget.setDragDropMode(QAbstractItemView.InternalMove)
             list_widget.setCursor(Qt.PointingHandCursor)
-            list_widget.setSpacing(6)
+            list_widget.setSpacing(8)
             list_widget.setStyleSheet(
                 "QListWidget { background: transparent; border: none; outline: 0px; margin-left: 52px; }"
-                "QListWidget::item { padding: 12px; background-color: #ffffff; border: 1px solid #d6d3d1; border-radius: 8px; font-size: 14px; color: #1c1917; }"
-                "QListWidget::item:selected { background-color: #f5f5f4; color: #1c1917; }"
+                "QListWidget::item { padding: 14px; background-color: #ffffff; border: 2px solid #e7e5e4; border-radius: 8px; font-size: 15px; color: #1c1917; }"
+                "QListWidget::item:hover { border-color: #8b5cf6; background-color: #f8fafc; }"
+                "QListWidget::item:selected { background-color: #f1f5f9; color: #1c1917; border-color: #8b5cf6; }"
+                "QListWidget::drop-indicator { height: 4px; background: #8b5cf6; border-radius: 2px; margin-top: 1px; margin-bottom: 1px; }"
             )
+            list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             
             answers_to_show = previous_answers if previous_answers else q.get('answers', [])
             for ans_text in answers_to_show:
@@ -959,8 +962,8 @@ class StudentWindow(QMainWindow):
             list_widget.model().rowsMoved.connect(self._on_answer_changed)
             
             item_count = len(answers_to_show)
-            # Height: item ~45px + spacing 6px
-            list_widget.setFixedHeight(item_count * 52 + 10)
+            # Увеличили padding и spacing, пересчитываем высоту с запасом под индикатор сброса
+            list_widget.setFixedHeight(item_count * 60 + 20)
             
             card_layout.addWidget(list_widget)
             self._answer_widgets.append(list_widget)
