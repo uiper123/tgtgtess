@@ -164,59 +164,39 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
 
             rest = stripped[1:].strip()
 
-            # Проверяем старый формат: "?N" или "?N (С множественным выбором)" или "?N (Письменный ответ)" или "?N (Соответствие)"
-            old_match = re.match(r'^(\d+)\s*(\(С множественным выбором\)|\(Письменный ответ\)|\(Письменно\)|\(Соответствие\))?$', rest, re.IGNORECASE)
-            if old_match:
-                q_number = int(old_match.group(1))
-                marker = old_match.group(2)
-                is_multiple = False
-                is_written = False
-                is_matching = False
-                is_ordering = False
-                is_blanks = False
+            # Ищем опциональный номер, опциональный маркер и текст на той же строке
+            match = re.match(r'^(\d+)?\s*(?:\(([^)]+)\))?\s*(.*)$', rest, re.IGNORECASE)
+            
+            is_multiple = False
+            is_written = False
+            is_matching = False
+            is_ordering = False
+            is_blanks = False
+            text_part = ""
+            q_number = len(questions) + 1
+            
+            if match:
+                if match.group(1):
+                    q_number = int(match.group(1))
+                
+                marker = match.group(2)
                 if marker:
-                    if "множественн" in marker.lower():
+                    marker = marker.lower()
+                    if "множественн" in marker:
                         is_multiple = True
-                    elif "письмен" in marker.lower():
+                    elif "письмен" in marker:
                         is_written = True
-                    elif "соответствие" in marker.lower():
+                    elif "соответствие" in marker:
                         is_matching = True
-                text_part = ""
+                    elif "порядок" in marker:
+                        is_ordering = True
+                    elif "пропуск" in marker:
+                        is_blanks = True
+                        
+                if match.group(3):
+                    text_part = match.group(3).strip()
             else:
-                # Новый формат
-                is_multiple = False
-                is_written = False
-                is_matching = False
-                is_ordering = False
-                is_blanks = False
-                mult_marker = "(С множественным выбором)"
-                written_marker = "(Письменный ответ)"
-                written_marker_alt = "(Письменно)"
-                matching_marker = "(Соответствие)"
-                ordering_marker = "(Порядок)"
-                blanks_marker = "(Пропуски)"
-
-                if rest.lower().startswith(mult_marker.lower()):
-                    is_multiple = True
-                    text_part = rest[len(mult_marker):].strip()
-                elif rest.lower().startswith(written_marker.lower()):
-                    is_written = True
-                    text_part = rest[len(written_marker):].strip()
-                elif rest.lower().startswith(written_marker_alt.lower()):
-                    is_written = True
-                    text_part = rest[len(written_marker_alt):].strip()
-                elif rest.lower().startswith(matching_marker.lower()):
-                    is_matching = True
-                    text_part = rest[len(matching_marker):].strip()
-                elif rest.lower().startswith(ordering_marker.lower()):
-                    is_ordering = True
-                    text_part = rest[len(ordering_marker):].strip()
-                elif rest.lower().startswith(blanks_marker.lower()):
-                    is_blanks = True
-                    text_part = rest[len(blanks_marker):].strip()
-                else:
-                    text_part = rest
-                q_number = len(questions) + 1
+                text_part = rest
 
             current = {
                 'number': q_number,
