@@ -947,7 +947,7 @@ class StudentWindow(QMainWindow):
             list_widget.setSpacing(6)
             list_widget.setStyleSheet(
                 "QListWidget { background: transparent; border: none; outline: 0px; margin-left: 52px; }"
-                "QListWidget::item { padding: 12px; background-color: #ffffff; border: 1px solid #d6d3d1; border-radius: 8px; font-size: 14px; }"
+                "QListWidget::item { padding: 12px; background-color: #ffffff; border: 1px solid #d6d3d1; border-radius: 8px; font-size: 14px; color: #1c1917; }"
                 "QListWidget::item:selected { background-color: #f5f5f4; color: #1c1917; }"
             )
             

@@ -276,6 +276,12 @@ class EditQuestionDialog(QDialog):
         else:
             self.q_type_combo.setCurrentIndex(0)
 
+
+        self.type_hint_lbl = QLabel("")
+        self.type_hint_lbl.setStyleSheet("font-size: 13px; color: #8b5cf6; font-weight: 500;")
+        self.type_hint_lbl.setWordWrap(True)
+        layout.addWidget(self.type_hint_lbl)
+
         type_lay.addWidget(self.q_type_combo)
         type_lay.addStretch()
         layout.addLayout(type_lay)
@@ -353,18 +359,37 @@ class EditQuestionDialog(QDialog):
     def _on_type_changed(self, index):
         is_written = (index == 2)
         is_matching = (index == 3)
+        is_ordering = (index == 4)
+        is_blanks = (index == 5)
+        
+        hints = {
+            0: "💡 Одиночный выбор: укажите несколько вариантов ответов и отметьте галочкой один правильный.",
+            1: "💡 Множественный выбор: укажите несколько вариантов ответов и отметьте галочками все правильные.",
+            2: "💡 Письменный ответ: укажите возможные правильные формулировки ответа (галочки не нужны).",
+            3: "💡 Соответствие: вводите пары в формате «Ключ = Значение» (например: HTTP = 80).",
+            4: "💡 Порядок: добавьте элементы в правильной последовательности. При тестировании они будут перемешаны.",
+            5: "💡 Пропуски: в тексте вопроса выделите пропуски квадратными скобками (например: Язык [Python]...). Если нужно, добавьте ниже банк слов. Если вариантов нет, студент будет вводить текст вручную."
+        }
+        self.type_hint_lbl.setText(hints.get(index, ""))
+        
         if is_written:
             self.ans_title_lbl.setText("Правильные варианты ответа (студент должен ввести любой из них):")
             self.add_ans_btn.setText("Добавить правильный вариант")
         elif is_matching:
             self.ans_title_lbl.setText("Пары соответствия в формате 'Ключ = Значение' (например: HTTP = 80):")
             self.add_ans_btn.setText("Добавить пару соответствия")
+        elif is_ordering:
+            self.ans_title_lbl.setText("Элементы в правильном порядке:")
+            self.add_ans_btn.setText("Добавить элемент")
+        elif is_blanks:
+            self.ans_title_lbl.setText("Банк слов для выпадающих списков (необязательно):")
+            self.add_ans_btn.setText("Добавить вариант в банк слов")
         else:
             self.ans_title_lbl.setText("Варианты ответов:")
             self.add_ans_btn.setText("Добавить вариант ответа")
 
         for row in self.answer_rows:
-            if is_written or is_matching:
+            if is_written or is_matching or is_ordering or is_blanks:
                 row["cb"].setChecked(True)
                 row["cb"].hide()
             else:
