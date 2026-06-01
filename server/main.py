@@ -768,13 +768,22 @@ class ExamServer(QObject):
         self._pending_buffers.pop(sock, None)
         student = self._students.pop(sock, None)
         if student:
-            self.log_message.emit(f"Отключён: {student.name}")
+            try:
+                self.log_message.emit(f"Отключён: {student.name}")
+                self.student_disconnected.emit(student.name, student.group)
+            except RuntimeError:
+                # Окно закрывается, объект уже уничтожен
+                pass
+                
             student.active = False
             # Обновляем в мониторинге
             if (student.name, student.group) in self._monitor_data:
                 self._monitor_data[(student.name, student.group)].active = False
-            self.student_disconnected.emit(student.name, student.group)
-        sock.deleteLater()
+                
+        try:
+            sock.deleteLater()
+        except RuntimeError:
+            pass
 
     # -- Экспорт результатов --
 
