@@ -485,3 +485,42 @@ def test_windows_updater_script_has_proper_quoting(monkeypatch, tmp_path):
     # Путь содержит пробел → он обязан быть в кавычках, иначе del/move сломаются
     assert f'"{fake_exe}"' in script, \
         f"Путь с пробелом не закавычен. Скрипт:\n{script[:500]}"
+
+
+def test_server_check_for_updates(monkeypatch):
+    """
+    Проверяет, что check_for_updates правильно парсит ответ от GitHub API.
+    """
+    from server.main import ExamServer
+    import urllib.request
+
+    class MockResponse:
+        def __init__(self, data_bytes):
+            self.data = data_bytes
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+        def read(self):
+            return self.data
+
+    # Ветка 1: Доступна новая версия
+    def mock_urlopen_new(*args, **kwargs):
+        return MockResponse(b'{"tag_name": "v9.9.9", "assets": []}')
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen_new)
+    server = ExamServer()
+    data, error = server.check_for_updates()
+    assert error is None
+    assert data is not None
+    assert data["tag_name"] == "v9.9.9"
+
+    # Ветка 2: Версия актуальная
+    from shared.version import VERSION
+    def mock_urlopen_latest(*args, **kwargs):
+        return MockResponse(f'{{"tag_name": "v{VERSION}", "assets": []}}'.encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen_latest)
+    data, error = server.check_for_updates()
+    assert error == "latest"
+    assert data is not None

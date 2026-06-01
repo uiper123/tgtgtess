@@ -58,6 +58,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
     server_download_progress_signal = Signal(int, str)
     client_update_progress_signal = Signal(object, int, str)
     all_updates_ready_signal = Signal()
+    auto_update_found_signal = Signal(dict)
 
     def __init__(self, exam_server, parent=None):
         super().__init__(parent)
@@ -70,6 +71,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.server_download_progress_signal.connect(self._on_server_download_progress)
         self.client_update_progress_signal.connect(self._on_client_update_progress)
         self.all_updates_ready_signal.connect(self._on_all_updates_ready)
+        self.auto_update_found_signal.connect(self._on_auto_update_found)
 
         # Установка иконки приложения
         from PySide6.QtGui import QIcon
@@ -95,6 +97,58 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self.exam_server.server_started.connect(self._on_server_started)
 
         self._build_ui()
+
+        # Автоматическая проверка обновлений через 1 секунду после запуска
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(1000, self._auto_check_updates)
+
+    def _auto_check_updates(self):
+        """Выполняет фоновую автоматическую проверку обновлений при запуске."""
+        import threading
+        def run_check():
+            try:
+                update_data, error = self.exam_server.check_for_updates()
+                if update_data and not error:
+                    self.auto_update_found_signal.emit(update_data)
+            except Exception:
+                pass
+
+        threading.Thread(target=run_check, daemon=True).start()
+
+    @Slot(dict)
+    def _on_auto_update_found(self, update_data):
+        """Показывает стильное диалоговое окно при обнаружении обновления."""
+        tag = update_data.get("tag_name", "Неизвестно")
+        from PySide6.QtWidgets import QMessageBox
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Доступно обновление")
+        msg_box.setText(f"<h3>Доступна новая версия: {tag}</h3><p>Хотите перейти к обновлению прямо сейчас?</p>")
+        msg_box.setIcon(QMessageBox.Information)
+
+        btn_update = msg_box.addButton("Обновиться", QMessageBox.AcceptRole)
+        btn_cancel = msg_box.addButton("Позже", QMessageBox.RejectRole)
+
+        msg_box.exec()
+
+        if msg_box.clickedButton() == btn_update:
+            # Открываем страницу настроек
+            self.switch_page("settings")
+
+            # Сохраняем информацию об обновлении в ui_settings
+            self._latest_update_data = update_data
+
+            # Обновляем UI настроек
+            if hasattr(self, "upd_status_label"):
+                self.upd_status_label.setText(f"Доступна версия: {tag}")
+                self.upd_status_label.setStyleSheet("font-size: 13px; font-weight: bold; color: #2563eb;")
+            if hasattr(self, "download_upd_btn"):
+                self.download_upd_btn.setEnabled(True)
+            if hasattr(self, "update_clients_btn"):
+                self.update_clients_btn.setEnabled(True)
+
+            # Запускаем процедуру обновления
+            self._download_updates()
 
     def _get_disable_delete_confirm(self) -> bool:
         val = self._settings.value("disable_delete_confirm", False)
