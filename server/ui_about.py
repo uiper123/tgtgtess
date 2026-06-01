@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame, QHBoxLayout
 )
 from PySide6.QtCore import Qt
-from shared.config import VERSION
+from shared.version import VERSION
 
 class AboutMixin:
     def _build_about_page(self):
