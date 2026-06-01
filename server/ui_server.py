@@ -38,6 +38,7 @@ try:
     from .ui_questions import QuestionsMixin
     from .ui_results import ResultsMixin
     from .ui_settings import SettingsMixin
+    from .ui_about import AboutMixin
     from .ui_toasts import ToastNotification
 except ImportError:
     from styles import GLOBAL_QSS
@@ -47,12 +48,13 @@ except ImportError:
     from ui_questions import QuestionsMixin
     from ui_results import ResultsMixin
     from ui_settings import SettingsMixin
+    from ui_about import AboutMixin
     from ui_toasts import ToastNotification
 
 # ---------------------------------------------------------------------------
 # Главное окно Преподавателя
 # ---------------------------------------------------------------------------
-class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, LogsMixin, SettingsMixin, QMainWindow):
+class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, LogsMixin, SettingsMixin, AboutMixin, QMainWindow):
     update_checked_signal = Signal(object, str)
     update_downloaded_signal = Signal(int)
     server_download_progress_signal = Signal(int, str)
@@ -253,7 +255,8 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
             ("exams", "Активные тестирования"),
             ("results", "Результаты студентов"),
             ("logs", "Логи системы"),
-            ("settings", "Настройки")
+            ("settings", "Настройки"),
+            ("about", "Сведения")
         ]
 
         for code, label in nav_items:
@@ -344,6 +347,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         self._build_results_page()
         self._build_logs_page()
         self._build_settings_page()
+        self._build_about_page()
 
         # Активная страница по умолчанию
         self.switch_page("exams")
@@ -380,6 +384,8 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
             self.stacked_widget.setCurrentWidget(self.logs_page)
         elif code == "settings":
             self.stacked_widget.setCurrentWidget(self.settings_page)
+        elif code == "about":
+            self.stacked_widget.setCurrentWidget(self.about_page)
 
     # ========================== 1. ДАШБОРД ==========================
     # ========================== 1. РЕПОЗИТОРИЙ ТЕСТОВ ==========================
