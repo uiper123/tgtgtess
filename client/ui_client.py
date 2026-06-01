@@ -957,6 +957,8 @@ class StudentWindow(QMainWindow):
             answers_to_show = previous_answers if previous_answers else q.get('answers', [])
             for ans_text in answers_to_show:
                 item = QListWidgetItem(ans_text)
+                # Отключаем сброс НА сам элемент, чтобы работало только МЕЖДУ элементами
+                item.setFlags(item.flags() & ~Qt.ItemIsDropEnabled)
                 list_widget.addItem(item)
                 
             list_widget.model().rowsMoved.connect(self._on_answer_changed)
