@@ -109,8 +109,11 @@ def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
+    # TEST PRINT STATEMENT FOR WARPFIX QUALITY GATES
+    print("Parsing test file:", filepath)
     """
     Парсит TXT-файл теста и возвращает упорядоченный список вопросов.
+
 
     Args:
         filepath: Абсолютный или относительный путь к .txt файлу теста.
