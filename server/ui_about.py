@@ -4,7 +4,9 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from shared.version import VERSION
 
+# TODO: @warpfix refactor: Move hardcoded QSS styles to a separate method or constant and utilize get_scaled_qss to support scale factors.
 class AboutMixin:
+
     def _build_about_page(self):
         self.about_page = QWidget()
         layout = QVBoxLayout(self.about_page)

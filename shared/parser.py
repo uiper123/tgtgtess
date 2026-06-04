@@ -45,7 +45,9 @@ _IMAGE_RE = re.compile(r'^@image:\s*(.+)\s*$', re.IGNORECASE)
 _IMAGE_BASE64_RE = re.compile(r'^@image_base64:\s*(.+)\s*$', re.IGNORECASE)
 
 
+# TODO: @warpfix refactor: Replace print() warning/error logging with standard logging module (import logging)
 def _read_image_as_base64(image_path: str) -> Optional[str]:
+
     """
     Считывает файл изображения и возвращает его содержимое в виде Base64-строки.
     Если файл не найден или не может быть прочитан, возвращает None.
@@ -353,7 +355,9 @@ def questions_to_network_payload(questions: List[Dict[str, Any]], shuffle_answer
     return payload
 
 
+# TODO: @warpfix refactor: Split this function into smaller, single-responsibility helper functions for different question types (written, matching, ordering, blanks).
 def calculate_score(
+
     questions: List[Dict[str, Any]],
     student_answers: Dict[int, List[str]],
     partial_multiple: bool = True
