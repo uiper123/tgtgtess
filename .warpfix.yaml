@@ -1,0 +1,43 @@
+# .warpfix.yaml
+review:
+  profile: assertive  # Thorough review, checks styling (Ruff checks) and architectural rules
+  auto_review: true
+  path_instructions:
+    - glob: "shared/**"
+      instruction: "Ensure offline-first approach, verify Ed25519 security checks, prohibit any external network calls (all communications must run on local port 9876), and ensure protocol changes are documented."
+    - glob: "server/**"
+      instruction: "Verify PySide6 GUI safety: check that UI scaling is applied, no blocking calls are made in the main thread, and logs are handled through the unified logger."
+    - glob: "client/**"
+      instruction: "Verify client-kiosk security: ensure window-switching detection (proctoring) is intact and cannot be easily bypassed."
+    - glob: "tests/**"
+      instruction: "Verify pytest test coverage for shared components and check that mock tests simulate LAN latency correctly."
+  ignore_paths:
+    - "venv/**"
+    - ".venv/**"
+    - "dist/**"
+    - "build/**"
+    - "__pycache__/**"
+    - ".pytest_cache/**"
+
+repair:
+  auto_fix: true
+  min_confidence: 70  # Only automatically apply fixes with high confidence
+  skip_branches:
+    - "main"
+    - "release/*"
+
+analysis:
+  dead_code: true
+  security_scan: true
+  predictive_ci: true
+
+quality_gates:
+  - name: "No print statements in core code"
+    rule: "No print() statements in shared/ or server/ modules (use logger instead)"
+  - name: "No disabled SSL checks"
+    rule: "Do not use ssl._create_unverified_context() or bypass SSL validation"
+  - name: "No hardcoded private keys"
+    rule: "Do not store update_private_key.pem in the codebase (it is in .gitignore)"
+
+chat:
+  enabled: true
