@@ -21,7 +21,7 @@ try:
 except ImportError:
     from styles import CLIENT_QSS
 
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QListWidget, QListWidgetItem
 
 class ClientUpdateDialog(QDialog):
     def __init__(self, parent=None):
@@ -61,6 +61,124 @@ class ClientUpdateDialog(QDialog):
     def update_progress(self, percent, text):
         self.progress.setValue(percent)
         self.status_lbl.setText(text)
+
+
+class ServerScanDialog(QDialog):
+    """Диалог сканирования сети для поиска активных серверов."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Поиск серверов в сети")
+        self.resize(500, 400)
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+        self.setModal(True)
+        self.setStyleSheet("""
+            QDialog { background-color: #f8fafc; }
+            QLabel { color: #0f172a; font-family: 'Segoe UI', Arial, sans-serif; }
+            QListWidget { 
+                border: 1px solid #cbd5e1; 
+                border-radius: 6px; 
+                background-color: #ffffff;
+                padding: 8px;
+            }
+            QListWidget::item { 
+                padding: 8px; 
+                border-bottom: 1px solid #e2e8f0;
+            }
+            QListWidget::item:selected { 
+                background-color: #dbeafe; 
+                color: #1e40af;
+            }
+            QListWidget::item:hover { 
+                background-color: #f1f5f9; 
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        # Заголовок
+        self.title_lbl = QLabel("🔍 Сканирование сети...")
+        self.title_lbl.setStyleSheet("font-size: 16px; font-weight: bold; color: #1e40af;")
+        layout.addWidget(self.title_lbl)
+
+        # Подзаголовок
+        self.subtitle_lbl = QLabel("Поиск активных серверов с открытыми тестами в локальной сети")
+        self.subtitle_lbl.setStyleSheet("font-size: 12px; color: #64748b;")
+        layout.addWidget(self.subtitle_lbl)
+
+        # Список найденных серверов
+        self.server_list = QListWidget()
+        self.server_list.setSelectionMode(QListWidget.SingleSelection)
+        layout.addWidget(self.server_list)
+
+        # Статус
+        self.status_lbl = QLabel("Сканирование...")
+        self.status_lbl.setStyleSheet("font-size: 11px; color: #64748b; font-style: italic;")
+        layout.addWidget(self.status_lbl)
+
+        # Кнопки
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        self.stop_btn = QPushButton("Остановить")
+        self.stop_btn.setObjectName("stopBtn")
+        self.stop_btn.setCursor(Qt.PointingHandCursor)
+        self.stop_btn.clicked.connect(self._on_stop_clicked)
+        btn_layout.addWidget(self.stop_btn)
+
+        self.select_btn = QPushButton("Выбрать")
+        self.select_btn.setObjectName("selectBtn")
+        self.select_btn.setCursor(Qt.PointingHandCursor)
+        self.select_btn.setEnabled(False)
+        self.select_btn.clicked.connect(self._on_select_clicked)
+        btn_layout.addWidget(self.select_btn)
+        
+        layout.addLayout(btn_layout)
+
+        self._selected_ip = None
+        self._scanning = True
+
+    def add_server(self, ip: str, groups: list):
+        """Добавляет найденный сервер в список."""
+        groups_str = ", ".join(groups) if isinstance(groups, list) else str(groups)
+        item_text = f"{ip} — Группы: {groups_str}"
+        item = QListWidgetItem(item_text)
+        item.setData(Qt.UserRole, ip)
+        self.server_list.addItem(item)
+        self.status_lbl.setText(f"Найдено серверов: {self.server_list.count()}")
+        self.select_btn.setEnabled(True)
+
+    def scan_finished(self):
+        """Вызывается по завершении сканирования."""
+        self._scanning = False
+        self.title_lbl.setText("✅ Сканирование завершено")
+        self.status_lbl.setText(f"Всего найдено: {self.server_list.count()} сервер(ов)")
+        self.stop_btn.setText("Закрыть")
+        if self.server_list.count() == 0:
+            self.status_lbl.setText("Серверы не найдены")
+
+    def _on_stop_clicked(self):
+        """Остановка сканирования или закрытие диалога."""
+        if self._scanning and hasattr(self.parent(), 'client'):
+            # Можно добавить логику остановки, если нужно
+            pass
+        self.close()
+
+    def _on_select_clicked(self):
+        """Выбор выделенного сервера."""
+        current_item = self.server_list.currentItem()
+        if current_item:
+            ip = current_item.data(Qt.UserRole)
+            if ip:
+                self._selected_ip = ip
+                self.accept()
+
+    def get_selected_ip(self) -> str:
+        """Возвращает выбранный IP-адрес."""
+        return self._selected_ip
+
 
 class StudentWindow(QMainWindow):
     """Главное окно студента: авторизация → тест → результат."""
@@ -108,7 +226,11 @@ class StudentWindow(QMainWindow):
         self.client.force_stopped.connect(self._on_force_stopped)
         self.client.attempts_checked_signal.connect(self._on_attempts_checked)
         self.client.update_progress_signal.connect(self._on_update_progress)
+        self.client.server_found.connect(self._on_server_found)
+        self.client.scan_complete.connect(self._on_scan_complete)
         self._update_dialog = None
+        self._found_servers = {}  # {ip: [groups]}
+        self._scan_dialog = None
 
         self._ip_debounce_timer = QTimer(self)
         self._ip_debounce_timer.setSingleShot(True)
@@ -191,6 +313,13 @@ class StudentWindow(QMainWindow):
         self._refresh_groups_btn.setCursor(Qt.PointingHandCursor)
         self._refresh_groups_btn.clicked.connect(self._request_active_groups)
         cl.addWidget(self._refresh_groups_btn)
+
+        # Кнопка поиска серверов в сети
+        self._scan_btn = QPushButton("🔍 Найти серверы в сети")
+        self._scan_btn.setObjectName("scanServersBtn")
+        self._scan_btn.setCursor(Qt.PointingHandCursor)
+        self._scan_btn.clicked.connect(self._show_scan_dialog)
+        cl.addWidget(self._scan_btn)
 
         lbl3 = QLabel("IP-адрес сервера")
         lbl3.setStyleSheet("font-size: 12px; font-weight: bold; color: #64748b; border: none;")
@@ -538,6 +667,55 @@ class StudentWindow(QMainWindow):
     def _on_ip_debounce_timeout(self):
         self._request_active_groups()
 
+    def _show_scan_dialog(self):
+        """Показывает диалог сканирования сети."""
+        from PySide6.QtWidgets import QInputDialog
+        
+        # Определяем подсеть на основе текущего IP
+        current_ip = self._ip_input.text().strip()
+        default_subnet = "192.168.1"  # По умолчанию
+        
+        if current_ip:
+            parts = current_ip.split('.')
+            if len(parts) >= 3:
+                default_subnet = '.'.join(parts[:3])
+        
+        # Запрашиваем у пользователя подсеть для сканирования
+        subnet, ok = QInputDialog.getText(
+            self,
+            "Диапазон сканирования",
+            "Введите диапазон IP-адресов для сканирования:\n\n"
+            "Примеры:\n"
+            "• 192.168.1 — сканировать 192.168.1.1–254\n"
+            "• 192.168.1.0/24 — сканировать подсеть /24\n"
+            "• 10.0.0.1 — проверить один адрес",
+            text=default_subnet
+        )
+        
+        if not ok or not subnet.strip():
+            return
+        
+        # Очищаем предыдущие результаты
+        self._found_servers.clear()
+        
+        # Создаём и показываем диалог сканирования
+        self._scan_dialog = ServerScanDialog(self)
+        
+        # Запускаем сканирование
+        self.client.scan_network_for_servers(subnet.strip())
+        
+        # Показываем диалог
+        result = self._scan_dialog.exec()
+        
+        # Если сервер выбран — устанавливаем IP
+        if result == QDialog.Accepted:
+            selected_ip = self._scan_dialog.get_selected_ip()
+            if selected_ip:
+                self._ip_input.setText(selected_ip)
+                self._save_current_ip()
+                # Автоматически запрашиваем группы
+                QTimer.singleShot(200, self._request_active_groups)
+
     def _request_active_groups(self):
         ip = self._ip_input.text().strip()
         if not ip:
@@ -589,6 +767,20 @@ class StudentWindow(QMainWindow):
         self._group_input.lineEdit().setPlaceholderText(
             "Выберите активную группу" if clean_groups else "Активных групп нет"
         )
+
+    @Slot(str, list)
+    def _on_server_found(self, ip: str, groups: list):
+        """Обработка обнаружения сервера при сканировании."""
+        if groups:
+            self._found_servers[ip] = groups
+            if self._scan_dialog:
+                self._scan_dialog.add_server(ip, groups)
+
+    @Slot()
+    def _on_scan_complete(self):
+        """Сканирование завершено."""
+        if self._scan_dialog:
+            self._scan_dialog.scan_finished()
 
     def _do_connect(self):
         name = self._name_input.text().strip()

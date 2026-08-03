@@ -134,6 +134,8 @@ class StudentClient(QObject):
     update_received = Signal(str)            # version
     attempts_checked_signal = Signal(int, int) # attempts_left, max_attempts
     update_progress_signal = Signal(int, str) # percent, text_status
+    server_found = Signal(str, list)         # ip, groups — найден сервер с активными группами
+    scan_complete = Signal()                 # сканирование завершено
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -196,7 +198,10 @@ class StudentClient(QObject):
                         if not isinstance(groups, list):
                             group = res.get('group', '')
                             groups = [g.strip() for g in group.split(",") if g.strip()]
-                        self.active_group_found.emit([str(g).strip() for g in groups if str(g).strip()])
+                        groups = [str(g).strip() for g in groups if str(g).strip()]
+                        self.active_group_found.emit(groups)
+                        # Для сканера сети также отправляем сигнал
+                        self.server_found.emit(host, groups)
                     elif res.get('message') == 'exam_not_active':
                         self.active_group_found.emit([])
                 except (UnicodeDecodeError, json.JSONDecodeError):
@@ -207,6 +212,127 @@ class StudentClient(QObject):
         self._temp_sock.readyRead.connect(on_ready_read)
         self._temp_sock.errorOccurred.connect(lambda error: self.active_group_found.emit([]))
         self._temp_sock.connectToHost(host.strip(), port)
+
+    def scan_network_for_servers(self, subnet_base: str, port: int = 9876, timeout_ms: int = 500):
+        """
+        Сканирует подсеть на наличие активных серверов с открытыми тестами.
+        subnet_base: базовая часть IP, например '192.168.1' для сканирования 192.168.1.1-254
+        port: порт сервера (по умолчанию 9876)
+        timeout_ms: таймаут подключения в мс (по умолчанию 500)
+        """
+        import ipaddress
+        from PySide6.QtCore import QTimer
+        
+        # Парсим подсеть
+        try:
+            # Поддерживаем форматы: '192.168.1', '192.168.1.0/24', '192.168.1.0/255.255.255.0'
+            if '/' in subnet_base:
+                network = ipaddress.ip_network(subnet_base, strict=False)
+                ips = [str(ip) for ip in network.hosts()]
+            else:
+                parts = subnet_base.split('.')
+                if len(parts) == 3:
+                    # Формат '192.168.1' -> сканируем .1-.254
+                    base = '.'.join(parts)
+                    ips = [f"{base}.{i}" for i in range(1, 255)]
+                elif len(parts) == 4:
+                    # Один конкретный IP
+                    ips = [subnet_base]
+                else:
+                    self.scan_complete.emit()
+                    return
+        except ValueError:
+            self.scan_complete.emit()
+            return
+        
+        self._scan_results = []
+        self._scan_pending_sockets = []
+        self._scan_timeout_ms = timeout_ms
+        self._scan_port = port
+        
+        def check_ip(ip: str):
+            sock = QTcpSocket(self)
+            sock.setProxy(QNetworkProxy(QNetworkProxy.NoProxy))
+            self._scan_pending_sockets.append(sock)
+            
+            def on_connected():
+                packet = {'action': 'get_active_group'}
+                sock.write(pack_message(packet))
+                sock.flush()
+                
+            def on_ready_read():
+                buf = QByteArray()
+                buf.append(sock.readAll())
+                if len(buf) >= 4:
+                    msg_len = struct.unpack('!I', buf[:4].data())[0]
+                    if msg_len <= MAX_MESSAGE_SIZE and len(buf) >= 4 + msg_len:
+                        raw = buf[4:4 + msg_len].data()
+                        try:
+                            res = json.loads(raw.decode('utf-8'))
+                            if res.get('status') == 'success':
+                                groups = res.get('groups', [])
+                                if not isinstance(groups, list):
+                                    group = res.get('group', '')
+                                    groups = [g.strip() for g in group.split(",") if g.strip()]
+                                groups = [str(g).strip() for g in groups if str(g).strip()]
+                                if groups:
+                                    self._scan_results.append((ip, groups))
+                                    self.server_found.emit(ip, groups)
+                        except (UnicodeDecodeError, json.JSONDecodeError):
+                            pass
+                cleanup()
+                
+            def on_error(error):
+                cleanup()
+                
+            def on_disconnected():
+                cleanup()
+                
+            def cleanup():
+                try:
+                    sock.disconnectFromHost()
+                    sock.deleteLater()
+                except Exception:
+                    pass
+                if sock in self._scan_pending_sockets:
+                    self._scan_pending_sockets.remove(sock)
+                if not self._scan_pending_sockets:
+                    self.scan_complete.emit()
+            
+            sock.connected.connect(on_connected)
+            sock.readyRead.connect(on_ready_read)
+            sock.errorOccurred.connect(on_error)
+            sock.disconnected.connect(on_disconnected)
+            
+            # Таймаут для каждого подключения
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(timeout_ms)
+            timer.timeout.connect(lambda: cleanup())
+            timer.start()
+            
+            sock.connectToHost(ip, port)
+        
+        # Запускаем сканирование с ограничением параллельных подключений
+        max_parallel = 50  # Максимум 50 одновременных подключений
+        queue = list(ips)
+        
+        def start_next():
+            while queue and len(self._scan_pending_sockets) < max_parallel:
+                ip = queue.pop(0)
+                check_ip(ip)
+            if not queue and not self._scan_pending_sockets:
+                self.scan_complete.emit()
+        
+        # Проверяем каждые 100мс, есть ли свободные слоты
+        scheduler = QTimer(self)
+        scheduler.setInterval(100)
+        scheduler.timeout.connect(start_next)
+        scheduler.start()
+        self._scan_scheduler = scheduler
+        
+        # Запускаем первую волну
+        start_next()
 
     def connect_to_server(self, host: str, port: int, name: str, group: str):
         self._name = name.strip()
