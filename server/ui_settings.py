@@ -368,8 +368,10 @@ class SettingsMixin:
     def _browse_tests_dir(self):
         try:
             from .ui_dialogs import DirectoryChooserDialog
+            from .storage import set_custom_tests_dir
         except ImportError:
             from ui_dialogs import DirectoryChooserDialog
+            from storage import set_custom_tests_dir
 
         current = self.tests_dir_input.text()
         dlg = DirectoryChooserDialog(current, self)
@@ -377,6 +379,13 @@ class SettingsMixin:
             chosen = dlg.selected_path
             if chosen and os.path.isdir(chosen):
                 self.tests_dir_input.setText(chosen)
+                set_custom_tests_dir(chosen)
+                if hasattr(self, "_update_dashboard_stats"):
+                    self._update_dashboard_stats()
+                if hasattr(self, "_update_exams_page_test_view"):
+                    self._update_exams_page_test_view()
+                if hasattr(self, "show_toast"):
+                    self.show_toast(f"Папка с тестами обновлена: {chosen}", "success")
 
     def _open_current_tests_dir(self):
         from PySide6.QtCore import QUrl
@@ -393,10 +402,18 @@ class SettingsMixin:
 
     def _reset_tests_dir(self):
         try:
-            from .storage import default_tests_dir
+            from .storage import default_tests_dir, set_custom_tests_dir
         except ImportError:
-            from storage import default_tests_dir
-        self.tests_dir_input.setText(str(default_tests_dir()))
+            from storage import default_tests_dir, set_custom_tests_dir
+        def_dir = str(default_tests_dir())
+        self.tests_dir_input.setText(def_dir)
+        set_custom_tests_dir(None)
+        if hasattr(self, "_update_dashboard_stats"):
+            self._update_dashboard_stats()
+        if hasattr(self, "_update_exams_page_test_view"):
+            self._update_exams_page_test_view()
+        if hasattr(self, "show_toast"):
+            self.show_toast("Папка с тестами сброшена к стандартной (tests_repo)", "info")
 
     def _save_settings(self):
         new_port = self.port_spin.value()

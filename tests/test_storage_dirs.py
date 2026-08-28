@@ -120,3 +120,35 @@ def test_empty_test_file_allow_empty(tmp_path: Path):
     assert len(parsed) == 0
     assert getattr(parsed, "title", None) == "Новый пустой тест"
     assert getattr(parsed, "section", None) == "Раздел 1"
+
+
+def test_nested_tests_in_subfolders(tmp_path: Path):
+    storage.set_custom_tests_dir(tmp_path)
+
+    sub1 = tmp_path / "Информатика"
+    sub1.mkdir()
+    f1 = sub1 / "М-25.txt"
+    f1.write_text("@title: Информатика М-25\n? Вопрос\n+ Ответ\n", encoding="utf-8")
+
+    sub2 = tmp_path / "ИСП-23"
+    sub2.mkdir()
+    f2 = sub2 / "МДК 05.02.txt"
+    f2.write_text("@title: МДК 05.02\n? Вопрос\n+ Ответ\n", encoding="utf-8")
+
+    # 1. Проверяем поиск по относительному составному имени "Группа / Название"
+    p1 = storage.test_path("Информатика / М-25")
+    assert p1.resolve() == f1.resolve()
+
+    p2 = storage.test_path("ИСП-23 / МДК 05.02")
+    assert p2.resolve() == f2.resolve()
+
+    # 2. Проверяем fallback поиск по stem
+    p1_fallback = storage.test_path("М-25")
+    assert p1_fallback.resolve() == f1.resolve()
+
+    # 3. Проверяем создание нового теста во вложенной папке
+    new_nested = storage.test_path("Новый курс / Итоговый тест")
+    assert new_nested.parent.name == "Новый курс"
+    assert new_nested.name == "Итоговый_тест.txt" or new_nested.name == "Итоговый тест.txt"
+
+    storage.set_custom_tests_dir(None)

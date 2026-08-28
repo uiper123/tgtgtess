@@ -277,7 +277,8 @@ class ExamsMixin:
     def _update_exams_page_test_view(self):
         if self._current_test_group and self._current_test_group != "Новый тест" and self.exam_server.questions:
             total_q = len(self.exam_server.questions)
-            self.active_test_title_lbl.setText(f"Тест готов к запуску: {self._current_test_group}")
+            clean_name = self._current_test_group.split(" / ")[-1] if " / " in self._current_test_group else self._current_test_group
+            self.active_test_title_lbl.setText(f"Тест готов к запуску: {clean_name}")
             self.active_test_questions_lbl.setText(f"Количество вопросов: {total_q}")
             self._questions_limit_spin.setRange(1, total_q)
             self._questions_limit_spin.setValue(min(self._settings.value("default_questions_limit", 10, type=int), total_q))
@@ -343,13 +344,14 @@ class ExamsMixin:
         questions = list(self.exam_server.questions)
         limit = self._questions_limit_spin.value()
 
+        clean_name = self._current_test_group.split(" / ")[-1] if self._current_test_group else (self._loaded_test_name if self._loaded_test_name else "Тест")
         self.exam_server.start_exam(
             group=group,
             duration=duration,
             questions=questions,
             title=self.exam_server.test_title,
             section=self.exam_server.test_section,
-            test_name=self._current_test_group if self._current_test_group else (self._loaded_test_name if self._loaded_test_name else "Тест"),
+            test_name=self.exam_server.test_title or clean_name,
             partial_multiple=self._partial_multiple_cb.isChecked(),
             random_order=self._random_order_cb.isChecked(),
             max_attempts=self._attempts_limit_spin.value(),

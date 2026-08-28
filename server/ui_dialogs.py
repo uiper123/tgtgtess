@@ -775,7 +775,7 @@ class SelectTestFromRepoDialog(QDialog):
         super().__init__(parent)
         self.tests = tests
         self.setWindowTitle("Выбрать тест из репозитория")
-        apply_dialog_scaling(self, parent, 520, 440)
+        apply_dialog_scaling(self, parent, 580, 440)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -786,7 +786,7 @@ class SelectTestFromRepoDialog(QDialog):
 
         # Поле поиска
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Поиск по названию или группе…")
+        self.search_input.setPlaceholderText("Поиск по названию или каталогу…")
         self.search_input.setStyleSheet(
             "QLineEdit { padding: 9px 12px; font-size: 13px; border-radius: 8px;"
             " border: 1px solid #e7e5e4; background-color: #ffffff; color: #1c1917; }"
@@ -795,11 +795,12 @@ class SelectTestFromRepoDialog(QDialog):
         self.search_input.textChanged.connect(self._filter_table)
         layout.addWidget(self.search_input)
 
-        self.table = QTableWidget(0, 2)
-        self.table.setHorizontalHeaderLabels(["Название теста / Группа", "Вопросов"])
+        self.table = QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(["Каталог", "Название теста", "Вопросов"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.table.setColumnWidth(0, 320)
-        self.table.setColumnWidth(1, 120)
+        self.table.setColumnWidth(0, 160)
+        self.table.setColumnWidth(1, 260)
+        self.table.setColumnWidth(2, 100)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -832,16 +833,38 @@ class SelectTestFromRepoDialog(QDialog):
         query = self.search_input.text().strip().lower()
         self.table.setRowCount(0)
         for t in self.tests:
-            if not query or query in t["group"].lower():
+            group_full = t.get("group", "")
+            if " / " in group_full:
+                parts = group_full.split(" / ")
+                folder = " / ".join(parts[:-1])
+                test_name = parts[-1]
+            else:
+                folder = "—"
+                test_name = group_full
+
+            display_name = t.get("title") or test_name
+
+            if not query or query in group_full.lower() or query in display_name.lower():
                 row = self.table.rowCount()
                 self.table.insertRow(row)
-                self.table.setItem(row, 0, QTableWidgetItem(t["group"]))
-                self.table.setItem(row, 1, QTableWidgetItem(str(len(t["questions"]))))
+
+                folder_item = QTableWidgetItem(folder)
+                test_item = QTableWidgetItem(display_name)
+                test_item.setData(Qt.UserRole, group_full)
+                q_count_item = QTableWidgetItem(str(len(t.get("questions", []))))
+
+                self.table.setItem(row, 0, folder_item)
+                self.table.setItem(row, 1, test_item)
+                self.table.setItem(row, 2, q_count_item)
 
     def accept(self):
         selected = self.table.currentRow()
         if selected >= 0:
-            self.selected_group = self.table.item(selected, 0).text()
+            item = self.table.item(selected, 1)
+            if item:
+                self.selected_group = item.data(Qt.UserRole) or item.text()
+            else:
+                self.selected_group = self.table.item(selected, 0).text()
             super().accept()
         else:
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите тест!")

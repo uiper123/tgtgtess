@@ -77,6 +77,13 @@ class DashboardMixin:
         import_btn.clicked.connect(self._import_test_txt_flow)
         header_lay.addWidget(import_btn)
 
+        change_folder_btn = QPushButton("Выбрать папку...")
+        change_folder_btn.setProperty("class", "secondaryBtn")
+        change_folder_btn.setCursor(Qt.PointingHandCursor)
+        change_folder_btn.setToolTip("Выбрать другую папку для хранения тестов")
+        change_folder_btn.clicked.connect(self._choose_tests_folder_flow)
+        header_lay.addWidget(change_folder_btn)
+
         open_folder_btn = QPushButton("Папка с тестами")
         open_folder_btn.setProperty("class", "secondaryBtn")
         open_folder_btn.setCursor(Qt.PointingHandCursor)
@@ -85,6 +92,14 @@ class DashboardMixin:
         header_lay.addWidget(open_folder_btn)
 
         layout.addLayout(header_lay)
+
+        # Информационная плашка текущей активной папки
+        self.current_folder_badge = QLabel()
+        self.current_folder_badge.setStyleSheet(
+            "font-size: 12px; color: #57534e; background-color: #fafaf9; "
+            "padding: 8px 14px; border-radius: 8px; border: 1px dashed #d6d3d1;"
+        )
+        layout.addWidget(self.current_folder_badge)
 
         # Фильтры и поиск
         filter_card = QFrame()
@@ -130,7 +145,7 @@ class DashboardMixin:
 
         # Table of saved tests
         self.tests_table = QTableWidget(0, 4)
-        self.tests_table.setHorizontalHeaderLabels(["Группа / Название теста", "Вопросов", "Формат", "Статус"])
+        self.tests_table.setHorizontalHeaderLabels(["Каталог / Тест", "Вопросов", "Формат", "Статус"])
         self.tests_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         self.tests_table.setColumnWidth(0, 420)
         self.tests_table.setColumnWidth(1, 140)
@@ -183,13 +198,15 @@ class DashboardMixin:
         tests = []
         d = tests_dir()
 
-        # 1. Сканируем TXT-файлы (основной формат хранения)
-        for path in sorted(d.glob("*.txt")):
+        # 1. Сканируем TXT-файлы (включая все вложенные подпапки)
+        for path in sorted(d.rglob("*.txt")):
+            rel = path.relative_to(d)
+            group_name = f"{rel.parent} / {path.stem}" if len(rel.parts) > 1 else path.stem
             try:
                 from shared.parser import parse_test_file
                 qs = parse_test_file(str(path), allow_empty=True)
                 tests.append({
-                    "group": path.stem,
+                    "group": group_name,
                     "title": getattr(qs, 'title', '') or path.stem,
                     "section": getattr(qs, 'section', '') or "",
                     "questions": list(qs),
@@ -198,7 +215,7 @@ class DashboardMixin:
                 })
             except Exception:
                 tests.append({
-                    "group": path.stem,
+                    "group": group_name,
                     "title": path.stem,
                     "section": "",
                     "questions": [],
@@ -207,14 +224,16 @@ class DashboardMixin:
                 })
 
         # 2. Сканируем JSON-файлы (для обратной совместимости)
-        for path in sorted(d.glob("*.json")):
-            if any(t["group"] == path.stem for t in tests):
+        for path in sorted(d.rglob("*.json")):
+            rel = path.relative_to(d)
+            group_name = f"{rel.parent} / {path.stem}" if len(rel.parts) > 1 else path.stem
+            if any(t["group"] == group_name or t["path"] == str(path) for t in tests):
                 continue
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     tests.append({
-                        "group": data.get("group", path.stem),
+                        "group": group_name,
                         "title": data.get("title", path.stem),
                         "section": data.get("section", ""),
                         "questions": data.get("questions", []),
@@ -229,6 +248,11 @@ class DashboardMixin:
     def _update_dashboard_stats(self):
         self.tests_table.setRowCount(0)
         tests = self._get_saved_tests()
+
+        if hasattr(self, "current_folder_badge"):
+            curr_dir_str = str(tests_dir())
+            total_count = len(tests)
+            self.current_folder_badge.setText(f"📁 Текущая папка: <b>{curr_dir_str}</b> · найдено тестов: <b>{total_count}</b>")
 
         # 1. Поиск по тексту (название теста или группы)
         if hasattr(self, "search_input"):
@@ -409,8 +433,9 @@ class DashboardMixin:
 
                 self._update_test_headers_inputs()
                 self._current_test_group = group
-                self.active_test_lbl.setText(f"Активный тест: {group}")
-                self.selected_test_sidebar_lbl.setText(f"Тест: {group}")
+                clean_name = group.split(" / ")[-1] if " / " in group else group
+                self.active_test_lbl.setText(f"Активный тест: {clean_name}")
+                self.selected_test_sidebar_lbl.setText(f"Тест: {clean_name}")
                 self.exam_server.log_message.emit(f"Загружен тест '{group}' (.txt) из репозитория.")
                 self._update_exams_page_test_view()
             except Exception as e:
@@ -421,11 +446,11 @@ class DashboardMixin:
         try:
             from shared.parser import save_test_to_txt
             try:
-                from .storage import safe_test_filename, tests_dir
+                from .storage import test_path
             except ImportError:
-                from storage import safe_test_filename, tests_dir
+                from storage import test_path
 
-            path = tests_dir() / safe_test_filename(group_name, ext=".txt")
+            path = test_path(group_name)
             save_test_to_txt(
                 path,
                 title=self.exam_server.test_title,
@@ -435,6 +460,28 @@ class DashboardMixin:
             self.exam_server.log_message.emit(f"Тест '{group_name}' сохранен в формате .txt.")
         except Exception as e:
             self.exam_server.log_message.emit(f"Ошибка автосохранения теста: {e}")
+
+    def _choose_tests_folder_flow(self):
+        try:
+            from .ui_dialogs import DirectoryChooserDialog
+            from .storage import set_custom_tests_dir, tests_dir
+        except ImportError:
+            from ui_dialogs import DirectoryChooserDialog
+            from storage import set_custom_tests_dir, tests_dir
+
+        current = str(tests_dir())
+        dlg = DirectoryChooserDialog(current, self)
+        if dlg.exec():
+            chosen = dlg.selected_path
+            if chosen and os.path.isdir(chosen):
+                set_custom_tests_dir(chosen)
+                if hasattr(self, "tests_dir_input"):
+                    self.tests_dir_input.setText(chosen)
+                self._update_dashboard_stats()
+                if hasattr(self, "_update_exams_page_test_view"):
+                    self._update_exams_page_test_view()
+                if hasattr(self, "show_toast"):
+                    self.show_toast(f"Папка с тестами изменена на: {chosen}", "success")
 
     def _rename_active_test(self):
         from PySide6.QtWidgets import QInputDialog

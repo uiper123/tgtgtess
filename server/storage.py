@@ -88,12 +88,51 @@ def safe_test_filename(name: str, ext: str = ".txt") -> str:
 
 
 def test_path(name: str) -> Path:
-    """Возвращает путь к файлу теста в директории тестов (.txt или .json)."""
+    """
+    Возвращает путь к файлу теста в директории тестов (.txt или .json).
+    Поддерживает вложенные группы тестов (например 'Информатика / М-25'),
+    прямые имена файлов и рекурсивный поиск.
+    """
     d = tests_dir()
-    txt_file = d / safe_test_filename(name, ext=".txt")
-    if txt_file.exists():
-        return txt_file
-    json_file = d / safe_test_filename(name, ext=".json")
-    if json_file.exists():
-        return json_file
-    return txt_file
+    if not name:
+        return d / "test.txt"
+
+    # 0. Если передан уже существующий абсолютный или относительный путь
+    p = Path(name)
+    if p.exists() and p.is_file():
+        return p
+
+    # 1. Прямой поиск в корне активной директории
+    for ext in (".txt", ".json", ""):
+        target = d / f"{name}{ext}"
+        if target.exists() and target.is_file():
+            return target
+        safe_target = d / safe_test_filename(name, ext=ext if ext else ".txt")
+        if safe_target.exists() and safe_target.is_file():
+            return safe_target
+
+    # 2. Если группа содержит разделитель подпапок ' / ' или '/' или '\'
+    parts = [part.strip() for part in re.split(r'\s*/\s*|\s*\\\\\s*', name) if part.strip()]
+    if len(parts) > 1:
+        for ext in (".txt", ".json", ""):
+            sub = d.joinpath(*parts[:-1]) / f"{parts[-1]}{ext}"
+            if sub.exists() and sub.is_file():
+                return sub
+            sub_safe = d.joinpath(*parts[:-1]) / safe_test_filename(parts[-1], ext=ext if ext else ".txt")
+            if sub_safe.exists() and sub_safe.is_file():
+                return sub_safe
+
+    # 3. Рекурсивный поиск fallback по имени/стэму файла
+    stem = parts[-1] if parts else name
+    for ext in ("*.txt", "*.json"):
+        for match in d.rglob(ext):
+            if match.stem == stem or match.stem.strip() == stem or match.name == name:
+                return match
+
+    # 4. Если файл новый и еще не существует
+    if len(parts) > 1:
+        target_new = d.joinpath(*parts[:-1]) / safe_test_filename(parts[-1], ext=".txt")
+        target_new.parent.mkdir(parents=True, exist_ok=True)
+        return target_new
+
+    return d / safe_test_filename(name, ext=".txt")

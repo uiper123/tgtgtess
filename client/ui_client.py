@@ -82,6 +82,248 @@ class ClientUpdateDialog(QDialog):
         self.progress.setValue(percent)
         self.status_lbl.setText(text)
 
+
+class InAppModalOverlay(QWidget):
+    """
+    Единый полноэкранный оверлей для всех модальных диалогов студента:
+    - Подтверждение завершения теста
+    - Предупреждение о нарушении (попытка списать / потеря фокуса)
+    - Блокировка теста за нарушения
+    - Остановка теста преподавателем
+    """
+
+    TYPE_CONFIRM = "confirm"
+    TYPE_WARNING = "warning"
+    TYPE_BLOCKED = "blocked"
+    TYPE_STOPPED = "stopped"
+
+    def __init__(self, parent_window):
+        super().__init__(parent_window)
+        self.parent_window = parent_window
+        self.setObjectName("inAppModalOverlay")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            #inAppModalOverlay {
+                background-color: rgba(15, 23, 42, 0.75);
+            }
+        """)
+        self.hide()
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Card
+        self.card = QFrame()
+        self.card.setObjectName("modalOverlayCard")
+        self.card.setStyleSheet("""
+            #modalOverlayCard {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+            }
+        """)
+        self.card.setFixedWidth(520)
+
+        card_layout = QVBoxLayout(self.card)
+        card_layout.setSpacing(18)
+        card_layout.setContentsMargins(28, 28, 28, 28)
+
+        # Header with Icon badge and Title
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(14)
+
+        self.icon_badge = QLabel()
+        self.icon_badge.setFixedSize(48, 48)
+        self.icon_badge.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(self.icon_badge)
+
+        self.title_lbl = QLabel("")
+        self.title_lbl.setStyleSheet("""
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            border: none;
+            background: transparent;
+        """)
+        self.title_lbl.setWordWrap(True)
+        header_layout.addWidget(self.title_lbl, 1)
+
+        card_layout.addLayout(header_layout)
+
+        # Body text
+        self.body_lbl = QLabel("")
+        self.body_lbl.setWordWrap(True)
+        self.body_lbl.setStyleSheet("""
+            font-size: 14px;
+            color: #334155;
+            border: none;
+            background: transparent;
+        """)
+        card_layout.addWidget(self.body_lbl)
+
+        # Buttons container
+        self.btn_layout = QHBoxLayout()
+        self.btn_layout.setSpacing(12)
+        self.btn_layout.addStretch()
+
+        # Secondary button (e.g. Return to test)
+        self.secondary_btn = QPushButton("Вернуться к тесту")
+        self.secondary_btn.setCursor(Qt.PointingHandCursor)
+        self.secondary_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f1f5f9;
+                color: #334155;
+                font-weight: 600;
+                font-size: 13.5px;
+                padding: 10px 22px;
+                border: 1px solid #cbd5e1;
+                border-radius: 8px;
+                min-height: 22px;
+            }
+            QPushButton:hover {
+                background-color: #e2e8f0;
+                color: #0f172a;
+                border-color: #94a3b8;
+            }
+        """)
+        self.secondary_btn.clicked.connect(self._on_secondary_clicked)
+        self.btn_layout.addWidget(self.secondary_btn)
+
+        # Primary button (e.g. Finish test, Acknowledge warning)
+        self.primary_btn = QPushButton("Завершить тест")
+        self.primary_btn.setCursor(Qt.PointingHandCursor)
+        self.primary_btn.clicked.connect(self._on_primary_clicked)
+        self.btn_layout.addWidget(self.primary_btn)
+
+        card_layout.addLayout(self.btn_layout)
+        layout.addWidget(self.card)
+
+        self._current_mode = self.TYPE_CONFIRM
+
+    def _set_primary_btn_style(self, bg_color="#2563eb", hover_color="#1d4ed8", text_color="#ffffff"):
+        self.primary_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {bg_color};
+                color: {text_color};
+                font-weight: 600;
+                font-size: 13.5px;
+                padding: 10px 24px;
+                border: none;
+                border-radius: 8px;
+                min-height: 22px;
+            }}
+            QPushButton:hover {{
+                background-color: {hover_color};
+            }}
+        """)
+
+    def mousePressEvent(self, event):
+        # Предотвращаем клики по фону
+        event.accept()
+
+    def _on_secondary_clicked(self):
+        self.hide()
+        self.parent_window.activateWindow()
+
+    def _on_primary_clicked(self):
+        mode = self._current_mode
+        self.hide()
+        if mode == self.TYPE_CONFIRM:
+            self.parent_window._finish_test()
+        elif mode == self.TYPE_WARNING:
+            self.parent_window.showFullScreen()
+            self.parent_window.activateWindow()
+        elif mode in (self.TYPE_BLOCKED, self.TYPE_STOPPED):
+            self.parent_window._finish_test()
+
+    def show_confirm_finish(self, answered_count: int, total_count: int):
+        self._current_mode = self.TYPE_CONFIRM
+        self.secondary_btn.show()
+        self.secondary_btn.setText("Вернуться к тесту")
+        self.primary_btn.setText("Завершить тест")
+        self._set_primary_btn_style("#2563eb", "#1d4ed8")
+
+        if answered_count < total_count:
+            unanswered = total_count - answered_count
+            self.icon_badge.setText("⚠️")
+            self.icon_badge.setStyleSheet("background-color: #fef3c7; color: #d97706; border-radius: 24px; font-size: 24px; border: none;")
+            self.title_lbl.setText("Не все вопросы отвечены")
+            self.body_lbl.setText(
+                f"Вы дали ответы на <b>{answered_count} из {total_count}</b> вопросов.<br><br>"
+                f"Осталось вопросов без ответа: <b style='color: #dc2626;'>{unanswered}</b>.<br><br>"
+                f"Вы уверены, что хотите завершить тест досрочно? Изменить ответы после отправки будет невозможно."
+            )
+        else:
+            self.icon_badge.setText("✓")
+            self.icon_badge.setStyleSheet("background-color: #dbeafe; color: #2563eb; border-radius: 24px; font-size: 24px; border: none;")
+            self.title_lbl.setText("Завершение тестирования")
+            self.body_lbl.setText(
+                f"Вы ответили на все вопросы (<b>{answered_count} из {total_count}</b>).<br><br>"
+                f"Вы действительно хотите завершить тестирование и отправить результаты на сервер?"
+            )
+        self.setGeometry(self.parent_window.rect())
+        self.show()
+        self.raise_()
+        self.secondary_btn.setFocus()
+
+    def show_cheat_warning(self, count: int, limit: int):
+        self._current_mode = self.TYPE_WARNING
+        self.secondary_btn.hide()
+        self.primary_btn.setText("Я понял, продолжить тест")
+        self._set_primary_btn_style("#2563eb", "#1d4ed8")
+
+        self.icon_badge.setText("⚠️")
+        self.icon_badge.setStyleSheet("background-color: #fee2e2; color: #dc2626; border-radius: 24px; font-size: 24px; border: none;")
+        self.title_lbl.setText("ВНИМАНИЕ — ПОПЫТКА СПИСАТЬ")
+        self.body_lbl.setText(
+            "<b>Обнаружен выход из полноэкранного режима или переключение окна!</b><br><br>"
+            "Во время тестирования строго запрещено открывать меню приложений, переключать рабочие столы или окна.<br><br>"
+            f"Предупреждение: <b style='color: #dc2626; font-size: 15px;'>{count} из {limit}</b>.<br>"
+            f"При достижении <b>{limit}</b> предупреждений тест будет автоматически завершен и заблокирован!"
+        )
+        self.setGeometry(self.parent_window.rect())
+        self.show()
+        self.raise_()
+        self.primary_btn.setFocus()
+
+    def show_blocked(self, message: str):
+        self._current_mode = self.TYPE_BLOCKED
+        self.secondary_btn.hide()
+        self.primary_btn.setText("Завершить тест")
+        self._set_primary_btn_style("#dc2626", "#b91c1c")
+
+        self.icon_badge.setText("🛑")
+        self.icon_badge.setStyleSheet("background-color: #fef2f2; color: #b91c1c; border-radius: 24px; font-size: 24px; border: none;")
+        self.title_lbl.setText("ТЕСТ ЗАБЛОКИРОВАН")
+        self.body_lbl.setText(
+            f"<b>{message}</b><br><br>"
+            "Результаты зафиксированы с отметкой о нарушении регламента тестирования."
+        )
+        self.setGeometry(self.parent_window.rect())
+        self.show()
+        self.raise_()
+        self.primary_btn.setFocus()
+
+    def show_force_stopped(self):
+        self._current_mode = self.TYPE_STOPPED
+        self.secondary_btn.hide()
+        self.primary_btn.setText("ОК")
+        self._set_primary_btn_style("#4b5563", "#374151")
+
+        self.icon_badge.setText("⏹️")
+        self.icon_badge.setStyleSheet("background-color: #f3f4f6; color: #4b5563; border-radius: 24px; font-size: 24px; border: none;")
+        self.title_lbl.setText("Тестирование остановлено")
+        self.body_lbl.setText(
+            "Тестирование было принудительно остановлено преподавателем.<br><br>"
+            "Ваши ответы сохранены в локальной резервной копии."
+        )
+        self.setGeometry(self.parent_window.rect())
+        self.show()
+        self.raise_()
+        self.primary_btn.setFocus()
+
+
 class StudentWindow(QMainWindow):
     """Главное окно студента: авторизация → тест → результат."""
 
@@ -166,6 +408,7 @@ class StudentWindow(QMainWindow):
         self._build_result_page()
 
         self._stack.setCurrentIndex(0)
+        self._modal_overlay = InAppModalOverlay(self)
 
     # ========================== LOGIN PAGE ==========================
     def _build_login_page(self):
@@ -414,13 +657,6 @@ class StudentWindow(QMainWindow):
         self._prev_btn.clicked.connect(self._prev_question)
         self._prev_btn.setProperty("class", "secondaryBtn")
         bb.addWidget(self._prev_btn)
-
-        bb.addStretch()
-
-        # Center: Progress saving indicator
-        self._saving_status = QLabel("")
-        self._saving_status.setStyleSheet("font-size: 12px; color: #a8a29e; border: none;")
-        bb.addWidget(self._saving_status)
 
         bb.addStretch()
 
@@ -808,12 +1044,10 @@ class StudentWindow(QMainWindow):
             return
         self._timer.stop()
         self._test_finished = True
-        QMessageBox.warning(
-            self, "Тестирование остановлено",
-            "Тестирование принудительно остановлено преподавателем.\nВаши текущие ответы не сохранены.",
-            QMessageBox.Ok
-        )
-        self._reset_to_login()
+        if hasattr(self, "_modal_overlay"):
+            self._modal_overlay.show_force_stopped()
+        else:
+            self._reset_to_login()
 
     def _activate_kiosk(self):
         """Включает режим киоска: полноэкранное окно без рамок."""
@@ -1151,16 +1385,7 @@ class StudentWindow(QMainWindow):
         self._collect_current_answer()
 
     def _update_saving_status(self):
-        from datetime import datetime
-
-        from PySide6.QtNetwork import QAbstractSocket
-        now_str = datetime.now().strftime("%H:%M:%S")
-        if self.client.get_socket_state() == QAbstractSocket.ConnectedState:
-            self._saving_status.setText(f"✓ Прогресс сохранен в {now_str}")
-            self._saving_status.setStyleSheet("font-size: 12px; color: #16a34a; font-weight: bold; border: none;")
-        else:
-            self._saving_status.setText(f"⚠️ Офлайн-режим: прогресс сохранен в {now_str}")
-            self._saving_status.setStyleSheet("font-size: 12px; color: #dc2626; font-weight: bold; border: none;")
+        pass
 
     def _collect_current_answer(self):
         """Сохраняет ответ на текущий вопрос."""
@@ -1203,7 +1428,6 @@ class StudentWindow(QMainWindow):
 
         # Автосохранение бэкапа локально при любом сохранении ответа!
         self.client.save_backup(self._answers)
-        self._update_saving_status()
 
     def _prev_question(self):
         self._collect_current_answer()
@@ -1217,9 +1441,19 @@ class StudentWindow(QMainWindow):
             self._current_q += 1
             self._show_question(self._current_q)
         else:
+            self._prompt_finish_confirmation()
+
+    def _prompt_finish_confirmation(self):
+        total_q = len(self._questions)
+        answered_q = sum(1 for q_num, ans in self._answers.items() if ans and any(bool(str(x).strip()) for x in ans))
+        if hasattr(self, "_modal_overlay"):
+            self._modal_overlay.show_confirm_finish(answered_q, total_q)
+        else:
             self._finish_test()
 
     def _finish_test(self):
+        if hasattr(self, "_modal_overlay"):
+            self._modal_overlay.hide()
         self._collect_current_answer()
         self._timer.stop()
         self._test_finished = True
@@ -1283,6 +1517,11 @@ class StudentWindow(QMainWindow):
 
     # ========================== KIOSK PROTECTION ==========================
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "_modal_overlay") and self._modal_overlay.isVisible():
+            self._modal_overlay.setGeometry(self.rect())
+
     def closeEvent(self, event: QCloseEvent):
         if self._kiosk_active and not self._test_finished:
             event.ignore()
@@ -1292,6 +1531,16 @@ class StudentWindow(QMainWindow):
             event.accept()
 
     def keyPressEvent(self, event: QKeyEvent):
+        if hasattr(self, "_modal_overlay") and self._modal_overlay.isVisible():
+            if event.key() == Qt.Key_Escape:
+                if self._modal_overlay._current_mode == InAppModalOverlay.TYPE_CONFIRM:
+                    self._modal_overlay.hide()
+                    event.accept()
+                    return
+                else:
+                    event.ignore()
+                    return
+
         if self._kiosk_active and not self._test_finished:
             key = event.key()
             mods = event.modifiers()
@@ -1336,27 +1585,26 @@ class StudentWindow(QMainWindow):
         warning_desc = f"Потеря фокуса / Переключение рабочего стола (Предупреждение {self._focus_loss_count})"
         self.client.send_cheat_warning(warning_desc)
 
+        # Принудительно возвращаем окно в полноэкранный режим и поверх всех
+        self.showFullScreen()
+        self.activateWindow()
+        self.raise_()
+
         if self._focus_loss_count >= self._cheat_warning_limit:
             self._timer.stop()
             self._test_finished = True
-            QMessageBox.critical(
-                self, "ТЕСТ БЛОКИРОВАН",
-                "Превышено допустимое количество попыток сворачивания окна ({self._focus_loss_count}/{self._cheat_warning_limit})!\n"
-                "Ваш тест автоматически завершен с сохранением текущих ответов и заблокирован за нарушение правил.",
-                QMessageBox.Ok
-            )
-            self._finish_test()
+            if hasattr(self, "_modal_overlay"):
+                self._modal_overlay.show_blocked(
+                    f"Превышено допустимое количество попыток сворачивания окна ({self._focus_loss_count}/{self._cheat_warning_limit})!<br><br>"
+                    "Ваш тест автоматически завершен с сохранением текущих ответов и заблокирован за нарушение правил."
+                )
+            else:
+                self._finish_test()
         else:
-            QMessageBox.warning(
-                self, "ВНИМАНИЕ — ПОПЫТКА СПИСАТЬ",
-                f"Обнаружен выход из полноэкранного режима или переключение рабочего стола!\n"
-                f"Во время тестирования запрещено переключать окна и рабочие столы.\n\n"
-                f"Предупреждение {self._focus_loss_count} из {self._cheat_warning_limit}.\n"
-                f"При достижении 3 предупреждений ваш тест будет автоматически заблокирован!",
-                QMessageBox.Ok
-            )
-            # Принудительно возвращаем фокус и разворачиваем обратно
-            self.showFullScreen()
-            self.activateWindow()
+            if hasattr(self, "_modal_overlay"):
+                self._modal_overlay.show_cheat_warning(
+                    count=self._focus_loss_count,
+                    limit=self._cheat_warning_limit
+                )
             self._focus_loss_debounce = True
             QTimer.singleShot(2000, lambda: setattr(self, "_focus_loss_debounce", False))
