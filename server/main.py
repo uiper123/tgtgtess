@@ -21,15 +21,15 @@ try:
 except ImportError:
     certifi = None
 
-from PySide6.QtCore import QByteArray, QObject, Signal, Slot
-from PySide6.QtNetwork import QHostAddress, QTcpServer, QTcpSocket
+from PySide6.QtCore import QByteArray, QObject, QTimer, Signal, Slot
+from PySide6.QtNetwork import QHostAddress, QNetworkInterface, QTcpServer, QTcpSocket, QUdpSocket
 from PySide6.QtWidgets import QApplication
 
 # Добавляем корень проекта в sys.path для импорта shared
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from shared.parser import calculate_score, parse_test_file, questions_to_network_payload
-from shared.protocol import pack_message
+from shared.protocol import DISCOVERY_BEACON_INTERVAL_MS, DISCOVERY_MAGIC, DISCOVERY_PORT, pack_message
 from shared.security import load_private_key, sha256_hex, sign_bytes
 from shared.version import GITHUB_REPO, VERSION
 
@@ -107,6 +107,109 @@ class ConnectedStudent:
         self.exam_start_time = None
 
 
+class ServerDiscoveryBeacon(QObject):
+    """
+    UDP-маяк и ответчик на запросы авто-обнаружения серверов тестирования в LAN.
+    Слушает UDP-порт DISCOVERY_PORT (9877), отвечает на запросы discover_request
+    и периодически рассылает широковещательные пакеты с информацией об активных тестах.
+    """
+
+    def __init__(self, exam_server: "ExamServer", parent=None):
+        super().__init__(parent)
+        self._exam_server = exam_server
+        self._udp_socket = QUdpSocket(self)
+        self._timer = QTimer(self)
+        self._timer.setInterval(DISCOVERY_BEACON_INTERVAL_MS)
+        self._timer.timeout.connect(self._broadcast_beacon)
+        self._is_bound = False
+
+    def start(self):
+        if self._is_bound:
+            return
+        try:
+            flags = QUdpSocket.BindFlag.ShareAddress | QUdpSocket.BindFlag.ReuseAddressHint
+            bound = self._udp_socket.bind(QHostAddress.AnyIPv4, DISCOVERY_PORT, flags)
+            if bound:
+                self._udp_socket.readyRead.connect(self._on_ready_read)
+                self._is_bound = True
+                self._timer.start()
+                self._broadcast_beacon()
+        except Exception as e:
+            print(f"[DiscoveryBeacon] Предупреждение: не удалось запустить UDP маяк на порту {DISCOVERY_PORT}: {e}")
+
+    def stop(self):
+        self._timer.stop()
+        if self._is_bound:
+            try:
+                self._udp_socket.close()
+            except Exception:
+                pass
+            self._is_bound = False
+
+    def notify_state_changed(self):
+        """Немедленно отправляет обновленный статус в сеть."""
+        if self._is_bound:
+            self._broadcast_beacon()
+
+    def _get_status_payload(self) -> dict:
+        active_groups = []
+        test_titles = []
+        if self._exam_server._exam_active and self._exam_server._active_exams:
+            for exam in self._exam_server._active_exams.values():
+                g = exam.get('group')
+                if g and g not in active_groups:
+                    active_groups.append(g)
+                t = exam.get('title') or exam.get('test_name')
+                if t and t not in test_titles:
+                    test_titles.append(t)
+
+        test_title = test_titles[0] if test_titles else getattr(self._exam_server, 'test_title', "Ожидание тестирования")
+
+        return {
+            "magic": DISCOVERY_MAGIC,
+            "type": "server_beacon",
+            "server_name": "TTGTiSO-Test Server",
+            "version": VERSION,
+            "tcp_port": getattr(self._exam_server, 'DEFAULT_PORT', 9876),
+            "exam_active": self._exam_server._exam_active,
+            "groups": active_groups,
+            "tests": test_titles,
+            "test_title": test_title,
+        }
+
+    def _broadcast_beacon(self):
+        if not self._is_bound:
+            return
+        payload = self._get_status_payload()
+        raw = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+        ba = QByteArray(raw)
+        try:
+            self._udp_socket.writeDatagram(ba, QHostAddress.Broadcast, DISCOVERY_PORT)
+            self._udp_socket.writeDatagram(ba, QHostAddress.LocalHost, DISCOVERY_PORT)
+            for iface in QNetworkInterface.allInterfaces():
+                if (iface.flags() & QNetworkInterface.InterfaceFlag.IsUp) and not (iface.flags() & QNetworkInterface.InterfaceFlag.IsLoopBack):
+                    for entry in iface.addressEntries():
+                        bcast = entry.broadcast()
+                        if not bcast.isNull() and bcast != QHostAddress.Broadcast:
+                            self._udp_socket.writeDatagram(ba, bcast, DISCOVERY_PORT)
+        except Exception:
+            pass
+
+    def _on_ready_read(self):
+        while self._udp_socket.hasPendingDatagrams():
+            datagram = self._udp_socket.receiveDatagram()
+            raw_data = datagram.data().data()
+            try:
+                msg = json.loads(raw_data.decode('utf-8'))
+                if isinstance(msg, dict) and msg.get("magic") == DISCOVERY_MAGIC:
+                    if msg.get("type") == "discover_request":
+                        resp = self._get_status_payload()
+                        resp_raw = json.dumps(resp, ensure_ascii=False).encode('utf-8')
+                        self._udp_socket.writeDatagram(QByteArray(resp_raw), datagram.senderAddress(), datagram.senderPort())
+            except Exception:
+                pass
+
+
 class ExamServer(QObject):
     """
     TCP-сервер экзаменационного тестирования.
@@ -138,6 +241,9 @@ class ExamServer(QObject):
         from PySide6.QtCore import QSettings
         settings = QSettings("EduTest", "Server")
         self.DEFAULT_PORT = settings.value("tcp_port", 9876, type=int)
+
+        # UDP-маяк авто-обнаружения в LAN
+        self._discovery_beacon = ServerDiscoveryBeacon(self)
 
         # Текущие настройки экзамена
         self._allowed_group: str = ''
@@ -212,6 +318,9 @@ class ExamServer(QObject):
                     f"{self._tcp_server.errorString()}"
                 )
 
+        # Запускаем UDP-маяк для обнаружения серверов в LAN
+        self._discovery_beacon.start()
+
     # -- Публичные методы управления экзаменом --
 
     def load_test(self, filepath: str) -> int:
@@ -219,8 +328,8 @@ class ExamServer(QObject):
         Загружает файл теста, парсит вопросы.
         Возвращает количество загруженных вопросов.
         """
-        parsed = parse_test_file(filepath)
-        self._questions = parsed
+        parsed = parse_test_file(filepath, allow_empty=True)
+        self._questions = list(parsed)
         self.test_title = getattr(parsed, "title", "Итоговое тестирование")
         self.test_section = getattr(parsed, "section", "Раздел: Основная часть")
         self._network_payload = questions_to_network_payload(self._questions)
@@ -274,6 +383,7 @@ class ExamServer(QObject):
             f"Экзамен запущен — группа: {group.strip()}, тест: {test_name}, "
             f"время: {duration} мин, порт: {port}"
         )
+        self._discovery_beacon.notify_state_changed()
 
     def stop_exam_for_group(self, group: str):
         """Останавливает экзамен для конкретной группы и отключает её студентов."""
@@ -297,7 +407,9 @@ class ExamServer(QObject):
         if not self._active_exams:
             self._exam_active = False
             self.log_message.emit("Все экзамены остановлены. Сервер переведен в дежурный режим ожидания.")
-            self._export_results_csv()
+            self._export_results_xlsx()
+
+        self._discovery_beacon.notify_state_changed()
 
     def stop_exam(self):
         """Останавливает все экзамены."""
@@ -312,7 +424,8 @@ class ExamServer(QObject):
             sock.disconnectFromHost()
         self._students.clear()
         self.log_message.emit("Все экзамены остановлены. Сервер переведен в дежурный режим ожидания.")
-        self._export_results_csv()
+        self._export_results_xlsx()
+        self._discovery_beacon.notify_state_changed()
 
     @property
     def is_active(self) -> bool:
@@ -669,11 +782,18 @@ class ExamServer(QObject):
     def _handle_result(self, sock: QTcpSocket, packet: dict):
         """Обрабатывает отправку результатов от студента."""
         student = self._students.get(sock)
-        if student is None:
-            sock.write(pack_message({'status': 'error', 'message': 'not_connected'}))
-            sock.flush()
-            self.log_message.emit("Отклонён результат от неподключённого клиента")
-            return
+        pkt_name = packet.get('name', '').strip()
+        pkt_group = packet.get('group', '').strip()
+
+        if student is None or not getattr(student, 'name', ''):
+            if pkt_name and pkt_group:
+                student = ConnectedStudent(sock, pkt_name, pkt_group)
+                self._students[sock] = student
+            else:
+                sock.write(pack_message({'status': 'error', 'message': 'not_connected'}))
+                sock.flush()
+                self.log_message.emit("Отклонён результат от неподключённого клиента")
+                return
 
         if student.finished:
             sock.write(pack_message({'status': 'result_confirmed', 'score': student.score or '0/0'}))
@@ -681,8 +801,10 @@ class ExamServer(QObject):
             self.log_message.emit(f"Повторный результат проигнорирован: {student.name} ({student.group})")
             return
 
-        name = student.name
-        group = student.group
+        name = pkt_name or student.name
+        group = pkt_group or student.group
+        student.name = name
+        student.group = group
         answers = packet.get('answers', {})
         if not isinstance(answers, dict):
             sock.write(pack_message({'status': 'error', 'message': 'invalid_answers'}))
@@ -787,11 +909,12 @@ class ExamServer(QObject):
 
     # -- Экспорт результатов --
 
-    def _export_results_csv(self):
-        """Сохраняет результаты текущего экзамена в CSV-файл."""
+    def _export_results_xlsx(self):
+        """Сохраняет результаты текущего экзамена в файл Excel (.xlsx)."""
         from PySide6.QtCore import QSettings
         settings = QSettings("EduTest", "Server")
-        if not settings.value("auto_export_csv", True, type=bool):
+        auto_export = settings.value("auto_export_xlsx", settings.value("auto_export_csv", True, type=bool), type=bool)
+        if not auto_export:
             return
 
         if not self._results:
@@ -799,17 +922,28 @@ class ExamServer(QObject):
             return
 
         date_str = datetime.now().strftime('%Y-%m-%d_%H-%M')
-        group_safe = safe_test_filename(self._allowed_group).removesuffix('.json')
-        filename = project_root() / f"Результаты_{group_safe}_{date_str}.csv"
+        group_safe = safe_test_filename(self._allowed_group).removesuffix('.json') if self._allowed_group else "Все_группы"
+        filename = project_root() / f"Результаты_{group_safe}_{date_str}.xlsx"
 
         try:
-            with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
-                writer = csv.DictWriter(f, fieldnames=['name', 'group', 'score', 'timestamp'], extrasaction='ignore')
-                writer.writeheader()
-                writer.writerows(self._results)
-            self.log_message.emit(f"Результаты сохранены: {filename}")
+            try:
+                from .export_excel import export_results_to_xlsx
+            except ImportError:
+                from export_excel import export_results_to_xlsx
+
+            export_results_to_xlsx(
+                self._results,
+                filename,
+                title="Ведомость результатов тестирования",
+                group_name=self._allowed_group or "",
+                test_title=self._current_test_name or "",
+            )
+            self.log_message.emit(f"Результаты успешно сохранены в Excel: {filename}")
         except Exception as exc:
-            self.server_error.emit(f"Ошибка сохранения CSV: {exc}")
+            self.server_error.emit(f"Ошибка сохранения Excel: {exc}")
+            self.log_message.emit(f"Ошибка экспорта в Excel: {exc}")
+
+    _export_results_csv = _export_results_xlsx  # Алиас для обратной совместимости
 
     # -- Персистентная история результатов --
 
@@ -1276,6 +1410,23 @@ def main():
     app.setApplicationName("TTGTiSO-Test — Сервер")
     app.setOrganizationName("EduTest")
 
+    # Установка светлой палитры для всех стандартных диалогов и представлений
+    from PySide6.QtGui import QColor, QPalette
+    palette = QPalette()
+    palette.setColor(QPalette.Window, QColor("#fafaf9"))
+    palette.setColor(QPalette.WindowText, QColor("#1c1917"))
+    palette.setColor(QPalette.Base, QColor("#ffffff"))
+    palette.setColor(QPalette.AlternateBase, QColor("#f8fafc"))
+    palette.setColor(QPalette.ToolTipBase, QColor("#1c1917"))
+    palette.setColor(QPalette.ToolTipText, QColor("#fafaf9"))
+    palette.setColor(QPalette.Text, QColor("#1c1917"))
+    palette.setColor(QPalette.Button, QColor("#ffffff"))
+    palette.setColor(QPalette.ButtonText, QColor("#1c1917"))
+    palette.setColor(QPalette.BrightText, QColor("#ffffff"))
+    palette.setColor(QPalette.Highlight, QColor("#2563eb"))
+    palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+    app.setPalette(palette)
+
     # Установка иконки приложения
     from PySide6.QtCore import QByteArray
     from PySide6.QtGui import QIcon, QPixmap
@@ -1307,7 +1458,10 @@ def main():
     exam_server.start_background_listening()
 
     # Импортируем и создаём GUI
-    from ui_server import ServerWindow
+    try:
+        from .ui_server import ServerWindow
+    except ImportError:
+        from ui_server import ServerWindow
     window = ServerWindow(exam_server)
     window.show()
 

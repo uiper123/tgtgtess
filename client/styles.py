@@ -158,7 +158,7 @@ QPushButton#connectBtn:disabled {
     color: #ffffff;
 }
 
-QPushButton#refreshGroupsBtn {
+QPushButton#refreshGroupsBtn, QPushButton#scanIpBtn {
     background-color: #ffffff;
     color: #44403c;
     font-weight: 600;
@@ -168,7 +168,7 @@ QPushButton#refreshGroupsBtn {
     border-radius: 8px;
     min-height: 22px;
 }
-QPushButton#refreshGroupsBtn:hover {
+QPushButton#refreshGroupsBtn:hover, QPushButton#scanIpBtn:hover {
     background-color: #fafaf9;
     border-color: #d6d3d1;
 }

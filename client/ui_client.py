@@ -128,6 +128,8 @@ class StudentWindow(QMainWindow):
         self.client.force_stopped.connect(self._on_force_stopped)
         self.client.attempts_checked_signal.connect(self._on_attempts_checked)
         self.client.update_progress_signal.connect(self._on_update_progress)
+        self.client.server_discovered.connect(self._on_server_discovered)
+        self._discovered_servers = {}
         self._update_dialog = None
 
         self._ip_debounce_timer = QTimer(self)
@@ -142,6 +144,7 @@ class StudentWindow(QMainWindow):
 
         self._build_ui()
         self._restore_saved_ip()
+        self.client.start_discovery()
         QTimer.singleShot(0, self._capture_login_window_state)
 
     def _capture_login_window_state(self):
@@ -213,15 +216,31 @@ class StudentWindow(QMainWindow):
         self._refresh_groups_btn.clicked.connect(self._request_active_groups)
         cl.addWidget(self._refresh_groups_btn)
 
-        lbl3 = QLabel("IP-адрес сервера")
+        lbl3 = QLabel("IP-адрес сервера (или выберите из списка)")
         lbl3.setStyleSheet("font-size: 12px; font-weight: bold; color: #78716c; border: none;")
         cl.addWidget(lbl3)
-        self._ip_input = QLineEdit()
-        self._ip_input.setPlaceholderText("192.168.1.100")
-        self._ip_input.textChanged.connect(self._on_ip_text_changed)
-        cl.addWidget(self._ip_input)
 
-        ip_hint = QLabel("IP-адрес отображается внизу окна на компьютере преподавателя")
+        ip_row = QHBoxLayout()
+        ip_row.setSpacing(6)
+        ip_row.setContentsMargins(0, 0, 0, 0)
+
+        self._ip_input = StyledComboBox()
+        self._ip_input.setEditable(True)
+        self._ip_input.lineEdit().setPlaceholderText("192.168.1.100")
+        self._ip_input.lineEdit().textChanged.connect(self._on_ip_text_changed)
+        self._ip_input.activated.connect(self._on_ip_combo_selected)
+        ip_row.addWidget(self._ip_input, 1)
+
+        self._scan_ip_btn = QPushButton("Поиск")
+        self._scan_ip_btn.setObjectName("scanIpBtn")
+        self._scan_ip_btn.setCursor(Qt.PointingHandCursor)
+        self._scan_ip_btn.setToolTip("Поиск серверов в локальной сети")
+        self._scan_ip_btn.clicked.connect(self._on_scan_ip_clicked)
+        ip_row.addWidget(self._scan_ip_btn)
+
+        cl.addLayout(ip_row)
+
+        ip_hint = QLabel("Автоматически ищет серверы в сети. Также можно ввести IP вручную.")
         ip_hint.setStyleSheet("font-size: 10px; color: #a8a29e; border: none;")
         ip_hint.setWordWrap(True)
         cl.addWidget(ip_hint)
@@ -312,11 +331,8 @@ class StudentWindow(QMainWindow):
         info_layout = QHBoxLayout()
         self._q_counter = QLabel("Вопрос 1 из 1")
         self._q_counter.setStyleSheet("font-size: 12px; font-weight: bold; color: #57534e; border: none;")
-        self._percent_label = QLabel("0%")
-        self._percent_label.setStyleSheet("font-size: 12px; font-weight: bold; color: #78716c; border: none;")
         info_layout.addWidget(self._q_counter)
         info_layout.addStretch()
-        info_layout.addWidget(self._percent_label)
         pc_layout.addLayout(info_layout)
 
         self._progress = QProgressBar()
@@ -497,14 +513,14 @@ class StudentWindow(QMainWindow):
         self._group_input.clear()
         self._name_input.setPlaceholderText("Иванов Иван Иванович")
         self._group_input.lineEdit().setPlaceholderText("ИСП-311")
-        self._ip_input.setPlaceholderText("192.168.1.100")
+        self._ip_input.lineEdit().setPlaceholderText("192.168.1.100")
         self._name_input.setEnabled(True)
         self._group_input.setEnabled(True)
         self._group_input.lineEdit().setEnabled(True)
         self._ip_input.setEnabled(True)
         self._name_input.setReadOnly(False)
         self._group_input.lineEdit().setReadOnly(False)
-        self._ip_input.setReadOnly(False)
+        self._ip_input.lineEdit().setReadOnly(False)
         self._connect_btn.setEnabled(True)
         self._connect_btn.setText("Подключиться к тестированию")
         self._login_error.hide()
@@ -512,6 +528,7 @@ class StudentWindow(QMainWindow):
         self.showNormal()
         QTimer.singleShot(0, self._restore_login_window_state)
         QTimer.singleShot(120, self._restore_login_window_state)
+        self.client.start_discovery()
         self._request_active_groups()
 
     def _restore_login_window_state(self):
@@ -525,11 +542,88 @@ class StudentWindow(QMainWindow):
         self.activateWindow()
         self._name_input.setFocus(Qt.OtherFocusReason)
 
+    def _get_current_ip(self) -> str:
+        """Извлекает чистый IP или IP:PORT из текущего ввода или выбора."""
+        text = self._ip_input.currentText().strip()
+        if not text:
+            return ""
+        # Если строка содержит форматирование "192.168.1.50:9876 — Тест...", берём адрес до первого пробела
+        parts = text.split(None, 1)
+        return parts[0].strip()
+
+    def _on_scan_ip_clicked(self):
+        """Ручной запуск поиска серверов в локальной сети."""
+        self.client.scan_for_servers()
+        self.client.start_discovery()
+        self._scan_ip_btn.setText("Поиск…")
+        QTimer.singleShot(1000, lambda: self._scan_ip_btn.setText("Поиск"))
+
+    @Slot(str, int, dict)
+    def _on_server_discovered(self, ip: str, port: int, info: dict):
+        """Обрабатывает ответ от найденного в LAN сервера тестирования."""
+        # Если студент уже на странице тестирования или результата, игнорируем фоновый поиск
+        if self._stack.currentIndex() != 0 or self._kiosk_active:
+            return
+
+        full_endpoint = f"{ip}:{port}" if port != 9876 else ip
+        key = f"{ip}:{port}"
+
+        display_text = f"{full_endpoint} (доступен)"
+
+        self._discovered_servers[key] = {
+            "ip": ip,
+            "port": port,
+            "display": display_text,
+            "endpoint": full_endpoint,
+            "info": info
+        }
+
+        current_typed = self._get_current_ip()
+
+        # Ищем существующий пункт в выпадающем списке
+        existing_idx = -1
+        for i in range(self._ip_input.count()):
+            data = self._ip_input.itemData(i)
+            if isinstance(data, dict) and (data.get("key") == key or data.get("endpoint") == full_endpoint):
+                existing_idx = i
+                break
+
+        item_data = {"key": key, "ip": ip, "port": port, "endpoint": full_endpoint}
+        if existing_idx >= 0:
+            self._ip_input.setItemText(existing_idx, display_text)
+            self._ip_input.setItemData(existing_idx, item_data)
+        else:
+            self._ip_input.addItem(display_text, item_data)
+
+        # Если в ответе маяка есть группы, сразу обновляем список групп, если он пуст
+        groups = info.get("groups", [])
+        if groups and self._group_input.count() == 0:
+            self._on_active_group_found(groups)
+
+        # Если поле ввода было пустым, выбираем найденный сервер и один раз опрашиваем группы
+        if not current_typed:
+            idx = self._ip_input.findData(item_data)
+            if idx >= 0:
+                self._ip_input.setCurrentIndex(idx)
+            self._save_current_ip()
+            self._request_active_groups()
+
+    def _on_ip_combo_selected(self, index: int):
+        """Вызывается при выборе сервера из выпадающего списка."""
+        data = self._ip_input.itemData(index)
+        if data and isinstance(data, dict) and "endpoint" in data:
+            endpoint = data["endpoint"]
+            self._settings.setValue("last_server_ip", endpoint)
+            self._settings.sync()
+        self._save_current_ip()
+        self._request_active_groups()
+        self._on_inputs_for_attempts_changed()
+
     def _on_inputs_for_attempts_changed(self):
         self._attempts_debounce_timer.start()
 
     def _query_attempts_left(self):
-        ip = self._ip_input.text().strip()
+        ip = self._get_current_ip()
         name = self._name_input.text().strip()
         group = self._group_input.currentText().strip()
 
@@ -564,7 +658,7 @@ class StudentWindow(QMainWindow):
         self._ip_debounce_timer.start()
 
     def _save_current_ip(self):
-        ip = self._ip_input.text().strip()
+        ip = self._get_current_ip()
         if ip:
             self._settings.setValue("last_server_ip", ip)
         else:
@@ -575,7 +669,7 @@ class StudentWindow(QMainWindow):
         self._request_active_groups()
 
     def _request_active_groups(self):
-        ip = self._ip_input.text().strip()
+        ip = self._get_current_ip()
         if not ip:
             self._save_current_ip()
             return
@@ -603,7 +697,7 @@ class StudentWindow(QMainWindow):
         ip = self._settings.value("last_server_ip", "", str).strip()
         if not ip:
             return
-        self._ip_input.setText(ip)
+        self._ip_input.setEditText(ip)
         QTimer.singleShot(0, self._request_active_groups)
 
     @Slot(list)
@@ -629,7 +723,7 @@ class StudentWindow(QMainWindow):
     def _do_connect(self):
         name = self._name_input.text().strip()
         group = self._group_input.currentText().strip()
-        ip = self._ip_input.text().strip()
+        ip = self._get_current_ip()
 
         if not name or not group or not ip:
             if ip and not group:
@@ -643,11 +737,13 @@ class StudentWindow(QMainWindow):
         self._connect_btn.setText("Подключение...")
 
         ip, port = self._parse_address(ip)
-
         self.client.connect_to_server(ip, port, name, group)
 
     @Slot(list, int, str, str, str, int, int)
     def _on_connected_ok(self, questions, duration, title, section, test_name, remaining_seconds, cheat_warning_limit=3):
+        # Останавливаем фоновое обнаружение на время прохождения теста
+        self.client.stop_discovery()
+
         self._questions = questions
         self._duration = duration
         self._cheat_warning_limit = int(cheat_warning_limit)
@@ -682,6 +778,12 @@ class StudentWindow(QMainWindow):
         if self._stack.currentIndex() == 1:
             self._collect_current_answer()
             self._update_saving_status()
+            return
+
+        # Если студент находится на странице результата (ждет подтверждения расчёта)
+        if self._stack.currentIndex() == 2 and self._result_score.text() == "Расчёт...":
+            self._result_score.setText("—")
+            self._result_sub.setText(f"Ответы сохранены в локальной копии.\nОшибка сервера: {msg}")
             return
 
         self._connect_btn.setEnabled(True)
@@ -754,7 +856,6 @@ class StudentWindow(QMainWindow):
         # Counter & progress
         self._q_counter.setText(f"Вопрос {index + 1} из {total}")
         percent = int(((index + 1) / total) * 100) if total > 0 else 0
-        self._percent_label.setText(f"{percent}%")
         self._progress.setValue(percent)
 
         # Question card
@@ -1134,15 +1235,23 @@ class StudentWindow(QMainWindow):
         score_placeholder = f"{len(self._answers)}/{len(self._questions)}"
         test_name = getattr(self, "_test_name", "")
         backup_path = save_student_final_backup(name, group, score_placeholder, self._answers, test_name)
-        backup_filename = os.path.basename(backup_path) if backup_path else "Бэкап.log"
+        if backup_path:
+            filename = os.path.basename(backup_path)
+            parent_dir = os.path.basename(os.path.dirname(backup_path))
+            if "Рабочий стол" in backup_path or "Desktop" in backup_path:
+                loc_desc = f"Рабочий стол/{parent_dir}/{filename}"
+            else:
+                loc_desc = f"{parent_dir}/{filename}"
+        else:
+            loc_desc = "Резервная копия/Бэкап.log"
 
         sent = self.client.send_result(self._answers)
         if sent:
             self._result_score.setText("Расчёт...")
-            self._result_sub.setText(f"Результат отправлен на сервер.\nСоздана локальная резервная копия: резервная копия/{backup_filename}")
+            self._result_sub.setText(f"Результат отправлен на сервер.\nСоздана локальная резервная копия: {loc_desc}")
         else:
             self._result_score.setText("Не отправлено")
-            self._result_sub.setText(f"Соединение с сервером потеряно.\nЛокальная копия сохранена в: резервная копия/{backup_filename}")
+            self._result_sub.setText(f"Соединение с сервером потеряно.\nЛокальная копия сохранена в: {loc_desc}")
 
         # Deactivate kiosk
         self._kiosk_active = False

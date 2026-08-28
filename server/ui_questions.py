@@ -187,9 +187,15 @@ class QuestionsMixin:
         row1_layout.addStretch()
         btn_box.addLayout(row1_layout)
 
-        # Row 2: Bulk Import / Export operations
+        # Row 2: Save / Bulk Import / Export operations
         row2_layout = QHBoxLayout()
         row2_layout.setSpacing(12)
+
+        self.save_test_to_repo_btn = QPushButton("💾 Сохранить в репозиторий (.txt)")
+        self.save_test_to_repo_btn.setProperty("class", "successBtn")
+        self.save_test_to_repo_btn.setCursor(Qt.PointingHandCursor)
+        self.save_test_to_repo_btn.clicked.connect(self._manual_save_active_test_to_repo)
+        row2_layout.addWidget(self.save_test_to_repo_btn)
 
         self.import_q_from_file_btn = QPushButton("Импорт вопросов (.txt)")
         self.import_q_from_file_btn.setProperty("class", "primaryBtn")
@@ -197,12 +203,12 @@ class QuestionsMixin:
         row2_layout.addWidget(self.import_q_from_file_btn)
 
         self.import_q_from_repo_btn = QPushButton("Импорт из другого теста")
-        self.import_q_from_repo_btn.setProperty("class", "primaryBtn")
+        self.import_q_from_repo_btn.setProperty("class", "secondaryBtn")
         self.import_q_from_repo_btn.clicked.connect(self._import_questions_from_repo)
         row2_layout.addWidget(self.import_q_from_repo_btn)
 
-        self.export_test_btn = QPushButton("Экспортировать тест (.txt)")
-        self.export_test_btn.setProperty("class", "successBtn")
+        self.export_test_btn = QPushButton("Экспортировать файл (.txt)")
+        self.export_test_btn.setProperty("class", "secondaryBtn")
         self.export_test_btn.clicked.connect(self.export_test)
         row2_layout.addWidget(self.export_test_btn)
 
@@ -214,6 +220,24 @@ class QuestionsMixin:
         scroll_area.setWidget(scroll_content)
         main_layout.addWidget(scroll_area)
         self.stacked_widget.addWidget(self.questions_page)
+
+    def _manual_save_active_test_to_repo(self):
+        if not self._current_test_group or self._current_test_group == "Новый тест":
+            from PySide6.QtWidgets import QInputDialog
+            name, ok = QInputDialog.getText(self, "Сохранить тест", "Введите название теста / группы для сохранения:")
+            if ok and name.strip():
+                self._current_test_group = name.strip()
+                self.active_test_lbl.setText(f"Активный тест: {self._current_test_group}")
+                self.selected_test_sidebar_lbl.setText(f"Тест: {self._current_test_group}")
+            else:
+                return
+
+        self._save_active_test_to_repo()
+        if hasattr(self, "_update_dashboard_stats"):
+            self._update_dashboard_stats()
+        if hasattr(self, "_update_exams_page_test_view"):
+            self._update_exams_page_test_view()
+        self.show_toast(f"Тест '{self._current_test_group}' успешно сохранён в формате .txt", "success")
 
     def _on_test_title_changed(self, text):
         self.exam_server.test_title = text.strip() if text.strip() else "Итоговое тестирование"
@@ -411,12 +435,16 @@ class QuestionsMixin:
         if dlg.exec():
             group = dlg.selected_group
             if group:
-                import json
                 path = test_path(group)
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    new_questions = data.get("questions", [])
+                    if str(path).lower().endswith(".txt"):
+                        new_questions = list(parse_test_file(str(path)))
+                    else:
+                        import json
+                        with open(path, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        new_questions = data.get("questions", [])
+
                     start_idx = len(self.exam_server.questions)
                     for i, q in enumerate(new_questions):
                         q["number"] = start_idx + i + 1

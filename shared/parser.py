@@ -24,6 +24,7 @@ shared/parser.py — Нативный парсер TXT-файлов тестов
 import base64
 import os
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -108,19 +109,20 @@ def _finalize_question(question: Dict[str, Any]) -> Dict[str, Any]:
     return question
 
 
-def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
+def parse_test_file(filepath: str, allow_empty: bool = False) -> List[Dict[str, Any]]:
     """
     Парсит TXT-файл теста и возвращает упорядоченный список вопросов.
 
     Args:
         filepath: Абсолютный или относительный путь к .txt файлу теста.
+        allow_empty: Если True, пустой тест не вызывает ошибку, а возвращает пустой список.
 
     Returns:
         Список словарей-вопросов (см. описание модуля).
 
     Raises:
         FileNotFoundError: если файл теста не существует.
-        ValueError: если файл не содержит ни одного вопроса.
+        ValueError: если файл не содержит вопросов и allow_empty=False.
     """
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f"Файл теста не найден: {filepath}")
@@ -277,7 +279,7 @@ def parse_test_file(filepath: str) -> List[Dict[str, Any]]:
     if current is not None:
         questions.append(_finalize_question(current))
 
-    if not questions:
+    if not questions and not allow_empty:
         raise ValueError(f"Файл '{filepath}' не содержит ни одного вопроса.")
 
     return questions
@@ -514,3 +516,74 @@ def get_grade_details(score_str: str) -> tuple:
             return percent_str, "#dc2626"
     except Exception:
         return "—", "#78716c"
+
+
+def serialize_test_to_txt(title: str = "", section: str = "", questions: List[Dict[str, Any]] | None = None) -> str:
+    """
+    Сериализует тест (заголовок, раздел, список вопросов) в стандартный текстовый формат .txt.
+    """
+    lines: List[str] = []
+    if title:
+        lines.append(f"@title: {title.strip()}")
+    if section:
+        lines.append(f"@section: {section.strip()}")
+    if title or section:
+        lines.append("")
+
+    if not questions:
+        return "\n".join(lines)
+
+    for i, q in enumerate(questions, 1):
+        prefix_type = ""
+        if q.get('written'):
+            prefix_type = " (Письменный ответ)"
+        elif q.get('multiple'):
+            prefix_type = " (С множественным выбором)"
+        elif q.get('matching'):
+            prefix_type = " (Соответствие)"
+        elif q.get('ordering'):
+            prefix_type = " (Порядок)"
+        elif q.get('blanks'):
+            prefix_type = " (Пропуски)"
+
+        q_text = (q.get('text') or '').strip()
+        lines.append(f"?{prefix_type} {q_text}")
+
+        if q.get('image_data'):
+            lines.append(f"@image_base64: {q.get('image_data').strip()}")
+        elif q.get('image'):
+            lines.append(f"@image: {q.get('image').strip()}")
+
+        answers = q.get('answers', [])
+        if q.get('matching'):
+            for ans in answers:
+                k = (ans.get('key') or '').strip()
+                v = (ans.get('value') or '').strip()
+                txt = (ans.get('text') or '').strip()
+                if k and v and '=' not in txt:
+                    lines.append(f"+ {k} = {v}")
+                elif txt:
+                    lines.append(f"+ {txt}")
+        elif q.get('ordering') or q.get('blanks') or q.get('written'):
+            for ans in answers:
+                txt = (ans.get('text') or '').strip()
+                lines.append(f"+ {txt}")
+        else:
+            for ans in answers:
+                prefix = "+" if ans.get('correct', False) else "-"
+                txt = (ans.get('text') or '').strip()
+                lines.append(f"{prefix} {txt}")
+
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def save_test_to_txt(filepath: str | Path, title: str = "", section: str = "", questions: List[Dict[str, Any]] | None = None) -> Path:
+    """Сохраняет тест в .txt файл."""
+    p = Path(filepath)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    content = serialize_test_to_txt(title, section, questions or [])
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(content)
+    return p

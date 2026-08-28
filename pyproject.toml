@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "edutest-pro"
-version = "1.4.0"
+version = "1.4.7"
 description = "Offline LAN exam-testing system with proctoring, dynamic UI scaling, and signed auto-updates"
 readme = "README.md"
 license = { text = "MIT" }
@@ -28,6 +28,7 @@ dependencies = [
     "Pillow>=10.0,<12.0",
     "cryptography>=41,<46",
     "certifi>=2023.7.22",
+    "openpyxl>=3.1.0",
 ]
 
 [project.optional-dependencies]

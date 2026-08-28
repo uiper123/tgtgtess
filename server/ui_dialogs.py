@@ -1,6 +1,6 @@
 import os
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QDir, QModelIndex, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -8,17 +8,23 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QFileDialog,
+    QFileSystemModel,
     QFrame,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
+    QTreeView,
     QVBoxLayout,
     QWidget,
 )
@@ -1230,5 +1236,268 @@ class ConnectedClientsDialog(QDialog):
                 peer_item.setText(f"{peer_ip}:{peer_port}")
             except Exception:
                 peer_item.setText("Неизвестно")
+
+
+class DirectoryChooserDialog(QDialog):
+    """
+    Встроенный двухпанельный навигационный диалог выбора папки с быстрым доступом
+    и полноценным деревом каталогов.
+    """
+    def __init__(self, initial_path: str = "", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Выбор папки для хранения тестов")
+        self.resize(780, 520)
+        self.setMinimumSize(680, 440)
+        self.setStyleSheet(GLOBAL_QSS)
+
+        init_dir = initial_path if initial_path and os.path.exists(initial_path) else os.path.expanduser("~")
+        self.selected_path = os.path.abspath(init_dir)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        # Заголовок
+        title = QLabel("Выберите папку для хранения тестов (.txt)")
+        title.setStyleSheet("font-size: 16px; font-weight: 700; color: #1c1917;")
+        layout.addWidget(title)
+
+        # Строка текущего пути + кнопка «Вверх»
+        path_box = QHBoxLayout()
+        path_box.setSpacing(8)
+
+        lbl_cur = QLabel("Папка:")
+        lbl_cur.setStyleSheet("font-weight: 600; color: #57534e;")
+        path_box.addWidget(lbl_cur)
+
+        self.path_edit = QLineEdit(self.selected_path)
+        self.path_edit.setReadOnly(True)
+        self.path_edit.setStyleSheet(
+            "QLineEdit { padding: 8px 12px; font-size: 13px;"
+            " background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 8px; }"
+        )
+        path_box.addWidget(self.path_edit, 1)
+
+        up_btn = QPushButton("Вверх ⬆")
+        up_btn.setProperty("class", "secondaryBtn")
+        up_btn.setCursor(Qt.PointingHandCursor)
+        up_btn.clicked.connect(self._go_up)
+        path_box.addWidget(up_btn)
+        layout.addLayout(path_box)
+
+        # Сплиттер с навигационной панелью мест слева и деревом папок справа
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.setStyleSheet("QSplitter::handle { background-color: #e7e5e4; width: 1px; }")
+
+        # 1. Левая панель: Быстрый доступ
+        left_container = QWidget()
+        left_lay = QVBoxLayout(left_container)
+        left_lay.setContentsMargins(0, 0, 8, 0)
+        left_lay.setSpacing(6)
+
+        lbl_places = QLabel("Быстрый доступ")
+        lbl_places.setStyleSheet("font-size: 11px; font-weight: 700; color: #78716c; text-transform: uppercase;")
+        left_lay.addWidget(lbl_places)
+
+        self.places_list = QListWidget()
+        self.places_list.setStyleSheet(
+            "QListWidget {"
+            "  background-color: #f5f5f4;"
+            "  border: 1px solid #e7e5e4;"
+            "  border-radius: 8px;"
+            "  padding: 4px;"
+            "  outline: 0;"
+            "}"
+            "QListWidget::item {"
+            "  padding: 8px 10px;"
+            "  border-radius: 6px;"
+            "  color: #1c1917;"
+            "  font-weight: 500;"
+            "  font-size: 12.5px;"
+            "}"
+            "QListWidget::item:hover {"
+            "  background-color: #e7e5e4;"
+            "}"
+            "QListWidget::item:selected {"
+            "  background-color: #e0f2fe;"
+            "  color: #0369a1;"
+            "  font-weight: 600;"
+            "}"
+        )
+
+        try:
+            from .storage import default_tests_dir
+        except ImportError:
+            from storage import default_tests_dir
+
+        self.places = [
+            ("📁 Репозиторий тестов", str(default_tests_dir())),
+            ("🏠 Домашняя папка", os.path.expanduser("~")),
+            ("🖥️ Рабочий стол", os.path.expanduser("~/Desktop")),
+            ("📄 Документы", os.path.expanduser("~/Documents")),
+            ("📥 Загрузки", os.path.expanduser("~/Downloads")),
+            ("💾 Диск / Корень (/)", "/"),
+        ]
+
+        for label, p in self.places:
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, p)
+            self.places_list.addItem(item)
+
+        self.places_list.itemClicked.connect(self._on_place_clicked)
+        left_lay.addWidget(self.places_list)
+        splitter.addWidget(left_container)
+
+        # 2. Правая панель: Навигационное дерево папок
+        right_container = QWidget()
+        right_lay = QVBoxLayout(right_container)
+        right_lay.setContentsMargins(8, 0, 0, 0)
+        right_lay.setSpacing(6)
+
+        lbl_tree = QLabel("Дерево каталогов")
+        lbl_tree.setStyleSheet("font-size: 11px; font-weight: 700; color: #78716c; text-transform: uppercase;")
+        right_lay.addWidget(lbl_tree)
+
+        self.model = QFileSystemModel()
+        self.model.setRootPath(QDir.rootPath())
+        self.model.setFilter(QDir.Dirs | QDir.NoDotAndDotDot | QDir.Drives)
+
+        self.tree = QTreeView()
+        self.tree.setModel(self.model)
+        self.tree.setHeaderHidden(True)
+        self.tree.setColumnHidden(1, True)
+        self.tree.setColumnHidden(2, True)
+        self.tree.setColumnHidden(3, True)
+        self.tree.setAnimated(True)
+        self.tree.setSortingEnabled(True)
+        self.tree.sortByColumn(0, Qt.AscendingOrder)
+        self.tree.setStyleSheet(
+            "QTreeView {"
+            "  background-color: #ffffff;"
+            "  border: 1px solid #e7e5e4;"
+            "  border-radius: 8px;"
+            "  padding: 6px;"
+            "  font-size: 13px;"
+            "  outline: 0;"
+            "}"
+            "QTreeView::item {"
+            "  padding: 5px 6px;"
+            "  border-radius: 4px;"
+            "}"
+            "QTreeView::item:hover {"
+            "  background-color: #f5f5f4;"
+            "}"
+            "QTreeView::item:selected {"
+            "  background-color: #e0f2fe;"
+            "  color: #0369a1;"
+            "  font-weight: 600;"
+            "}"
+        )
+        self.tree.clicked.connect(self._on_tree_clicked)
+        self.tree.doubleClicked.connect(self._on_tree_double_clicked)
+        right_lay.addWidget(self.tree)
+        splitter.addWidget(right_container)
+
+        splitter.setSizes([220, 520])
+        layout.addWidget(splitter, 1)
+
+        # Нижняя панель действий
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+
+        new_folder_btn = QPushButton("+ Создать папку")
+        new_folder_btn.setProperty("class", "secondaryBtn")
+        new_folder_btn.setCursor(Qt.PointingHandCursor)
+        new_folder_btn.clicked.connect(self._create_folder)
+        btn_layout.addWidget(new_folder_btn)
+
+        btn_layout.addStretch()
+
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.setProperty("class", "secondaryBtn")
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+
+        select_btn = QPushButton("Выбрать эту папку")
+        select_btn.setProperty("class", "primaryBtn")
+        select_btn.setCursor(Qt.PointingHandCursor)
+        select_btn.clicked.connect(self._accept_folder)
+        btn_layout.addWidget(select_btn)
+
+        layout.addLayout(btn_layout)
+
+        # Выбираем и раскрываем начальный путь
+        QTimer.singleShot(100, lambda: self._select_and_expand_path(self.selected_path))
+
+    def _select_and_expand_path(self, target_path: str):
+        if not target_path or not os.path.exists(target_path):
+            return
+        abs_path = os.path.abspath(target_path)
+        self.selected_path = abs_path
+        self.path_edit.setText(abs_path)
+
+        idx = self.model.index(abs_path)
+        if idx.isValid():
+            parent = idx.parent()
+            while parent.isValid():
+                self.tree.expand(parent)
+                parent = parent.parent()
+            self.tree.expand(idx)
+            self.tree.setCurrentIndex(idx)
+            self.tree.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+        else:
+            # Если модель еще догружает каталоги асинхронно
+            def on_dir_loaded(loaded_path):
+                if abs_path.startswith(loaded_path):
+                    target_idx = self.model.index(abs_path)
+                    if target_idx.isValid():
+                        p = target_idx.parent()
+                        while p.isValid():
+                            self.tree.expand(p)
+                            p = p.parent()
+                        self.tree.expand(target_idx)
+                        self.tree.setCurrentIndex(target_idx)
+                        self.tree.scrollTo(target_idx, QAbstractItemView.PositionAtCenter)
+            self.model.directoryLoaded.connect(on_dir_loaded)
+
+    def _on_place_clicked(self, item: QListWidgetItem):
+        path = item.data(Qt.UserRole)
+        if path and os.path.exists(path):
+            self._select_and_expand_path(path)
+
+    def _on_tree_clicked(self, index: QModelIndex):
+        path = self.model.filePath(index)
+        if path and os.path.isdir(path):
+            self.selected_path = os.path.abspath(path)
+            self.path_edit.setText(self.selected_path)
+
+    def _on_tree_double_clicked(self, index: QModelIndex):
+        path = self.model.filePath(index)
+        if path and os.path.isdir(path):
+            self.selected_path = os.path.abspath(path)
+            self.path_edit.setText(self.selected_path)
+            self.tree.expand(index)
+
+    def _go_up(self):
+        parent_dir = os.path.dirname(self.selected_path)
+        if parent_dir and os.path.isdir(parent_dir) and parent_dir != self.selected_path:
+            self._select_and_expand_path(parent_dir)
+
+    def _create_folder(self):
+        folder_name, ok = QInputDialog.getText(self, "Новая папка", "Введите название новой папки:")
+        if ok and folder_name.strip():
+            new_path = os.path.join(self.selected_path, folder_name.strip())
+            try:
+                os.makedirs(new_path, exist_ok=True)
+                self._select_and_expand_path(new_path)
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Не удалось создать папку: {e}")
+
+    def _accept_folder(self):
+        if self.selected_path and os.path.isdir(self.selected_path):
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите существующую папку.")
 
 

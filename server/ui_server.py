@@ -395,6 +395,12 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
     @Slot(str, str, str)
     def _on_student_finished(self, name, group, score):
         self._update_exam_table_view()
+        if hasattr(self, '_update_results_table'):
+            self._update_results_table()
+        if hasattr(self, '_refresh_group_filter_list'):
+            self._refresh_group_filter_list()
+        if hasattr(self, 'show_toast'):
+            self.show_toast(f"Студент {name} ({group}) завершил тест: {score}", type="success")
 
     @Slot(str, str)
     def _on_student_disconnected(self, name, group):

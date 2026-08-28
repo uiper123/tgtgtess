@@ -137,7 +137,7 @@ class ResultsMixin:
         layout.addWidget(self.r_table)
 
         btn_row = QHBoxLayout()
-        export_btn = QPushButton("Экспортировать отфильтрованные в CSV")
+        export_btn = QPushButton("Экспортировать в Excel (.xlsx)")
         export_btn.setProperty("class", "successBtn")
         export_btn.setCursor(Qt.PointingHandCursor)
         export_btn.clicked.connect(self._export_manually)
@@ -267,24 +267,48 @@ class ResultsMixin:
             QMessageBox.warning(self, "Предупреждение", "Нет результатов для экспорта!")
             return
 
-        path, _ = self._get_save_file_name("Экспортировать отфильтрованные результаты", "results_filtered.csv", "CSV-файлы (*.csv)")
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        default_name = f"Результаты_{date_str}.xlsx"
+        path, _ = self._get_save_file_name(
+            "Экспортировать результаты в Excel",
+            default_name,
+            "Файлы Excel (*.xlsx);;CSV-файлы (*.csv)"
+        )
         if path:
-            if not path.lower().endswith('.csv'):
-                path += '.csv'
-            import csv
+            if not path.lower().endswith('.xlsx') and not path.lower().endswith('.csv'):
+                path += '.xlsx'
+
+            current_group_filter = self.r_group_filter.currentText() if hasattr(self, 'r_group_filter') else ""
+            if current_group_filter == "Все группы":
+                current_group_filter = ""
+
             try:
-                with open(path, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.DictWriter(f, fieldnames=['name', 'group', 'score', 'timestamp'])
-                    writer.writeheader()
-                    for r in self.filtered_results:
-                        writer.writerow({
-                            'name': r.get('name', ''),
-                            'group': r.get('group', ''),
-                            'score': r.get('score', ''),
-                            'timestamp': r.get('timestamp', '')
-                        })
-                QMessageBox.information(self, "Успешно", f"Отфильтрованные результаты успешно сохранены:\n{path}")
-            except IOError as exc:
+                if path.lower().endswith('.xlsx'):
+                    try:
+                        from .export_excel import export_results_to_xlsx
+                    except ImportError:
+                        from export_excel import export_results_to_xlsx
+
+                    export_results_to_xlsx(
+                        self.filtered_results,
+                        path,
+                        title="Ведомость результатов тестирования",
+                        group_name=current_group_filter,
+                    )
+                else:
+                    import csv
+                    with open(path, 'w', newline='', encoding='utf-8-sig') as f:
+                        writer = csv.DictWriter(f, fieldnames=['name', 'group', 'score', 'timestamp'])
+                        writer.writeheader()
+                        for r in self.filtered_results:
+                            writer.writerow({
+                                'name': r.get('name', ''),
+                                'group': r.get('group', ''),
+                                'score': r.get('score', ''),
+                                'timestamp': r.get('timestamp', '')
+                            })
+                QMessageBox.information(self, "Успешно", f"Результаты успешно экспортированы:\n{path}")
+            except Exception as exc:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать результаты: {exc}")
 
     def _import_student_log(self):

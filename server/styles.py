@@ -464,9 +464,88 @@ QDialog QPushButton {
     padding: 9px 18px;
     border: none;
     border-radius: 8px;
-    min-width: 90px;
+    min-width: 80px;
 }
 QDialog QPushButton:hover { background-color: #1d4ed8; }
+
+/* --- File Dialog & Views --- */
+QFileDialog {
+    background-color: #fafaf9;
+    color: #1c1917;
+}
+QFileDialog QLabel {
+    color: #44403c;
+    font-size: 12px;
+}
+QFileDialog QTreeView, QFileDialog QListView, QTreeView, QListView, QAbstractItemView {
+    background-color: #ffffff;
+    background: #ffffff;
+    color: #1c1917;
+    border: 1px solid #e7e5e4;
+    border-radius: 8px;
+    padding: 4px;
+    selection-background-color: #e0f2fe;
+    selection-color: #0369a1;
+    alternate-background-color: #fafaf9;
+    outline: 0;
+}
+QAbstractItemView::viewport,
+QTreeView::viewport,
+QListView::viewport,
+QTableView::viewport,
+QFileDialog QAbstractItemView::viewport,
+QFileDialog QTreeView::viewport,
+QFileDialog QListView::viewport {
+    background-color: #ffffff;
+    background: #ffffff;
+    color: #1c1917;
+}
+QFileDialog QWidget#qt_sidebar,
+QFileDialog QFrame#qt_sidebar,
+QFileDialog QListView#sidebar {
+    background-color: #f5f5f4;
+    color: #1c1917;
+    border-right: 1px solid #e7e5e4;
+}
+QTreeView::item, QListView::item {
+    color: #1c1917;
+    padding: 6px;
+    border-radius: 4px;
+    min-height: 24px;
+}
+QTreeView::item:hover, QListView::item:hover {
+    background-color: #f5f5f4;
+    color: #1c1917;
+}
+QTreeView::item:selected, QListView::item:selected {
+    background-color: #e0f2fe;
+    color: #0369a1;
+}
+QFileDialog QHeaderView::section {
+    background-color: #f5f5f4;
+    color: #57534e;
+    font-weight: 600;
+    font-size: 11px;
+    padding: 6px 8px;
+    border: none;
+    border-bottom: 1px solid #e7e5e4;
+}
+QFileDialog QToolButton {
+    background-color: #ffffff;
+    border: 1px solid #e7e5e4;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 2px;
+    color: #44403c;
+}
+QFileDialog QToolButton:hover {
+    background-color: #f5f5f4;
+    border-color: #d6d3d1;
+}
+QFileDialog QSplitter::handle {
+    background-color: #e7e5e4;
+    width: 2px;
+}
 
 QMessageBox {
     background-color: #ffffff;

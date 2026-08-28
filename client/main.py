@@ -9,11 +9,12 @@ import os
 import platform
 import struct
 import sys
+import tempfile
 from datetime import datetime
 from typing import Optional
 
-from PySide6.QtCore import QByteArray, QObject, Signal, Slot
-from PySide6.QtNetwork import QAbstractSocket, QNetworkProxy, QTcpSocket
+from PySide6.QtCore import QByteArray, QObject, QTimer, Signal, Slot
+from PySide6.QtNetwork import QAbstractSocket, QHostAddress, QNetworkInterface, QNetworkProxy, QTcpSocket, QUdpSocket
 from PySide6.QtWidgets import QApplication
 
 MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 МБ. До 1.3.7 было 500 МБ —
@@ -21,7 +22,7 @@ MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 МБ. До 1.3.7 было 500 МБ —
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from shared.protocol import pack_message
+from shared.protocol import DISCOVERY_BEACON_INTERVAL_MS, DISCOVERY_MAGIC, DISCOVERY_PORT, pack_message
 from shared.security import has_public_key, sha256_hex, verify_signature
 from shared.version import VERSION
 
@@ -33,6 +34,9 @@ def xor_encrypt(data: bytes, key: bytes = b'EduTestPro2025') -> bytes:
     for i, b in enumerate(data):
         out[i] = b ^ key[i % klen]
     return bytes(out)
+
+
+xor_decrypt = xor_encrypt
 
 
 def get_backup_dir() -> str:
@@ -71,25 +75,104 @@ def save_encrypted_backup(name: str, group: str, score: str, answers: dict, test
         pass  # Бэкап — не критичен
 
 
+def get_student_backup_dir() -> str:
+    """
+    Определяет наиболее надежную директорию для сохранения резервной копии на Рабочем столе.
+    Поддерживает:
+      - Windows (в т.ч. OneDrive, локализованный Рабочий стол, Public Desktop);
+      - Linux (XDG user-dirs, Desktop / Рабочий стол);
+      - Гостевой режим (Guest session / Kiosk) с каскадным fallback на доступные папки.
+    """
+    def _can_write(directory: str) -> bool:
+        if not directory:
+            return False
+        try:
+            os.makedirs(directory, exist_ok=True)
+            test_file = os.path.join(directory, f".probe_write_{os.getpid()}_{int(datetime.now().timestamp())}")
+            with open(test_file, 'wb') as f:
+                f.write(b'1')
+            try:
+                os.remove(test_file)
+            except OSError:
+                pass
+            return True
+        except Exception:
+            return False
+
+    candidates = []
+
+    # 1. Qt QStandardPaths (системное определение рабочего стола)
+    try:
+        from PySide6.QtCore import QStandardPaths
+        desktop = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DesktopLocation)
+        if desktop:
+            candidates.append(desktop)
+        docs = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
+        if docs:
+            candidates.append(docs)
+        home = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.HomeLocation)
+        if home:
+            candidates.append(home)
+    except Exception:
+        pass
+
+    # 2. Платформо-зависимые пути Рабочего стола
+    if platform.system() == 'Windows':
+        user_profile = os.environ.get('USERPROFILE', os.path.expanduser('~'))
+        candidates.extend([
+            os.path.join(user_profile, 'Desktop'),
+            os.path.join(user_profile, 'OneDrive', 'Desktop'),
+            os.path.join(user_profile, 'Рабочий стол'),
+            os.path.join(os.environ.get('PUBLIC', 'C:\\Users\\Public'), 'Desktop'),
+            os.path.join(user_profile, 'Documents'),
+            user_profile,
+        ])
+    else:
+        home_dir = os.path.expanduser('~')
+        candidates.extend([
+            os.path.join(home_dir, 'Рабочий стол'),
+            os.path.join(home_dir, 'Desktop'),
+            os.path.join(home_dir, 'Документы'),
+            os.path.join(home_dir, 'Documents'),
+            home_dir,
+        ])
+
+    # 3. Fallbacks для гостевых сессий
+    candidates.extend([
+        os.getcwd(),
+        tempfile.gettempdir(),
+    ])
+
+    for base_dir in candidates:
+        if not base_dir:
+            continue
+        # Пробуем создать подпапку "Резервная копия"
+        backup_folder = os.path.join(base_dir, "Резервная копия")
+        if _can_write(backup_folder):
+            return backup_folder
+        # Если подпапка не создается, пробуем сам каталог
+        if _can_write(base_dir):
+            return base_dir
+
+    fallback = os.path.join(tempfile.gettempdir(), "edutest_backup")
+    os.makedirs(fallback, exist_ok=True)
+    return fallback
+
+
 def save_student_final_backup(name: str, group: str, score: str, answers: dict, test_name: str = "") -> Optional[str]:
     """
-    Создает видимую папку 'резервная копия' в текущей директории запуска
+    Создает видимую папку 'Резервная копия' на Рабочем столе студента
     и экспортирует туда зашифрованный лог с ФИО студента и группой в названии.
+    Гарантированно работает в гостевом режиме и при ограниченных правах.
     """
     try:
         def sanitize(val: str) -> str:
-            return "".join(c for c in val if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+            return "".join(c for c in str(val) if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
 
-        safe_name = sanitize(name)
-        safe_group = sanitize(group)
-        if not safe_name:
-            safe_name = "Студент"
-        if not safe_group:
-            safe_group = "Группа"
+        safe_name = sanitize(name) or "Студент"
+        safe_group = sanitize(group) or "Группа"
 
-        # Папка 'резервная копия' в текущей папке запуска
-        backup_dir = os.path.join(os.getcwd(), "резервная копия")
-        os.makedirs(backup_dir, exist_ok=True)
+        backup_dir = get_student_backup_dir()
 
         data = {
             'name': name,
@@ -134,6 +217,7 @@ class StudentClient(QObject):
     update_received = Signal(str)            # version
     attempts_checked_signal = Signal(int, int) # attempts_left, max_attempts
     update_progress_signal = Signal(int, str) # percent, text_status
+    server_discovered = Signal(str, int, dict) # ip, port, server_info
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -159,6 +243,76 @@ class StudentClient(QObject):
         self._update_expected_sha256: Optional[str] = None
         self._update_signature: Optional[str] = None
         self._update_sig_algo: Optional[str] = None
+
+        # Инициализация подсистемы авто-обнаружения серверов в LAN
+        self._discovery_socket = QUdpSocket(self)
+        self._discovery_timer = QTimer(self)
+        self._discovery_timer.setInterval(DISCOVERY_BEACON_INTERVAL_MS)
+        self._discovery_timer.timeout.connect(self.scan_for_servers)
+        self._discovery_bound = False
+        self._setup_discovery()
+
+    def _setup_discovery(self):
+        if self._discovery_bound:
+            return
+        try:
+            flags = QUdpSocket.BindFlag.ShareAddress | QUdpSocket.BindFlag.ReuseAddressHint
+            if self._discovery_socket.bind(QHostAddress.AnyIPv4, DISCOVERY_PORT, flags):
+                self._discovery_socket.readyRead.connect(self._on_discovery_data)
+                self._discovery_bound = True
+        except Exception as e:
+            print(f"[ClientDiscovery] Ошибка bind UDP {DISCOVERY_PORT}: {e}")
+
+    def start_discovery(self):
+        """Запускает активный поиск серверов в сети и фоновый маяк."""
+        if not self._discovery_bound:
+            self._setup_discovery()
+        self.scan_for_servers()
+        if not self._discovery_timer.isActive():
+            self._discovery_timer.start()
+
+    def stop_discovery(self):
+        """Останавливает таймер периодического поиска серверов."""
+        if self._discovery_timer.isActive():
+            self._discovery_timer.stop()
+
+    def scan_for_servers(self):
+        """Отправляет широковещательный UDP-запрос discover_request в локальную сеть."""
+        req = {
+            "magic": DISCOVERY_MAGIC,
+            "type": "discover_request",
+            "client_version": VERSION,
+            "os": platform.system().lower()
+        }
+        raw = json.dumps(req, ensure_ascii=False).encode('utf-8')
+        ba = QByteArray(raw)
+
+        try:
+            self._discovery_socket.writeDatagram(ba, QHostAddress.Broadcast, DISCOVERY_PORT)
+            self._discovery_socket.writeDatagram(ba, QHostAddress.LocalHost, DISCOVERY_PORT)
+            for iface in QNetworkInterface.allInterfaces():
+                if (iface.flags() & QNetworkInterface.InterfaceFlag.IsUp) and not (iface.flags() & QNetworkInterface.InterfaceFlag.IsLoopBack):
+                    for entry in iface.addressEntries():
+                        bcast = entry.broadcast()
+                        if not bcast.isNull() and bcast != QHostAddress.Broadcast:
+                            self._discovery_socket.writeDatagram(ba, bcast, DISCOVERY_PORT)
+        except Exception:
+            pass
+
+    def _on_discovery_data(self):
+        while self._discovery_socket.hasPendingDatagrams():
+            datagram = self._discovery_socket.receiveDatagram()
+            raw_data = datagram.data().data()
+            try:
+                msg = json.loads(raw_data.decode('utf-8'))
+                if isinstance(msg, dict) and msg.get("magic") == DISCOVERY_MAGIC and msg.get("type") == "server_beacon":
+                    sender_ip = datagram.senderAddress().toString().removeprefix("::ffff:")
+                    if sender_ip in ("::1", "localhost", "0.0.0.0"):
+                        sender_ip = "127.0.0.1"
+                    port = msg.get("tcp_port", 9876)
+                    self.server_discovered.emit(sender_ip, port, msg)
+            except Exception:
+                pass
 
     def check_active_group(self, host: str, port: int):
         """Запрашивает с сервера активные группы без входа."""
@@ -218,13 +372,21 @@ class StudentClient(QObject):
         self._socket.connectToHost(host.strip(), port)
 
     def connect_to_server_idle(self, host: str, port: int):
+        # Если студент уже авторизован и проходит тест, запрещено сбрасывать сокет!
+        if bool(self._name) and bool(self._group):
+            return
+        if self._socket.state() == QAbstractSocket.ConnectedState:
+            peer_ip = self._socket.peerAddress().toString().removeprefix("::ffff:")
+            peer_port = self._socket.peerPort()
+            if (peer_ip == host.strip() or host.strip() in ("localhost", "127.0.0.1")) and (peer_port == port or peer_port == 0):
+                return
+
         self._name = ""
         self._group = ""
         self._pending_connect = True
         self._intentional_disconnect = False
         self._buffer.clear()
         self._socket.abort()
-        print(f"[DEBUG] Инициализация фонового дежурного подключения к {host}:{port}...")
         self._socket.connectToHost(host.strip(), port)
 
     @Slot()
@@ -869,7 +1031,10 @@ def main():
 
     client = StudentClient()
 
-    from ui_client import StudentWindow
+    try:
+        from .ui_client import StudentWindow
+    except ImportError:
+        from ui_client import StudentWindow
     window = StudentWindow(client)
     window.show()
 

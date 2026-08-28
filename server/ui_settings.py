@@ -4,10 +4,12 @@ from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -91,10 +93,10 @@ class SettingsMixin:
         self.disable_delete_confirm_cb.setChecked(self._get_disable_delete_confirm())
         s1_layout.addWidget(self.disable_delete_confirm_cb)
 
-        # Автоэкспорт в CSV
-        self.auto_export_csv_cb = QCheckBox("Автоматически экспортировать результаты в CSV-файл при остановке тестирования")
+        # Автоэкспорт в Excel (.xlsx)
+        self.auto_export_csv_cb = QCheckBox("Автоматически экспортировать результаты в Excel (.xlsx) при остановке тестирования")
         self.auto_export_csv_cb.setCursor(Qt.PointingHandCursor)
-        self.auto_export_csv_cb.setChecked(self._settings.value("auto_export_csv", True, type=bool))
+        self.auto_export_csv_cb.setChecked(self._settings.value("auto_export_xlsx", self._settings.value("auto_export_csv", True, type=bool), type=bool))
         s1_layout.addWidget(self.auto_export_csv_cb)
 
         # Всплывающие уведомления
@@ -104,6 +106,54 @@ class SettingsMixin:
         s1_layout.addWidget(self.show_notifications_cb)
 
         layout.addWidget(sect1_card)
+
+        # ----------------------------------------------------
+        # СЕКЦИЯ: Директория хранения и загрузки тестов
+        # ----------------------------------------------------
+        sect_dir_card = QFrame()
+        sect_dir_card.setProperty("class", "card")
+        sd_layout = QVBoxLayout(sect_dir_card)
+        sd_layout.setContentsMargins(20, 20, 20, 20)
+        sd_layout.setSpacing(12)
+
+        sd_title = QLabel("Директория хранения и загрузки тестов")
+        sd_title.setStyleSheet("font-size: 15px; font-weight: bold; color: #292524;")
+        sd_layout.addWidget(sd_title)
+
+        dir_row = QHBoxLayout()
+        dir_row.setSpacing(8)
+
+        try:
+            from .storage import tests_dir, default_tests_dir
+        except ImportError:
+            from storage import tests_dir, default_tests_dir
+
+        self.tests_dir_input = QLineEdit()
+        self.tests_dir_input.setText(str(tests_dir()))
+        self.tests_dir_input.setReadOnly(True)
+        self.tests_dir_input.setStyleSheet("padding: 8px 10px; font-size: 13px;")
+        dir_row.addWidget(self.tests_dir_input, 1)
+
+        self.browse_tests_dir_btn = QPushButton("Обзор...")
+        self.browse_tests_dir_btn.setProperty("class", "primaryBtn")
+        self.browse_tests_dir_btn.setCursor(Qt.PointingHandCursor)
+        self.browse_tests_dir_btn.clicked.connect(self._browse_tests_dir)
+        dir_row.addWidget(self.browse_tests_dir_btn)
+
+        self.open_tests_dir_btn = QPushButton("Открыть папку")
+        self.open_tests_dir_btn.setProperty("class", "secondaryBtn")
+        self.open_tests_dir_btn.setCursor(Qt.PointingHandCursor)
+        self.open_tests_dir_btn.clicked.connect(self._open_current_tests_dir)
+        dir_row.addWidget(self.open_tests_dir_btn)
+
+        self.reset_tests_dir_btn = QPushButton("По умолчанию")
+        self.reset_tests_dir_btn.setProperty("class", "secondaryBtn")
+        self.reset_tests_dir_btn.setCursor(Qt.PointingHandCursor)
+        self.reset_tests_dir_btn.clicked.connect(self._reset_tests_dir)
+        dir_row.addWidget(self.reset_tests_dir_btn)
+
+        sd_layout.addLayout(dir_row)
+        layout.addWidget(sect_dir_card)
 
         # ----------------------------------------------------
         # СЕКЦИЯ 2: Параметры запуска тестирования по умолчанию
@@ -315,6 +365,39 @@ class SettingsMixin:
         main_layout.addWidget(scroll_area)
         self.stacked_widget.addWidget(self.settings_page)
 
+    def _browse_tests_dir(self):
+        try:
+            from .ui_dialogs import DirectoryChooserDialog
+        except ImportError:
+            from ui_dialogs import DirectoryChooserDialog
+
+        current = self.tests_dir_input.text()
+        dlg = DirectoryChooserDialog(current, self)
+        if dlg.exec():
+            chosen = dlg.selected_path
+            if chosen and os.path.isdir(chosen):
+                self.tests_dir_input.setText(chosen)
+
+    def _open_current_tests_dir(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        path = self.tests_dir_input.text()
+        if path and os.path.exists(path):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
+        else:
+            try:
+                from .storage import tests_dir
+            except ImportError:
+                from storage import tests_dir
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(tests_dir())))
+
+    def _reset_tests_dir(self):
+        try:
+            from .storage import default_tests_dir
+        except ImportError:
+            from storage import default_tests_dir
+        self.tests_dir_input.setText(str(default_tests_dir()))
+
     def _save_settings(self):
         new_port = self.port_spin.value()
         disable_confirm = self.disable_delete_confirm_cb.isChecked()
@@ -341,8 +424,21 @@ class SettingsMixin:
 
         self._settings.setValue("tcp_port", new_port)
         self._settings.setValue("disable_delete_confirm", disable_confirm)
+        self._settings.setValue("auto_export_xlsx", auto_export)
         self._settings.setValue("auto_export_csv", auto_export)
         self._settings.setValue("show_notifications", show_notifications)
+
+        # Сохранение директории тестов
+        new_tests_dir = self.tests_dir_input.text().strip()
+        try:
+            from .storage import default_tests_dir, set_custom_tests_dir
+        except ImportError:
+            from storage import default_tests_dir, set_custom_tests_dir
+
+        if new_tests_dir == str(default_tests_dir()):
+            set_custom_tests_dir(None)
+        else:
+            set_custom_tests_dir(new_tests_dir)
 
         self._settings.setValue("default_duration", def_duration)
         self._settings.setValue("default_questions_limit", def_q_limit)
@@ -360,6 +456,12 @@ class SettingsMixin:
         self._settings.setValue("ui_scale", selected_scale)
 
         self._settings.sync()
+
+        # Обновляем таблицу тестов в репозитории и список тестов в экзаменах
+        if hasattr(self, "_update_dashboard_stats"):
+            self._update_dashboard_stats()
+        if hasattr(self, "_update_exams_page_test_view"):
+            self._update_exams_page_test_view()
 
         # Применяем новые параметры сразу к форме запуска тестов
         if hasattr(self, "_duration_spin"):
@@ -392,6 +494,7 @@ class SettingsMixin:
             self.disable_delete_confirm_cb.setChecked(False)
             self.auto_export_csv_cb.setChecked(True)
             self.show_notifications_cb.setChecked(True)
+            self._reset_tests_dir()
             self.def_duration_spin.setValue(60)
             self.def_q_limit_spin.setValue(10)
             self.def_attempts_spin.setValue(1)

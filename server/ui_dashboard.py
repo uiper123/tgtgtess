@@ -25,8 +25,9 @@ from shared.widgets import StyledComboBox
 from shared.parser import questions_to_network_payload
 
 try:
-    from .storage import test_path, tests_dir
+    from .storage import safe_test_filename, test_path, tests_dir
     from .ui_dialogs import (
+        DirectoryChooserDialog,
         DropZoneWidget,
         EditQuestionDialog,
         MonitoringDialog,
@@ -34,7 +35,7 @@ try:
         StudentAnswersDialog,
     )
 except ImportError:
-    from storage import test_path, tests_dir
+    from storage import safe_test_filename, test_path, tests_dir
 
 class DashboardMixin:
     def _build_dashboard_page(self):
@@ -75,6 +76,13 @@ class DashboardMixin:
         import_btn.setCursor(Qt.PointingHandCursor)
         import_btn.clicked.connect(self._import_test_txt_flow)
         header_lay.addWidget(import_btn)
+
+        open_folder_btn = QPushButton("Папка с тестами")
+        open_folder_btn.setProperty("class", "secondaryBtn")
+        open_folder_btn.setCursor(Qt.PointingHandCursor)
+        open_folder_btn.setToolTip("Открыть текущую папку с тестами в проводнике")
+        open_folder_btn.clicked.connect(self._open_tests_folder)
+        header_lay.addWidget(open_folder_btn)
 
         layout.addLayout(header_lay)
 
@@ -121,22 +129,24 @@ class DashboardMixin:
         layout.addWidget(filter_card)
 
         # Table of saved tests
-        self.tests_table = QTableWidget(0, 3)
-        self.tests_table.setHorizontalHeaderLabels(["Группа / Название", "Количество вопросов", "Статус"])
+        self.tests_table = QTableWidget(0, 4)
+        self.tests_table.setHorizontalHeaderLabels(["Группа / Название теста", "Вопросов", "Формат", "Статус"])
         self.tests_table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.tests_table.setColumnWidth(0, 450)
-        self.tests_table.setColumnWidth(1, 230)
-        self.tests_table.setColumnWidth(2, 150)
+        self.tests_table.setColumnWidth(0, 420)
+        self.tests_table.setColumnWidth(1, 140)
+        self.tests_table.setColumnWidth(2, 110)
+        self.tests_table.setColumnWidth(3, 140)
         self.tests_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tests_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tests_table.verticalHeader().setVisible(False)
         self.tests_table.setShowGrid(True)
         self.tests_table.setMinimumHeight(350)
+        self.tests_table.cellDoubleClicked.connect(lambda row, col: self._edit_test_from_repo())
         layout.addWidget(self.tests_table)
 
         # Action panel below the table
         act_lay = QHBoxLayout()
-        act_lay.setSpacing(12)
+        act_lay.setSpacing(10)
 
         self.start_exam_from_repo_btn = QPushButton("Запустить тестирование")
         self.start_exam_from_repo_btn.setProperty("class", "successBtn")
@@ -144,11 +154,17 @@ class DashboardMixin:
         self.start_exam_from_repo_btn.clicked.connect(self._start_exam_from_repo)
         act_lay.addWidget(self.start_exam_from_repo_btn)
 
-        self.edit_test_from_repo_btn = QPushButton("Редактировать тест")
+        self.edit_test_from_repo_btn = QPushButton("Редактировать в конструкторе")
         self.edit_test_from_repo_btn.setProperty("class", "primaryBtn")
         self.edit_test_from_repo_btn.setCursor(Qt.PointingHandCursor)
         self.edit_test_from_repo_btn.clicked.connect(self._edit_test_from_repo)
         act_lay.addWidget(self.edit_test_from_repo_btn)
+
+        self.open_in_editor_btn = QPushButton("Открыть в блокноте (.txt)")
+        self.open_in_editor_btn.setProperty("class", "secondaryBtn")
+        self.open_in_editor_btn.setCursor(Qt.PointingHandCursor)
+        self.open_in_editor_btn.clicked.connect(self._open_test_in_editor)
+        act_lay.addWidget(self.open_in_editor_btn)
 
         self.delete_test_from_repo_btn = QPushButton("Удалить тест")
         self.delete_test_from_repo_btn.setProperty("class", "dangerBtn")
@@ -165,16 +181,49 @@ class DashboardMixin:
 
     def _get_saved_tests(self):
         tests = []
-        for path in tests_dir().glob("*.json"):
+        d = tests_dir()
+
+        # 1. Сканируем TXT-файлы (основной формат хранения)
+        for path in sorted(d.glob("*.txt")):
+            try:
+                from shared.parser import parse_test_file
+                qs = parse_test_file(str(path), allow_empty=True)
+                tests.append({
+                    "group": path.stem,
+                    "title": getattr(qs, 'title', '') or path.stem,
+                    "section": getattr(qs, 'section', '') or "",
+                    "questions": list(qs),
+                    "path": str(path),
+                    "format": ".txt"
+                })
+            except Exception:
+                tests.append({
+                    "group": path.stem,
+                    "title": path.stem,
+                    "section": "",
+                    "questions": [],
+                    "path": str(path),
+                    "format": ".txt"
+                })
+
+        # 2. Сканируем JSON-файлы (для обратной совместимости)
+        for path in sorted(d.glob("*.json")):
+            if any(t["group"] == path.stem for t in tests):
+                continue
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     tests.append({
                         "group": data.get("group", path.stem),
-                        "questions": data.get("questions", [])
+                        "title": data.get("title", path.stem),
+                        "section": data.get("section", ""),
+                        "questions": data.get("questions", []),
+                        "path": str(path),
+                        "format": ".json"
                     })
             except Exception:
                 pass
+
         return tests
 
     def _update_dashboard_stats(self):
@@ -215,13 +264,18 @@ class DashboardMixin:
             q_count = len(t["questions"])
             self.tests_table.setItem(row, 1, QTableWidgetItem(str(q_count)))
 
+            fmt_item = QTableWidgetItem(t.get("format", ".txt"))
+            fmt_item.setTextAlignment(Qt.AlignCenter)
+            self.tests_table.setItem(row, 2, fmt_item)
+
             status = "Готов" if q_count > 0 else "Пустой"
             status_item = QTableWidgetItem(status)
+            status_item.setTextAlignment(Qt.AlignCenter)
             if q_count > 0:
                 status_item.setForeground(QColor("#16a34a"))
             else:
                 status_item.setForeground(QColor("#dc2626"))
-            self.tests_table.setItem(row, 2, status_item)
+            self.tests_table.setItem(row, 3, status_item)
 
     def _create_new_test_flow(self):
         from PySide6.QtWidgets import QInputDialog
@@ -231,7 +285,7 @@ class DashboardMixin:
             self._current_test_group = name
             self.exam_server._questions = []
             self.exam_server._network_payload = []
-            self.exam_server.test_title = "Итоговое тестирование"
+            self.exam_server.test_title = name
             self.exam_server.test_section = "Раздел: Основная часть"
             self._update_test_headers_inputs()
             self.active_test_lbl.setText(f"Активный тест: {name}")
@@ -240,10 +294,10 @@ class DashboardMixin:
             self._update_dashboard_stats()
             self._update_exams_page_test_view()
             self.switch_page("questions")
-            QMessageBox.information(self, "Успешно", f"Создан новый тест для группы '{name}'. Добавьте вопросы в открывшемся окне редактора!")
+            QMessageBox.information(self, "Успешно", f"Создан новый тест '{name}' (.txt). Добавьте вопросы в открывшемся окне редактора!")
 
     def _import_test_txt_flow(self):
-        path, _ = self._get_open_file_name("Импортировать тест", "", "Текстовые файлы (*.txt)")
+        path, _ = self._get_open_file_name("Импортировать тест", "", "Текстовые файлы (*.txt);;JSON файлы (*.json)")
         if path:
             try:
                 count = self.exam_server.load_test(path)
@@ -256,7 +310,7 @@ class DashboardMixin:
                 self._update_dashboard_stats()
                 self._update_exams_page_test_view()
 
-                QMessageBox.information(self, "Успешно", f"Тест успешно импортирован во 'Все тесты' под именем '{group_name}' ({count} вопросов).")
+                QMessageBox.information(self, "Успешно", f"Тест успешно импортирован под именем '{group_name}' ({count} вопросов в формате .txt).")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать файл: {e}")
 
@@ -278,6 +332,20 @@ class DashboardMixin:
         self._load_test_from_repo_by_group(group)
         self.switch_page("questions")
 
+    def _open_test_in_editor(self):
+        selected = self.tests_table.currentRow()
+        if selected < 0:
+            QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите тест из таблицы!")
+            return
+        group = self.tests_table.item(selected, 0).text()
+        path = test_path(group)
+        if os.path.exists(path):
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        else:
+            QMessageBox.warning(self, "Ошибка", f"Файл теста не найден: {path}")
+
     def _delete_test_from_repo(self):
         selected = self.tests_table.currentRow()
         if selected < 0:
@@ -288,7 +356,7 @@ class DashboardMixin:
         if not disable_confirm:
             reply = QMessageBox.question(
                 self, "Удаление теста",
-                f"Вы уверены, что хотите безвозвратно удалить тест для группы '{group}'?",
+                f"Вы уверены, что хотите безвозвратно удалить тест '{group}'?",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply != QMessageBox.Yes:
@@ -298,6 +366,10 @@ class DashboardMixin:
         if os.path.exists(path):
             try:
                 os.remove(path)
+                # Если остался старый json с тем же именем, удаляем и его
+                json_alt = path.with_suffix(".json")
+                if json_alt.exists():
+                    os.remove(json_alt)
                 self.exam_server.log_message.emit(f"Тест '{group}' удален из репозитория.")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось удалить файл: {e}")
@@ -320,34 +392,47 @@ class DashboardMixin:
         path = test_path(group)
         if os.path.exists(path):
             try:
-                with open(path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.exam_server._questions = data.get("questions", [])
+                if str(path).lower().endswith(".txt"):
+                    from shared.parser import parse_test_file, questions_to_network_payload
+                    qs = parse_test_file(str(path), allow_empty=True)
+                    self.exam_server._questions = list(qs)
                     self.exam_server._network_payload = questions_to_network_payload(self.exam_server._questions)
-                    self.exam_server.test_title = data.get("title", "Итоговое тестирование")
-                    self.exam_server.test_section = data.get("section", "Раздел: Основная часть")
-                    self._update_test_headers_inputs()
-                    self._current_test_group = group
-                    self.active_test_lbl.setText(f"Активный тест: {group}")
-                    self.selected_test_sidebar_lbl.setText(f"Тест: {group}")
-                    self.exam_server.log_message.emit(f"Загружен тест для группы '{group}' из репозитория.")
-                    self._update_exams_page_test_view()
+                    self.exam_server.test_title = getattr(qs, 'title', '') or group
+                    self.exam_server.test_section = getattr(qs, 'section', '') or "Раздел: Основная часть"
+                else:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        self.exam_server._questions = data.get("questions", [])
+                        self.exam_server._network_payload = questions_to_network_payload(self.exam_server._questions)
+                        self.exam_server.test_title = data.get("title", group)
+                        self.exam_server.test_section = data.get("section", "Раздел: Основная часть")
+
+                self._update_test_headers_inputs()
+                self._current_test_group = group
+                self.active_test_lbl.setText(f"Активный тест: {group}")
+                self.selected_test_sidebar_lbl.setText(f"Тест: {group}")
+                self.exam_server.log_message.emit(f"Загружен тест '{group}' (.txt) из репозитория.")
+                self._update_exams_page_test_view()
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось прочитать файл теста: {e}")
 
     def _save_active_test_to_repo(self):
-        if not self._current_test_group or self._current_test_group == "Новый тест" or not self.exam_server.questions:
-            return
-        path = test_path(self._current_test_group)
+        group_name = (self._current_test_group or "Новый тест").strip()
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump({
-                    "group": self._current_test_group,
-                    "title": self.exam_server.test_title,
-                    "section": self.exam_server.test_section,
-                    "questions": self.exam_server.questions
-                }, f, ensure_ascii=False, indent=2)
-            self.exam_server.log_message.emit(f"Тест для группы '{self._current_test_group}' автосохранен в репозиторий.")
+            from shared.parser import save_test_to_txt
+            try:
+                from .storage import safe_test_filename, tests_dir
+            except ImportError:
+                from storage import safe_test_filename, tests_dir
+
+            path = tests_dir() / safe_test_filename(group_name, ext=".txt")
+            save_test_to_txt(
+                path,
+                title=self.exam_server.test_title,
+                section=self.exam_server.test_section,
+                questions=self.exam_server.questions
+            )
+            self.exam_server.log_message.emit(f"Тест '{group_name}' сохранен в формате .txt.")
         except Exception as e:
             self.exam_server.log_message.emit(f"Ошибка автосохранения теста: {e}")
 
@@ -369,4 +454,14 @@ class DashboardMixin:
             self._update_dashboard_stats()
             self._update_exams_page_test_view()
             QMessageBox.information(self, "Успешно", f"Тест переименован в '{new_name}'")
+
+    def _open_tests_folder(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        try:
+            from .storage import tests_dir
+        except ImportError:
+            from storage import tests_dir
+        path = tests_dir()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
