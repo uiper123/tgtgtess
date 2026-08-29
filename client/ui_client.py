@@ -362,6 +362,9 @@ class StudentWindow(QMainWindow):
 
         self.client.connected_ok.connect(self._on_connected_ok)
         self.client.connection_error.connect(self._on_connection_error)
+        self.client.connection_lost.connect(self._on_connection_lost)
+        self.client.connection_restored.connect(self._on_connection_restored)
+        self.client.reconnect_attempt_signal.connect(self._on_reconnect_attempt)
         self.client.result_sent.connect(self._on_result_sent)
         self.client.active_group_found.connect(self._on_active_group_found)
         self.client.force_stopped.connect(self._on_force_stopped)
@@ -599,6 +602,17 @@ class StudentWindow(QMainWindow):
 
         pl.addWidget(top_bar)
 
+        # Network Status Banner (индикатор офлайн-режима и переподключения)
+        self._network_banner = QLabel()
+        self._network_banner.setAlignment(Qt.AlignCenter)
+        self._network_banner.setWordWrap(True)
+        self._network_banner.setStyleSheet(
+            "background-color: #fef3c7; color: #92400e; font-size: 13px; font-weight: 600; "
+            "padding: 10px 16px; border-bottom: 1px solid #fde68a;"
+        )
+        self._network_banner.hide()
+        pl.addWidget(self._network_banner)
+
         # ----------------------------------------------------
         # Main Title Section
         # ----------------------------------------------------
@@ -712,8 +726,15 @@ class StudentWindow(QMainWindow):
 
         cl.addSpacing(16)
 
+        self._retry_send_btn = QPushButton("Отправить результаты на сервер")
+        self._retry_send_btn.setProperty("class", "primaryBtn")
+        self._retry_send_btn.setCursor(Qt.PointingHandCursor)
+        self._retry_send_btn.clicked.connect(self._retry_send_result)
+        self._retry_send_btn.hide()
+        cl.addWidget(self._retry_send_btn)
+
         ok_btn = QPushButton("Вернуться на экран входа")
-        ok_btn.setProperty("class", "primaryBtn")
+        ok_btn.setProperty("class", "secondaryBtn")
         ok_btn.setCursor(Qt.PointingHandCursor)
         ok_btn.clicked.connect(self._reset_to_login)
         cl.addWidget(ok_btn)
@@ -1014,15 +1035,55 @@ class StudentWindow(QMainWindow):
             return
 
         # Если студент находится на странице результата (ждет подтверждения расчёта)
-        if self._stack.currentIndex() == 2 and self._result_score.text() == "Расчёт...":
-            self._result_score.setText("—")
-            self._result_sub.setText(f"Ответы сохранены в локальной копии.\nОшибка сервера: {msg}")
+        if self._stack.currentIndex() == 2 and self._result_score.text() in ("Расчёт...", "Ожидание связи..."):
             return
 
         self._connect_btn.setEnabled(True)
         self._connect_btn.setText("Подключиться к тестированию")
         self._login_error.setText(msg)
         self._login_error.show()
+
+    @Slot()
+    def _on_connection_lost(self):
+        if self._stack.currentIndex() == 1:
+            self._collect_current_answer()
+            if hasattr(self, "_network_banner"):
+                self._network_banner.setStyleSheet(
+                    "background-color: #fef3c7; color: #92400e; font-size: 13px; font-weight: 600; "
+                    "padding: 10px 16px; border-bottom: 1px solid #fde68a;"
+                )
+                self._network_banner.setText(
+                    "⚠️ Связь с сервером потеряна. Тестирование продолжается в автономном режиме (переподключение...)"
+                )
+                self._network_banner.show()
+
+    @Slot()
+    def _on_connection_restored(self):
+        if self._stack.currentIndex() == 1 and hasattr(self, "_network_banner"):
+            self._network_banner.setStyleSheet(
+                "background-color: #dcfce7; color: #166534; font-size: 13px; font-weight: 600; "
+                "padding: 10px 16px; border-bottom: 1px solid #bbf7d0;"
+            )
+            self._network_banner.setText("✅ Связь с сервером успешно восстановлена.")
+            QTimer.singleShot(3000, self._network_banner.hide)
+
+    @Slot(int)
+    def _on_reconnect_attempt(self, attempt: int):
+        if self._stack.currentIndex() == 1 and hasattr(self, "_network_banner") and self._network_banner.isVisible():
+            self._network_banner.setText(
+                f"⚠️ Связь с сервером потеряна. Тест продолжается офлайн (попытка переподключения #{attempt}...)"
+            )
+        elif self._stack.currentIndex() == 2 and hasattr(self, "_retry_send_btn") and self._retry_send_btn.isVisible():
+            self._result_sub.setText(
+                f"Связь с сервером временно недоступна.\n"
+                f"Идёт авто-переподключение для отправки ответов (попытка #{attempt})..."
+            )
+
+    def _retry_send_result(self):
+        self._result_score.setText("Отправка...")
+        self._result_score.setStyleSheet("font-size: 48px; font-weight: 700; color: #2563eb; border: none;")
+        self._result_sub.setText("Попытка отправки сохранённых результатов на сервер...")
+        self.client.send_result(self._answers)
 
     @Slot(str)
     def _on_result_sent(self, score):
@@ -1033,7 +1094,9 @@ class StudentWindow(QMainWindow):
             f"font-size: 56px; font-weight: 700; color: {color};"
             " border: none; letter-spacing: -2px;"
         )
-        self._result_sub.setText("Результат отправлен преподавателю")
+        self._result_sub.setText("Результат успешно отправлен преподавателю!")
+        if hasattr(self, "_retry_send_btn"):
+            self._retry_send_btn.hide()
 
     @Slot()
     def _on_force_stopped(self):
@@ -1479,10 +1542,24 @@ class StudentWindow(QMainWindow):
         sent = self.client.send_result(self._answers)
         if sent:
             self._result_score.setText("Расчёт...")
+            self._result_score.setStyleSheet(
+                "font-size: 48px; font-weight: 700; color: #1c1917; border: none; letter-spacing: -1px;"
+            )
             self._result_sub.setText(f"Результат отправлен на сервер.\nСоздана локальная резервная копия: {loc_desc}")
+            if hasattr(self, "_retry_send_btn"):
+                self._retry_send_btn.hide()
         else:
-            self._result_score.setText("Не отправлено")
-            self._result_sub.setText(f"Соединение с сервером потеряно.\nЛокальная копия сохранена в: {loc_desc}")
+            self._result_score.setText("Ожидание связи...")
+            self._result_score.setStyleSheet(
+                "font-size: 38px; font-weight: 700; color: #d97706; border: none; letter-spacing: -1px;"
+            )
+            self._result_sub.setText(
+                f"Связь с сервером временно недоступна.\n"
+                f"Ответы надёжно сохранены в резервной копии ({loc_desc}).\n"
+                f"Идёт авто-переподключение для отправки..."
+            )
+            if hasattr(self, "_retry_send_btn"):
+                self._retry_send_btn.show()
 
         # Deactivate kiosk
         self._kiosk_active = False

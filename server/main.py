@@ -565,6 +565,8 @@ class ExamServer(QObject):
 
         if action == 'connect':
             self._handle_connect(sock, packet)
+        elif action == 'reconnect':
+            self._handle_reconnect(sock, packet)
         elif action == 'result':
             self._handle_result(sock, packet)
         elif action == 'get_active_group':
@@ -575,6 +577,36 @@ class ExamServer(QObject):
             self._handle_cheat_warning(sock, packet)
         else:
             self.log_message.emit(f"Неизвестное действие: {action}")
+
+    def _handle_reconnect(self, sock: QTcpSocket, packet: dict):
+        """Обрабатывает повторное подключение студента после кратковременного обрыва связи."""
+        name = packet.get('name', '').strip()
+        group = packet.get('group', '').strip()
+        client_version = packet.get('version', '0.0.0')
+        client_os = packet.get('os', 'unknown')
+
+        student_key = (name, group)
+        if student_key in self._monitor_data:
+            student = self._monitor_data[student_key]
+            student.socket = sock
+            student.active = True
+            student.version = client_version
+            student.os = client_os
+            self._students[sock] = student
+
+            self.student_connected.emit(name, group)
+            self.log_message.emit(f"Связь восстановлена: {name} ({group})")
+
+            response = {
+                'status': 'reconnected',
+                'name': name,
+                'group': group,
+            }
+            sock.write(pack_message(response))
+            sock.flush()
+        else:
+            # Если запись в мониторинге не найдена, обрабатываем как первичное подключение
+            self._handle_connect(sock, packet)
 
     def _handle_cheat_warning(self, sock: QTcpSocket, packet: dict):
         """Обрабатывает пакет с предупреждением о нарушении правил прохождения теста."""
@@ -783,9 +815,15 @@ class ExamServer(QObject):
         student = self._students.get(sock)
         pkt_name = packet.get('name', '').strip()
         pkt_group = packet.get('group', '').strip()
+        student_key = (pkt_name, pkt_group)
 
         if student is None or not getattr(student, 'name', ''):
-            if pkt_name and pkt_group:
+            if student_key in self._monitor_data:
+                student = self._monitor_data[student_key]
+                student.socket = sock
+                student.active = True
+                self._students[sock] = student
+            elif pkt_name and pkt_group:
                 student = ConnectedStudent(sock, pkt_name, pkt_group)
                 self._students[sock] = student
             else:
@@ -821,9 +859,12 @@ class ExamServer(QObject):
         if group_key in self._active_exams:
             exam = self._active_exams[group_key]
             # Проверка времени (пункт 16 аудита)
-            # ⚠ ВАЖНО: используем exam_start_time (якорь первой попытки),
-            # а НЕ connect_time. connect_time сбрасывается при ре-коннекте.
-            anchor = student.exam_start_time or student.connect_time
+            monitor_student = self._monitor_data.get((name, group))
+            anchor = (
+                getattr(student, 'exam_start_time', None)
+                or (monitor_student and getattr(monitor_student, 'exam_start_time', None))
+                or student.connect_time
+            )
             elapsed = (datetime.now() - anchor).total_seconds()
             max_seconds = exam['duration'] * 60 + 60  # +60 сек буфер
             if elapsed > max_seconds:
@@ -831,7 +872,11 @@ class ExamServer(QObject):
                 sock.flush()
                 self.log_message.emit(f"Результат отклонён: время вышло для {name} ({group})")
                 return
-            questions_to_use = student.questions if getattr(student, 'questions', None) else exam['questions']
+            questions_to_use = (
+                getattr(student, 'questions', None)
+                or (monitor_student and getattr(monitor_student, 'questions', None))
+                or exam['questions']
+            )
             partial_multiple = exam.get('partial_multiple', True)
         else:
             sock.write(pack_message({'status': 'error', 'message': 'exam_not_active'}))

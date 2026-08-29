@@ -218,6 +218,9 @@ class StudentClient(QObject):
 
     connected_ok = Signal(list, int, str, str, str, int, int)  # questions, duration, title, section, test_name, remaining_seconds, cheat_warning_limit
     connection_error = Signal(str)           # message
+    connection_lost = Signal()               # emitted when connection is lost during test
+    connection_restored = Signal()           # emitted when connection is restored
+    reconnect_attempt_signal = Signal(int)   # attempt number
     result_sent = Signal(str)                # score calculated by server
     force_stopped = Signal()                 # force stopped by teacher
     log_message = Signal(str)
@@ -237,11 +240,19 @@ class StudentClient(QObject):
         self._socket.errorOccurred.connect(self._on_socket_error)
 
         self._buffer = QByteArray()
+        self._host = ''
+        self._port = 9876
         self._name = ''
         self._group = ''
         self._test_name = ''
         self._pending_connect = False
         self._intentional_disconnect = False
+        self._in_test = False
+        self._pending_results: Optional[dict] = None
+        self._reconnect_timer = QTimer(self)
+        self._reconnect_timer.setInterval(2500)
+        self._reconnect_timer.timeout.connect(self._on_reconnect_tick)
+        self._reconnect_attempts = 0
         self._temp_sock = None
         self._temp_buf = QByteArray()
         # Состояние чанковой загрузки обновлений
@@ -371,13 +382,19 @@ class StudentClient(QObject):
         self._temp_sock.connectToHost(host.strip(), port)
 
     def connect_to_server(self, host: str, port: int, name: str, group: str):
+        self._host = host.strip()
+        self._port = int(port)
         self._name = name.strip()
         self._group = group.strip()
         self._pending_connect = True
         self._intentional_disconnect = False
+        self._in_test = False
+        self._pending_results = None
+        self._reconnect_timer.stop()
+        self._reconnect_attempts = 0
         self._buffer.clear()
         self._socket.abort()  # Сброс предыдущего состояния подключения
-        self._socket.connectToHost(host.strip(), port)
+        self._socket.connectToHost(self._host, self._port)
 
     def connect_to_server_idle(self, host: str, port: int):
         # Если студент уже авторизован и проходит тест, запрещено сбрасывать сокет!
@@ -389,16 +406,42 @@ class StudentClient(QObject):
             if (peer_ip == host.strip() or host.strip() in ("localhost", "127.0.0.1")) and (peer_port == port or peer_port == 0):
                 return
 
+        self._host = host.strip()
+        self._port = int(port)
         self._name = ""
         self._group = ""
         self._pending_connect = True
         self._intentional_disconnect = False
         self._buffer.clear()
         self._socket.abort()
-        self._socket.connectToHost(host.strip(), port)
+        self._socket.connectToHost(self._host, self._port)
 
     @Slot()
     def _on_socket_connected(self):
+        self._reconnect_timer.stop()
+
+        # Если сокет переподключился во время активного теста или для отправки результатов
+        if self._in_test or self._pending_results is not None:
+            self._reconnect_attempts = 0
+            self.connection_restored.emit()
+            self.log_message.emit("Связь с сервером успешно восстановлена.")
+
+            if self._pending_results is not None:
+                self.log_message.emit("Отправка отложенных результатов тестирования...")
+                self._send_result_packet(self._pending_results)
+            else:
+                # Уведомляем сервер о продолжении тестирования
+                packet = {
+                    'action': 'reconnect',
+                    'name': self._name,
+                    'group': self._group,
+                    'version': VERSION,
+                    'os': platform.system().lower()
+                }
+                self._socket.write(pack_message(packet))
+                self._socket.flush()
+            return
+
         if self._pending_connect:
             self._pending_connect = False
             packet = {
@@ -446,6 +489,11 @@ class StudentClient(QObject):
 
         status = packet.get('status')
         if status == 'success':
+            self._in_test = True
+            self._pending_results = None
+            self._reconnect_timer.stop()
+            self._reconnect_attempts = 0
+
             questions = packet.get('questions', [])
             duration = packet.get('duration', 60)
             title = packet.get('title', 'Итоговое тестирование')
@@ -460,9 +508,16 @@ class StudentClient(QObject):
             cheat_warning_limit = packet.get('cheat_warning_limit', 3)
             self.connected_ok.emit(questions, duration, title, section, test_name, int(remaining), int(cheat_warning_limit))
         elif status == 'result_confirmed':
+            self._in_test = False
+            self._pending_results = None
+            self._reconnect_timer.stop()
             score = packet.get('score', '0/0')
             self.result_sent.emit(score)
+        elif status == 'reconnected':
+            self.log_message.emit("Сервер подтвердил восстановление сессии тестирования.")
         elif status == 'force_stopped':
+            self._in_test = False
+            self._reconnect_timer.stop()
             self.force_stopped.emit()
         elif status == 'update_available':
             self._apply_update(packet)
@@ -527,15 +582,55 @@ class StudentClient(QObject):
             else:
                 self.connection_error.emit(f'Ошибка сервера: {msg}')
 
+    def _start_reconnect_timer(self):
+        if not self._intentional_disconnect and (self._in_test or self._pending_results is not None):
+            if not self._reconnect_timer.isActive():
+                self._reconnect_timer.start(2500)
+
+    @Slot()
+    def _on_reconnect_tick(self):
+        if self._intentional_disconnect or not (self._in_test or self._pending_results is not None):
+            self._reconnect_timer.stop()
+            return
+
+        if self._socket.state() == QAbstractSocket.ConnectedState:
+            self._reconnect_timer.stop()
+            return
+
+        if self._socket.state() != QAbstractSocket.UnconnectedState:
+            self._socket.abort()
+
+        self._reconnect_attempts += 1
+        self.reconnect_attempt_signal.emit(self._reconnect_attempts)
+        self.log_message.emit(
+            f"Попытка авто-переподключения #{self._reconnect_attempts} к {self._host}:{self._port}..."
+        )
+        self._socket.connectToHost(self._host, self._port)
+
     @Slot()
     def _on_socket_disconnected(self):
-        if not self._intentional_disconnect:
-            if not self._name and not self._group:
-                return
-            self.connection_error.emit('Соединение с сервером потеряно')
+        if self._intentional_disconnect:
+            return
+
+        if self._in_test or self._pending_results is not None:
+            self.log_message.emit("Связь с сервером потеряна. Тест продолжается офлайн.")
+            self.connection_lost.emit()
+            self._start_reconnect_timer()
+            return
+
+        if not self._name and not self._group:
+            return
+        self.connection_error.emit('Соединение с сервером потеряно')
 
     @Slot(QAbstractSocket.SocketError)
     def _on_socket_error(self, error):
+        if self._intentional_disconnect:
+            return
+
+        if self._in_test or self._pending_results is not None:
+            self._start_reconnect_timer()
+            return
+
         if not self._name and not self._group:
             return
         err_str = self._socket.errorString()
@@ -545,26 +640,38 @@ class StudentClient(QObject):
             f'1. Убедитесь, что IP-адрес сервера и порт введены правильно.\n'
             f'2. Убедитесь, что преподаватель запустил тестирование на сервере.\n'
             f'3. Проверьте, что компьютер студента и компьютер преподавателя находятся в одной сети.\n'
-            f'4. Убедитесь, что брандмауэр на компьютере преподавателя не блокирует порт {self._socket.peerPort() if self._socket.peerPort() > 0 else 9876}.'
+            f'4. Убедитесь, что брандмауэр на компьютере преподавателя не блокирует порт {self._port if self._port > 0 else 9876}.'
         )
 
     def send_result(self, answers: dict) -> bool:
-        """Отправляет ответы на сервер для точного расчёта."""
+        """Отправляет ответы на сервер для точного расчёта или сохраняет для отправки при переподключении."""
+        self._in_test = False
+        self._pending_results = answers
+
+        score_placeholder = f"{len(answers)}"
+        save_encrypted_backup(self._name, self._group, score_placeholder, answers, self._test_name)
+
+        if self._socket.state() == QAbstractSocket.ConnectedState:
+            return self._send_result_packet(answers)
+        else:
+            self.log_message.emit(
+                "Нет связи с сервером в момент завершения теста. Ответы сохранены в очереди переподключения."
+            )
+            self._start_reconnect_timer()
+            return False
+
+    def _send_result_packet(self, answers: dict) -> bool:
         packet = {
             'action': 'result',
             'name': self._name,
             'group': self._group,
             'answers': answers,
         }
-        sent = False
         if self._socket.state() == QAbstractSocket.ConnectedState:
             bytes_written = self._socket.write(pack_message(packet))
             self._socket.flush()
-            sent = bytes_written != -1
-
-        score_placeholder = f"{len(answers)}"
-        save_encrypted_backup(self._name, self._group, score_placeholder, answers, self._test_name)
-        return sent
+            return bytes_written != -1
+        return False
 
     def send_cheat_warning(self, description: str) -> bool:
         """Отправляет на сервер информацию о нарушении режима киоска (попытка списать)."""
@@ -587,6 +694,9 @@ class StudentClient(QObject):
 
     def disconnect(self):
         self._intentional_disconnect = True
+        self._in_test = False
+        self._pending_results = None
+        self._reconnect_timer.stop()
         if self._socket.state() == QAbstractSocket.ConnectedState:
             self._socket.disconnectFromHost()
 
