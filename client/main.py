@@ -14,7 +14,14 @@ from datetime import datetime
 from typing import Optional
 
 from PySide6.QtCore import QByteArray, QObject, QTimer, Signal, Slot
-from PySide6.QtNetwork import QAbstractSocket, QHostAddress, QNetworkInterface, QNetworkProxy, QTcpSocket, QUdpSocket
+from PySide6.QtNetwork import (
+    QAbstractSocket,
+    QHostAddress,
+    QNetworkInterface,
+    QNetworkProxy,
+    QTcpSocket,
+    QUdpSocket,
+)
 from PySide6.QtWidgets import QApplication
 
 MAX_MESSAGE_SIZE = 64 * 1024 * 1024  # 64 МБ. До 1.3.7 было 500 МБ —

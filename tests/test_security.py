@@ -85,6 +85,7 @@ def test_sha256_hex():
 
 def test_key_generation_and_saving(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(security, "_shared_public_key_path", lambda: tmp_path / "shared_pub.pem")
 
     # Временно перенаправляем пути поиска публичного ключа только на локальный путь
     local_pub_path = tmp_path / ".edutest" / security.PUBLIC_KEY_FILENAME

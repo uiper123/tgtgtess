@@ -118,6 +118,10 @@ def get_public_key_pem() -> Optional[str]:
     return None
 
 
+def _shared_public_key_path() -> Path:
+    return Path(__file__).resolve().parent / PUBLIC_KEY_FILENAME
+
+
 def generate_and_save_keys() -> tuple[Path, Path]:
     """
     Генерирует новую пару Ed25519 ключей.
@@ -157,7 +161,7 @@ def generate_and_save_keys() -> tuple[Path, Path]:
     pub_path_home.write_bytes(pub_pem)
 
     # Пытаемся записать в shared/update_public_key.pem (если есть права)
-    pub_path_shared = Path(__file__).resolve().parent / PUBLIC_KEY_FILENAME
+    pub_path_shared = _shared_public_key_path()
     try:
         if pub_path_shared.parent.is_dir():
             pub_path_shared.write_bytes(pub_pem)

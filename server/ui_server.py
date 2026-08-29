@@ -25,6 +25,7 @@ from shared.version import VERSION
 
 try:
     from .styles import GLOBAL_QSS
+    from .ui_about import AboutMixin
     from .ui_dashboard import DashboardMixin
     from .ui_dialogs import (
         DropZoneWidget,
@@ -38,17 +39,16 @@ try:
     from .ui_questions import QuestionsMixin
     from .ui_results import ResultsMixin
     from .ui_settings import SettingsMixin
-    from .ui_about import AboutMixin
     from .ui_toasts import ToastNotification
 except ImportError:
     from styles import GLOBAL_QSS
+    from ui_about import AboutMixin
     from ui_dashboard import DashboardMixin
     from ui_exams import ExamsMixin
     from ui_logs import LogsMixin
     from ui_questions import QuestionsMixin
     from ui_results import ResultsMixin
     from ui_settings import SettingsMixin
-    from ui_about import AboutMixin
     from ui_toasts import ToastNotification
 
 # ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
         msg_box.setIcon(QMessageBox.Information)
 
         btn_update = msg_box.addButton("Обновиться", QMessageBox.AcceptRole)
-        btn_cancel = msg_box.addButton("Позже", QMessageBox.RejectRole)
+        msg_box.addButton("Позже", QMessageBox.RejectRole)
 
         msg_box.exec()
 

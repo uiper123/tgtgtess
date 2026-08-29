@@ -11,13 +11,11 @@ from PySide6.QtGui import QCloseEvent, QKeyEvent, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QRadioButton,
@@ -27,11 +25,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shared.widgets import StyledComboBox
-
 from shared.parser import get_grade_details
-from shared.version import VERSION
 from shared.styles import inject_icon_paths
+from shared.version import VERSION
+from shared.widgets import StyledComboBox
 
 try:
     from .styles import CLIENT_QSS
@@ -1058,12 +1055,12 @@ class StudentWindow(QMainWindow):
         self.setWindowFlags(
             Qt.Window | Qt.CustomizeWindowHint | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
         )
-        
+
         from PySide6.QtWidgets import QApplication
         screen = QApplication.primaryScreen()
         if screen:
             self.setGeometry(screen.geometry())
-            
+
         self.showFullScreen()
         # Включаем прокторинг с задержкой в 1.5 секунды, когда переход на полный экран полностью завершен
         QTimer.singleShot(1500, self._enable_protection)
@@ -1125,7 +1122,7 @@ class StudentWindow(QMainWindow):
         q_text_str = q.get('text', '')
         if q.get('blanks'):
             q_text_str = q_text_str.replace('{blank}', '________')
-            
+
         q_text = QLabel(q_text_str)
         q_text.setWordWrap(True)
         q_text.setProperty("class", "qText")
@@ -1238,11 +1235,11 @@ class StudentWindow(QMainWindow):
             grid = QGridLayout()
             grid.setContentsMargins(52, 0, 0, 0)
             grid.setSpacing(12)
-            
+
             keys = q.get('keys', [])
             shuffled_options = q.get('answers', [])
-            combo_options = ["-- Выберите --"] + shuffled_options
-            
+            combo_options = ["-- Выберите --", *shuffled_options]
+
             prev_answers_map = {}
             for pa in previous_answers:
                 if '=' in pa:
@@ -1252,30 +1249,30 @@ class StudentWindow(QMainWindow):
             for i, key_text in enumerate(keys):
                 key_lbl = QLabel(key_text)
                 key_lbl.setStyleSheet("font-size: 14px; font-weight: 500; color: #44403c; border: none; background: transparent;")
-                
+
                 combo = StyledComboBox()
                 combo.addItems(combo_options)
                 combo.setMinimumWidth(240)
                 combo.setCursor(Qt.PointingHandCursor)
-                
+
                 saved_val = prev_answers_map.get(key_text)
                 if saved_val and saved_val in combo_options:
                     combo.setCurrentText(saved_val)
                 else:
                     combo.setCurrentIndex(0)
-                
+
                 combo.currentTextChanged.connect(self._on_answer_changed)
-                
+
                 grid.addWidget(key_lbl, i, 0)
                 grid.addWidget(combo, i, 1)
                 self._answer_widgets.append((key_text, combo))
-                
+
             grid_container = QWidget()
             grid_container.setLayout(grid)
             # No stylesheet needed, QWidget is transparent by default.
             card_layout.addWidget(grid_container)
         elif q.get('ordering'):
-            from PySide6.QtWidgets import QListWidget, QAbstractItemView, QListWidgetItem
+            from PySide6.QtWidgets import QAbstractItemView, QListWidget, QListWidgetItem
             list_widget = QListWidget()
             list_widget.setDragDropMode(QAbstractItemView.InternalMove)
             list_widget.setCursor(Qt.PointingHandCursor)
@@ -1288,20 +1285,20 @@ class StudentWindow(QMainWindow):
                 "QListWidget::drop-indicator { height: 4px; background: #8b5cf6; border-radius: 2px; margin-top: 1px; margin-bottom: 1px; }"
             )
             list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            
+
             answers_to_show = previous_answers if previous_answers else q.get('answers', [])
             for ans_text in answers_to_show:
                 item = QListWidgetItem(ans_text)
                 # Отключаем сброс НА сам элемент, чтобы работало только МЕЖДУ элементами
                 item.setFlags(item.flags() & ~Qt.ItemIsDropEnabled)
                 list_widget.addItem(item)
-                
+
             list_widget.model().rowsMoved.connect(self._on_answer_changed)
-            
+
             item_count = len(answers_to_show)
             # Увеличили padding и spacing, пересчитываем высоту с запасом под индикатор сброса
             list_widget.setFixedHeight(item_count * 60 + 20)
-            
+
             card_layout.addWidget(list_widget)
             self._answer_widgets.append(list_widget)
         elif q.get('blanks'):
@@ -1309,15 +1306,15 @@ class StudentWindow(QMainWindow):
             form = QFormLayout()
             form.setContentsMargins(52, 0, 0, 0)
             form.setSpacing(12)
-            
+
             blanks_count = q.get('text', '').count('{blank}')
             options = q.get('answers', [])
-            
+
             for i in range(blanks_count):
                 saved_val = previous_answers[i] if i < len(previous_answers) else ""
                 if options:
                     inp = StyledComboBox()
-                    inp.addItems(["-- Выберите --"] + options)
+                    inp.addItems(["-- Выберите --", *options])
                     if saved_val in options:
                         inp.setCurrentText(saved_val)
                     inp.currentTextChanged.connect(self._on_answer_changed)
@@ -1330,12 +1327,12 @@ class StudentWindow(QMainWindow):
                         "QLineEdit:focus { border: 1px solid #2563eb; }"
                     )
                     inp.textChanged.connect(self._on_answer_changed)
-                
+
                 lbl = QLabel(f"Пропуск {i+1}:")
                 lbl.setStyleSheet("font-size: 14px; font-weight: 500; color: #44403c; border: none; background: transparent;")
                 form.addRow(lbl, inp)
                 self._answer_widgets.append(inp)
-                
+
             form_container = QWidget()
             form_container.setLayout(form)
             card_layout.addWidget(form_container)

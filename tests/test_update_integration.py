@@ -491,8 +491,9 @@ def test_server_check_for_updates(monkeypatch):
     """
     Проверяет, что check_for_updates правильно парсит ответ от GitHub API.
     """
-    from server.main import ExamServer
     import urllib.request
+
+    from server.main import ExamServer
 
     class MockResponse:
         def __init__(self, data_bytes):

@@ -22,9 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shared.widgets import StyledComboBox
-
 from shared.parser import get_grade_details, parse_test_file
+from shared.widgets import StyledComboBox
 
 try:
     from .ui_dialogs import (

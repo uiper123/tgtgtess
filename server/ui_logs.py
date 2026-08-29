@@ -1,6 +1,5 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -12,7 +11,6 @@ from PySide6.QtWidgets import (
 )
 
 from shared.widgets import StyledComboBox
-
 
 # Severity buckets used by the log filter. Matches the keyword colour rules
 # in ui_server._append_log so the two stay in sync.

@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 
 from shared.parser import (
+    calculate_score,
     compare_written_answer,
     parse_test_file,
     questions_to_network_payload,
-    calculate_score,
 )
 
 # ---------------------------------------------------------------------------

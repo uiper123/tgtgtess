@@ -20,9 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shared.widgets import StyledComboBox
-
 from shared.parser import questions_to_network_payload
+from shared.widgets import StyledComboBox
 
 try:
     from .storage import safe_test_filename, test_path, tests_dir
@@ -463,11 +462,11 @@ class DashboardMixin:
 
     def _choose_tests_folder_flow(self):
         try:
-            from .ui_dialogs import DirectoryChooserDialog
             from .storage import set_custom_tests_dir, tests_dir
+            from .ui_dialogs import DirectoryChooserDialog
         except ImportError:
-            from ui_dialogs import DirectoryChooserDialog
             from storage import set_custom_tests_dir, tests_dir
+            from ui_dialogs import DirectoryChooserDialog
 
         current = str(tests_dir())
         dlg = DirectoryChooserDialog(current, self)

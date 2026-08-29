@@ -5,7 +5,6 @@ server/main.py — Точка входа сервера преподавател
 TCP-сервер работает через QTcpServer, принимая JSON-пакеты от студентов.
 """
 
-import csv
 import json
 import os
 import random
@@ -292,7 +291,7 @@ class ExamServer(QObject):
                 self.log_message.emit("⚠️ Приватный ключ подписи не найден. Автоматическая генерация новой пары ключей...")
                 from shared.security import generate_and_save_keys
                 priv_path, pub_path = generate_and_save_keys()
-                self.log_message.emit(f"✅ Успешно сгенерирована новая пара ключей.")
+                self.log_message.emit("✅ Успешно сгенерирована новая пара ключей.")
                 self.log_message.emit(f"   Приватный: {priv_path}")
                 self.log_message.emit(f"   Публичный: {pub_path}")
         except Exception as e:
@@ -896,12 +895,12 @@ class ExamServer(QObject):
             except RuntimeError:
                 # Окно закрывается, объект уже уничтожен
                 pass
-                
+
             student.active = False
             # Обновляем в мониторинге
             if (student.name, student.group) in self._monitor_data:
                 self._monitor_data[(student.name, student.group)].active = False
-                
+
         try:
             sock.deleteLater()
         except RuntimeError:
@@ -989,9 +988,9 @@ class ExamServer(QObject):
         Возвращает (update_data, error_message).
         """
         import json
-        import urllib.request
         import ssl
         import urllib.error
+        import urllib.request
         url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
         req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
 
@@ -1047,9 +1046,9 @@ class ExamServer(QObject):
 
     def download_asset(self, url: str, dest_path: str, progress_callback=None):
         """Скачивает файл по ссылке с поддержкой User-Agent и оповещением прогресса."""
-        import urllib.request
         import ssl
         import urllib.error
+        import urllib.request
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
         req = urllib.request.Request(url, headers={'User-Agent': 'EduTest-Server'})
 
@@ -1289,7 +1288,7 @@ class ExamServer(QObject):
             try:
                 from shared.security import generate_and_save_keys
                 priv_path, pub_path = generate_and_save_keys()
-                self.log_message.emit(f"✅ Успешно сгенерирована новая пара ключей.")
+                self.log_message.emit("✅ Успешно сгенерирована новая пара ключей.")
                 self.log_message.emit(f"   Приватный: {priv_path}")
                 self.log_message.emit(f"   Публичный: {pub_path}")
             except Exception as e:

@@ -124,9 +124,9 @@ class SettingsMixin:
         dir_row.setSpacing(8)
 
         try:
-            from .storage import tests_dir, default_tests_dir
+            from .storage import default_tests_dir, tests_dir
         except ImportError:
-            from storage import tests_dir, default_tests_dir
+            from storage import default_tests_dir, tests_dir
 
         self.tests_dir_input = QLineEdit()
         self.tests_dir_input.setText(str(tests_dir()))
@@ -367,11 +367,11 @@ class SettingsMixin:
 
     def _browse_tests_dir(self):
         try:
-            from .ui_dialogs import DirectoryChooserDialog
             from .storage import set_custom_tests_dir
+            from .ui_dialogs import DirectoryChooserDialog
         except ImportError:
-            from ui_dialogs import DirectoryChooserDialog
             from storage import set_custom_tests_dir
+            from ui_dialogs import DirectoryChooserDialog
 
         current = self.tests_dir_input.text()
         dlg = DirectoryChooserDialog(current, self)

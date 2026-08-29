@@ -16,9 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shared.widgets import StyledComboBox
-
 from shared.parser import parse_test_file, questions_to_network_payload
+from shared.widgets import StyledComboBox
 
 try:
     from .storage import test_path, tests_dir

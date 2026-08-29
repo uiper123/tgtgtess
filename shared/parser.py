@@ -171,7 +171,7 @@ def parse_test_file(filepath: str, allow_empty: bool = False) -> List[Dict[str, 
 
             # Ищем опциональный номер, опциональный маркер и текст на той же строке
             match = re.match(r'^(\d+)?\s*(?:\(([^)]+)\))?\s*(.*)$', rest, re.IGNORECASE)
-            
+
             is_multiple = False
             is_written = False
             is_matching = False
@@ -179,11 +179,11 @@ def parse_test_file(filepath: str, allow_empty: bool = False) -> List[Dict[str, 
             is_blanks = False
             text_part = ""
             q_number = len(questions) + 1
-            
+
             if match:
                 if match.group(1):
                     q_number = int(match.group(1))
-                
+
                 marker = match.group(2)
                 if marker:
                     marker = marker.lower()
@@ -197,7 +197,7 @@ def parse_test_file(filepath: str, allow_empty: bool = False) -> List[Dict[str, 
                         is_ordering = True
                     elif "пропуск" in marker:
                         is_blanks = True
-                        
+
                 if match.group(3):
                     text_part = match.group(3).strip()
             else:
@@ -306,7 +306,7 @@ def questions_to_network_payload(questions: List[Dict[str, Any]], shuffle_answer
             # Для соответствия отправляем keys и answers (значения)
             keys = [a.get('key', '') for a in q['answers']]
             answers = [a.get('value', '') for a in q['answers']]
-            
+
             # Всегда перемешиваем варианты ответов (дистракторы), чтобы не показывать правильные пары сразу
             answers = list(answers)
             random.shuffle(answers)
@@ -347,7 +347,7 @@ def questions_to_network_payload(questions: List[Dict[str, Any]], shuffle_answer
         }
         if is_matching:
             item['keys'] = keys
-            
+
         payload.append(item)
     return payload
 
@@ -397,7 +397,7 @@ def calculate_score(
             total_pairs = len(q['answers'])
             if total_pairs == 0:
                 continue
-            
+
             correct_map = {a.get('key', '').strip().lower(): a.get('value', '').strip().lower() for a in q['answers']}
             for sel_str in selected:
                 if '=' in sel_str:
@@ -406,7 +406,7 @@ def calculate_score(
                     s_val = parts[1].strip().lower()
                     if s_key in correct_map and correct_map[s_key] == s_val:
                         correct_pairs += 1
-            
+
             if partial_multiple:
                 score += correct_pairs / total_pairs
             else:
@@ -421,12 +421,12 @@ def calculate_score(
             total_items = len(correct_order)
             if total_items == 0:
                 continue
-            
+
             correct_positions = 0
             for i, sel_str in enumerate(selected):
                 if i < total_items and sel_str.strip() == correct_order[i]:
                     correct_positions += 1
-            
+
             if partial_multiple:
                 score += correct_positions / total_items
             else:
@@ -442,7 +442,7 @@ def calculate_score(
             total_blanks = len(blanks_matches)
             if total_blanks == 0:
                 continue
-            
+
             correct_count = 0
             for i, sel_str in enumerate(selected):
                 if i < total_blanks:
@@ -450,7 +450,7 @@ def calculate_score(
                     acceptable_answers = [ans.strip() for ans in blanks_matches[i].split('|')]
                     if any(compare_written_answer(sel_str, acc) for acc in acceptable_answers):
                         correct_count += 1
-                    
+
             if partial_multiple:
                 score += correct_count / total_blanks
             else:

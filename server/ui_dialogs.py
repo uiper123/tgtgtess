@@ -5,7 +5,6 @@ from PySide6.QtGui import QColor, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QDialog,
     QFileDialog,
     QFileSystemModel,
@@ -187,7 +186,7 @@ class StudentAnswersDialog(QDialog):
                 if q.get('written'):
                     sel_lbl = QLabel(f"Ответ студента: {student_ans[0] if student_ans else '[нет ответа]'}")
                 elif q.get('matching'):
-                    sel_lbl = QLabel(f"Сопоставлено:\n" + "\n".join(f"• {pa}" for pa in student_ans) if student_ans else "Сопоставлено: [нет ответа]")
+                    sel_lbl = QLabel("Сопоставлено:\n" + "\n".join(f"• {pa}" for pa in student_ans) if student_ans else "Сопоставлено: [нет ответа]")
                 else:
                     sel_lbl = QLabel(f"Выбрано: {', '.join(student_ans) if student_ans else '[нет ответа]'}")
                 sel_lbl.setWordWrap(True)
@@ -200,7 +199,7 @@ class StudentAnswersDialog(QDialog):
                     cor_lbl = QLabel(f"Правильные варианты: {', '.join(correct_answers)}")
                 elif q.get('matching'):
                     correct_pairs_list = [f"• {a.get('key')} = {a.get('value')}" for a in q.get('answers', [])]
-                    cor_lbl = QLabel(f"Правильные пары соответствия:\n" + "\n".join(correct_pairs_list))
+                    cor_lbl = QLabel("Правильные пары соответствия:\n" + "\n".join(correct_pairs_list))
                 else:
                     cor_lbl = QLabel(f"Правильный ответ: {', '.join(correct_answers)}")
                 cor_lbl.setWordWrap(True)
@@ -367,7 +366,7 @@ class EditQuestionDialog(QDialog):
         is_matching = (index == 3)
         is_ordering = (index == 4)
         is_blanks = (index == 5)
-        
+
         hints = {
             0: "💡 Одиночный выбор: укажите несколько вариантов ответов и отметьте галочкой один правильный.",
             1: "💡 Множественный выбор: укажите несколько вариантов ответов и отметьте галочками все правильные.",
@@ -377,7 +376,7 @@ class EditQuestionDialog(QDialog):
             5: "💡 Пропуски: выделите пропуски скобками (например: Язык [Python]...). Для нескольких верных вариантов используйте |: [Python|Пайтон]. Если добавить варианты ниже, студент будет выбирать из них. Иначе — ввод вручную."
         }
         self.type_hint_lbl.setText(hints.get(index, ""))
-        
+
         if is_written:
             self.ans_title_lbl.setText("Правильные варианты ответа (студент должен ввести любой из них):")
             self.add_ans_btn.setText("Добавить правильный вариант")
@@ -527,7 +526,7 @@ class EditQuestionDialog(QDialog):
         if not answers_list and not is_blanks:
             QMessageBox.warning(self, "Предупреждение", "Добавьте хотя бы один вариант ответа!")
             return
-            
+
         if is_blanks:
             import re
             if not re.search(r'\[(.*?)\]', text):
@@ -875,7 +874,6 @@ class UpdateProgressDialog(QDialog):
         from PySide6.QtWidgets import (
             QFrame,
             QHBoxLayout,
-            QLabel,
             QProgressBar,
             QPushButton,
             QScrollArea,
@@ -1153,7 +1151,6 @@ class ConnectedClientsDialog(QDialog):
             QAbstractItemView,
             QHBoxLayout,
             QHeaderView,
-            QLabel,
             QPushButton,
             QTableWidget,
             QVBoxLayout,

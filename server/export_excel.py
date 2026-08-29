@@ -6,7 +6,6 @@ server/export_excel.py — Экспорт результатов тестиро�
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
@@ -186,7 +185,7 @@ def export_results_to_xlsx(
 
         pct = parse_score_percent(score_str)
         total_percents.append(pct)
-        grade_num, grade_desc = calculate_grade_5(pct, g5=g5, g4=g4, g3=g3)
+        grade_num, _grade_desc = calculate_grade_5(pct, g5=g5, g4=g4, g3=g3)
         grade_counts[grade_num] += 1
 
         row_fill = zebra_fill if idx % 2 == 0 else white_fill
