@@ -593,39 +593,23 @@ class SettingsMixin:
             upd_dir = self.exam_server.get_updates_dir()
             success_count = 0
 
-            # Автоматически фильтруем нужные файлы на основе ОС сервера и клиентов
+            # Автоматически фильтруем нужные файлы на основе ОС сервера и подключенных клиентов
             import platform
+
+            from shared.system import filter_release_assets, get_update_files_map
+
             server_os = platform.system().lower()
+            connected_oses = {
+                s.os.lower()
+                for s in self.exam_server._students.values()
+                if hasattr(s, "os") and s.os
+            }
 
-            connected_oses = set()
-            for s in self.exam_server._students.values():
-                if hasattr(s, 'os') and s.os:
-                    connected_oses.add(s.os.lower())
-
-            filtered_assets = []
-            for asset in assets:
-                name = asset.get("name", "").lower()
-                is_server = 'server' in name
-                is_student = 'student' in name or 'client' in name
-                is_windows = name.endswith('.exe')
-                is_linux = not is_windows
-
-                if is_server:
-                    if server_os == 'windows' and not is_windows:
-                        continue
-                    if server_os == 'linux' and not is_linux:
-                        continue
-
-                if is_student:
-                    if connected_oses:
-                        if 'windows' in connected_oses and not is_windows:
-                            if 'linux' not in connected_oses:
-                                continue
-                        if 'linux' in connected_oses and not is_linux:
-                            if 'windows' not in connected_oses:
-                                continue
-
-                filtered_assets.append(asset)
+            filtered_assets = filter_release_assets(
+                assets,
+                server_os=server_os,
+                connected_client_oses=connected_oses,
+            )
 
             # Шаг 1: Скачивание файлов сервера и клиента с GitHub
             total_assets = len(filtered_assets)
@@ -662,15 +646,8 @@ class SettingsMixin:
             if students:
                 from main import _version_tuple
 
-                # Находим файлы обновлений для каждой ОС
-                update_files = {}
-                if os.path.exists(upd_dir):
-                    for f in os.listdir(upd_dir):
-                        path = os.path.join(upd_dir, f)
-                        if f.lower().endswith('.exe'):
-                            update_files['windows'] = path
-                        elif 'student' in f.lower():
-                            update_files['linux'] = path
+                # Находим проверенные файлы клиентских обновлений для каждой ОС
+                update_files = get_update_files_map(upd_dir)
 
                 version_tag = self._latest_update_data.get("tag_name", "").lstrip("v")
 

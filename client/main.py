@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from shared.protocol import DISCOVERY_BEACON_INTERVAL_MS, DISCOVERY_MAGIC, DISCOVERY_PORT, pack_message
 from shared.security import has_public_key, sha256_hex, verify_signature
+from shared.system import get_current_executable_path, run_updater_script
 from shared.version import VERSION
 
 
@@ -472,7 +473,7 @@ class StudentClient(QObject):
             # Перепроверяем .new по sidecar-метаданным — даже если файл
             # уже был проверен при загрузке, между этим и сейчас он мог
             # быть повреждён (упал процесс, обрыв сети, ручное вмеша
-            expected_new = os.path.abspath(sys.argv[0]) + ".new"
+            expected_new = get_current_executable_path() + ".new"
             if not os.path.exists(expected_new):
                 self.log_message.emit(
                     "⚠️ Получен файл обновления, но он не существует. "
@@ -620,7 +621,7 @@ class StudentClient(QObject):
             return False
 
         try:
-            current_exe = os.path.abspath(sys.argv[0])
+            current_exe = get_current_executable_path()
             update_file = current_exe + ".new"
             target_dir = os.path.dirname(update_file) or "."
 
@@ -720,15 +721,11 @@ class StudentClient(QObject):
     def _run_updater(self):
         """Запускает скрипт замены и перезагружает приложение.
 
-        Скрипт создаётся в системной temp-директории (а не в CWD —
-        иначе при запуске exe из меню Пуск с CWD=C:\\Windows\\System32
-        мы бы пытались писать в системную папку). Пути экранируются
-        кавычками, чтобы корректно работать с 'Program Files' и
-        прочими директориями с пробелами.
+        Скрипт создаётся в системной temp-директории и отделяется от родительского процесса.
         """
         import subprocess
         try:
-            current_exe = os.path.abspath(sys.argv[0])
+            current_exe = get_current_executable_path()
             update_file = current_exe + ".new"
 
             # Если запущен скрипт .py, мы не заменяем его бинарным файлом.
@@ -739,10 +736,7 @@ class StudentClient(QObject):
                         os.remove(update_file)
                 except Exception:
                     pass
-                if platform.system() == 'Windows':
-                    subprocess.Popen([sys.executable, current_exe])
-                else:
-                    subprocess.Popen([sys.executable, current_exe])
+                subprocess.Popen([sys.executable, current_exe])
                 QApplication.quit()
                 return
 
@@ -750,44 +744,12 @@ class StudentClient(QObject):
                 self.log_message.emit("Ошибка: файл обновления .new не найден.")
                 return
 
-            import tempfile
-            tmp_dir = tempfile.gettempdir()
-
-            if platform.system() == 'Windows':
-                # Скрипт пишется в %TEMP%, а не в CWD — иначе exe, запущенный
-                # из меню Пуск (CWD = C:\Windows\System32), пытался бы писать
-                # в системную папку. Все пути экранируются кавычками, чтобы
-                # корректно обрабатывать "Program Files" и т.п.
-                fd, updater_script = tempfile.mkstemp(suffix='.bat', prefix='edutest_update_', dir=tmp_dir)
-                os.close(fd)
-                with open(updater_script, 'w', encoding='utf-8') as f:
-                    f.write('@echo off\n')
-                    f.write('timeout /t 2 /nobreak > nul\n')
-                    f.write(f'del "{current_exe}"\n')
-                    f.write(f'move "{update_file}" "{current_exe}"\n')
-                    f.write(f'start "" "{current_exe}"\n')
-                    f.write('del "%~f0"\n')
-                # cmd /c вместо shell=True — безопаснее работает с пробелами в путях.
-                subprocess.Popen(
-                    ['cmd.exe', '/c', updater_script],
-                    shell=False,
-                    creationflags=getattr(subprocess, 'DETACHED_PROCESS', 0),
-                )
+            success = run_updater_script(current_exe, update_file)
+            if success:
+                self.update_received.emit(VERSION)
+                QApplication.quit()
             else:
-                fd, updater_script = tempfile.mkstemp(suffix='.sh', prefix='edutest_update_', dir=tmp_dir)
-                os.close(fd)
-                with open(updater_script, 'w', encoding='utf-8') as f:
-                    f.write('#!/bin/bash\n')
-                    f.write('sleep 2\n')
-                    f.write(f'mv "{update_file}" "{current_exe}"\n')
-                    f.write(f'chmod +x "{current_exe}"\n')
-                    f.write(f'"{current_exe}" &\n')
-                    f.write('rm "$0"\n')
-                os.chmod(updater_script, 0o755)
-                subprocess.Popen(['/bin/bash', updater_script])
-
-            self.update_received.emit(VERSION)
-            QApplication.quit()
+                self.log_message.emit("Ошибка: не удалось запустить скрипт обновления.")
         except Exception as e:
             self.log_message.emit(f"Ошибка при перезапуске обновления: {e}")
 
@@ -800,7 +762,7 @@ class StudentClient(QObject):
         """Начало чанковой загрузки обновления — создаём пустой файл .new."""
         self._update_total_chunks = packet.get('total_chunks', 0)
         self._update_received_chunks = 0
-        self._update_file_path = os.path.abspath(sys.argv[0]) + ".new"
+        self._update_file_path = get_current_executable_path() + ".new"
         target_dir = os.path.dirname(self._update_file_path) or "."
 
         # Проверки прав и места — тот же набор, что и в _save_update_file.

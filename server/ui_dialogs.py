@@ -1075,73 +1075,65 @@ class UpdateProgressDialog(QDialog):
 
     def apply_full_upgrade(self):
         import os
-        import platform
         import shutil
         import subprocess
         import sys
 
-        from PySide6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication, QMessageBox
+
+        from shared.system import (
+            get_current_executable_path,
+            get_server_update_file,
+            run_updater_script,
+        )
 
         # Рассылка перезагрузки клиентам
         self.exam_server.send_reboot_to_all_clients()
 
         # Перезагрузка сервера
-        current_exe = os.path.abspath(sys.argv[0])
+        current_exe = get_current_executable_path()
         update_file = current_exe + ".new"
 
         # Если запущен скрипт .py, мы не заменяем его бинарным файлом.
         # Просто перезапускаем текущий .py с помощью sys.executable.
-        if current_exe.endswith('.py'):
-            if platform.system() == 'Windows':
-                subprocess.Popen([sys.executable, current_exe])
-            else:
-                subprocess.Popen([sys.executable, current_exe])
+        if current_exe.endswith(".py"):
+            subprocess.Popen([sys.executable, current_exe])
             QApplication.quit()
             return
 
         # Для скомпилированного бинарника: ищем скачанный с GitHub файл сервера в updates/
         upd_dir = self.exam_server.get_updates_dir()
-        if os.path.exists(upd_dir):
-            server_os = platform.system().lower()
-            for f in os.listdir(upd_dir):
-                name_lower = f.lower()
-                if 'server' in name_lower:
-                    if server_os == 'windows' and not name_lower.endswith('.exe'):
-                        continue
-                    if server_os == 'linux' and name_lower.endswith('.exe'):
-                        continue
-
-                    src_path = os.path.join(upd_dir, f)
-                    try:
-                        shutil.copy2(src_path, update_file)
-                        break
-                    except Exception as e:
-                        print(f"Ошибка при копировании файла обновления сервера: {e}")
+        server_binary = get_server_update_file(upd_dir)
+        if server_binary and os.path.exists(server_binary):
+            try:
+                shutil.copy2(server_binary, update_file)
+            except Exception as e:
+                self.exam_server.log_message.emit(
+                    f"Ошибка при копировании файла обновления сервера: {e}"
+                )
+                QMessageBox.critical(
+                    self,
+                    "Ошибка обновления",
+                    f"Не удалось подготовить файл обновления:\n{e}",
+                )
+                return
 
         if os.path.exists(update_file):
-            if platform.system() == 'Windows':
-                updater_script = "update.bat"
-                with open(updater_script, 'w') as f:
-                    f.write('@echo off\n')
-                    f.write('timeout /t 2 /nobreak > nul\n')
-                    f.write(f'del "{current_exe}"\n')
-                    f.write(f'move "{update_file}" "{current_exe}"\n')
-                    f.write(f'start "" "{current_exe}"\n')
-                    f.write('del "%~f0"\n')
-                subprocess.Popen([updater_script], shell=True)
+            success = run_updater_script(current_exe, update_file)
+            if success:
+                QApplication.quit()
             else:
-                updater_script = "update.sh"
-                with open(updater_script, 'w') as f:
-                    f.write('#!/bin/bash\n')
-                    f.write('sleep 2\n')
-                    f.write(f'mv "{update_file}" "{current_exe}"\n')
-                    f.write(f'chmod +x "{current_exe}"\n')
-                    f.write(f'"{current_exe}" &\n')
-                    f.write('rm "$0"\n')
-                os.chmod(updater_script, 0o755)
-                subprocess.Popen(["/bin/bash", updater_script])
-
-        QApplication.quit()
+                QMessageBox.critical(
+                    self,
+                    "Ошибка обновления",
+                    "Не удалось запустить скрипт обновления.",
+                )
+        else:
+            QMessageBox.warning(
+                self,
+                "Файл не найден",
+                "Файл обновления сервера не найден в директории updates/.",
+            )
 
 
 class ConnectedClientsDialog(QDialog):

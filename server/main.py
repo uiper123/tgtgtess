@@ -1319,26 +1319,20 @@ class ExamServer(QObject):
         if not os.path.exists(upd_dir):
             return
 
-        # Находим файлы обновлений для каждой ОС
-        update_files = {}  # os_name -> file_path
-        for f in os.listdir(upd_dir):
-            path = os.path.join(upd_dir, f)
-            if f.lower().endswith('.exe'):
-                update_files['windows'] = path
-            elif 'student' in f.lower():
-                update_files['linux'] = path
+        from shared.system import get_update_files_map
 
+        update_files = get_update_files_map(upd_dir)
         if not update_files:
             return
 
         count = 0
         for sock, student in self._students.items():
-            client_os = getattr(student, 'os', 'windows')
+            client_os = getattr(student, "os", "windows")
             upd_file = update_files.get(client_os)
             if not upd_file:
                 continue
 
-            client_ver = _version_tuple(getattr(student, 'version', '0.0.0'))
+            client_ver = _version_tuple(getattr(student, "version", "0.0.0"))
             sent = self.send_update_to_socket(
                 sock=sock,
                 upd_file=upd_file,
@@ -1360,22 +1354,17 @@ class ExamServer(QObject):
             return updates
 
         import base64
-        for f in os.listdir(upd_dir):
-            path = os.path.join(upd_dir, f)
-            if f.lower().endswith('.exe'):
-                try:
-                    with open(path, 'rb') as rb:
-                        updates['windows'] = base64.b64encode(rb.read()).decode()
-                        updates['windows_name'] = f
-                except Exception:
-                    pass
-            elif 'student' in f.lower():
-                try:
-                    with open(path, 'rb') as rb:
-                        updates['linux'] = base64.b64encode(rb.read()).decode()
-                        updates['linux_name'] = f
-                except Exception:
-                    pass
+
+        from shared.system import get_update_files_map
+
+        update_files = get_update_files_map(upd_dir)
+        for os_name, path in update_files.items():
+            try:
+                with open(path, "rb") as rb:
+                    updates[os_name] = base64.b64encode(rb.read()).decode()
+                    updates[f"{os_name}_name"] = os.path.basename(path)
+            except Exception:
+                pass
         return updates
 
     def send_reboot_to_all_clients(self):
