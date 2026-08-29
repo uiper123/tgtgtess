@@ -87,36 +87,86 @@ def filter_release_assets(
     return filtered
 
 
-def get_update_files_map(upd_dir: str) -> dict[str, str]:
+def extract_version_tuple(val: str) -> tuple[int, ...]:
+    """
+    Извлекает кортеж чисел версии из строки или имени файла (например, 'v1.4.10' -> (1, 4, 10)).
+    """
+    import re
+    match = re.search(r'v?(\d+(?:\.\d+)+)', str(val))
+    if match:
+        parts = [int(p) for p in match.group(1).split('.')]
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts)
+    return (0, 0, 0)
+
+
+def get_update_files_map(upd_dir: str, version_tag: Optional[str] = None) -> dict[str, str]:
     """
     Сканирует папку updates/ и возвращает словарь путей к клиентским обновлениям:
     {'windows': path_to_student_exe, 'linux': path_to_student_linux}.
     Гарантированно исключает файлы сервера и setup-инсталляторы.
+    Выбирает файлы максимальной версии или соответствующие version_tag.
     """
-    update_files: dict[str, str] = {}
     if not os.path.exists(upd_dir):
-        return update_files
+        return {}
+
+    target_ver = extract_version_tuple(version_tag) if version_tag else None
+
+    win_candidates = []
+    linux_candidates = []
 
     for f in os.listdir(upd_dir):
         name_lower = f.lower()
-        path = os.path.join(upd_dir, f)
+        full_path = os.path.join(upd_dir, f)
+        if not os.path.isfile(full_path):
+            continue
 
         # Пропускаем серверные файлы и инсталляторы
         if "server" in name_lower or "setup" in name_lower:
             continue
 
         if "student" in name_lower or "client" in name_lower:
+            ver = extract_version_tuple(f)
+            mtime = os.path.getmtime(full_path)
             if name_lower.endswith(".exe"):
-                update_files["windows"] = path
+                win_candidates.append((ver, mtime, full_path))
             else:
-                update_files["linux"] = path
+                linux_candidates.append((ver, mtime, full_path))
 
-    return update_files
+    result = {}
+
+    def select_best(candidates):
+        if not candidates:
+            return None
+        if target_ver and target_ver != (0, 0, 0):
+            exact = [c for c in candidates if c[0] == target_ver]
+            if exact:
+                exact.sort(key=lambda c: c[1], reverse=True)
+                return exact[0][2]
+        candidates.sort(key=lambda c: (c[0], c[1]), reverse=True)
+        return candidates[0][2]
+
+    best_win = select_best(win_candidates)
+    if best_win:
+        result["windows"] = best_win
+
+    best_linux = select_best(linux_candidates)
+    if best_linux:
+        result["linux"] = best_linux
+
+    return result
 
 
-def get_server_update_file(upd_dir: str, target_os: Optional[str] = None) -> Optional[str]:
+def get_server_update_file(
+    upd_dir: str,
+    target_os: Optional[str] = None,
+    version_tag: Optional[str] = None,
+) -> Optional[str]:
     """
     Находит в папке updates/ скачанный бинарник сервера для целевой ОС.
+    Если указан version_tag, ищет файл соответствующей версии.
+    Если найдено несколько файлов, выбирает файл с максимальной версией.
     """
     if target_os is None:
         target_os = platform.system().lower()
@@ -126,15 +176,31 @@ def get_server_update_file(upd_dir: str, target_os: Optional[str] = None) -> Opt
     if not os.path.exists(upd_dir):
         return None
 
+    candidates = []
     for f in os.listdir(upd_dir):
         name_lower = f.lower()
         if "server" in name_lower and "setup" not in name_lower:
-            if target_os == "windows" and name_lower.endswith(".exe"):
-                return os.path.join(upd_dir, f)
-            if target_os == "linux" and not name_lower.endswith(".exe"):
-                return os.path.join(upd_dir, f)
+            is_win = name_lower.endswith(".exe")
+            if (target_os == "windows" and is_win) or (target_os == "linux" and not is_win):
+                full_path = os.path.join(upd_dir, f)
+                if os.path.isfile(full_path):
+                    ver = extract_version_tuple(f)
+                    mtime = os.path.getmtime(full_path)
+                    candidates.append((ver, mtime, full_path))
 
-    return None
+    if not candidates:
+        return None
+
+    if version_tag:
+        target_ver = extract_version_tuple(version_tag)
+        if target_ver != (0, 0, 0):
+            exact = [c for c in candidates if c[0] == target_ver]
+            if exact:
+                exact.sort(key=lambda c: c[1], reverse=True)
+                return exact[0][2]
+
+    candidates.sort(key=lambda c: (c[0], c[1]), reverse=True)
+    return candidates[0][2]
 
 
 def run_updater_script(current_exe: str, update_file: str) -> bool:
@@ -146,6 +212,7 @@ def run_updater_script(current_exe: str, update_file: str) -> bool:
         return False
 
     tmp_dir = tempfile.gettempdir()
+    exe_dir = os.path.dirname(current_exe)
 
     if platform.system() == "Windows":
         fd, updater_script = tempfile.mkstemp(suffix=".bat", prefix="edutest_update_", dir=tmp_dir)
@@ -159,9 +226,11 @@ def run_updater_script(current_exe: str, update_file: str) -> bool:
             f.write(f'del "{current_exe}" > nul 2>&1\n')
             f.write(f'if exist "{current_exe}" (\n')
             f.write("    set /a count+=1\n")
-            f.write("    if !count! lss 15 goto retry\n")
+            f.write("    if !count! lss 20 goto retry\n")
             f.write(")\n")
             f.write(f'move /y "{update_file}" "{current_exe}" > nul 2>&1\n')
+            if exe_dir:
+                f.write(f'cd /d "{exe_dir}"\n')
             f.write(f'start "" "{current_exe}"\n')
             f.write('del "%~f0"\n')
 
@@ -178,8 +247,13 @@ def run_updater_script(current_exe: str, update_file: str) -> bool:
         with open(updater_script, "w", encoding="utf-8") as f:
             f.write("#!/bin/bash\n")
             f.write("sleep 2\n")
-            f.write(f'mv -f "{update_file}" "{current_exe}"\n')
-            f.write(f'chmod +x "{current_exe}"\n')
+            f.write(f'if [ -f "{update_file}" ]; then\n')
+            f.write(f'    cp -f "{update_file}" "{current_exe}" 2>/dev/null || mv -f "{update_file}" "{current_exe}"\n')
+            f.write(f'    chmod +x "{current_exe}"\n')
+            f.write(f'    rm -f "{update_file}"\n')
+            f.write("fi\n")
+            if exe_dir:
+                f.write(f'cd "{exe_dir}" || true\n')
             f.write(f'nohup "{current_exe}" >/dev/null 2>&1 &\n')
             f.write('rm -f "$0"\n')
 

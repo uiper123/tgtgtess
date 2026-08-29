@@ -870,7 +870,8 @@ class SelectTestFromRepoDialog(QDialog):
 
 
 class UpdateProgressDialog(QDialog):
-    def __init__(self, exam_server, parent=None):
+    def __init__(self, exam_server, parent=None, target_version=None):
+        from PySide6.QtCore import Qt
         from PySide6.QtWidgets import (
             QFrame,
             QHBoxLayout,
@@ -882,6 +883,7 @@ class UpdateProgressDialog(QDialog):
         )
         super().__init__(parent)
         self.exam_server = exam_server
+        self.target_version = target_version
         self.setWindowTitle("Обновление системы")
         apply_dialog_scaling(self, parent, 580, 470)
 
@@ -1103,10 +1105,14 @@ class UpdateProgressDialog(QDialog):
 
         # Для скомпилированного бинарника: ищем скачанный с GitHub файл сервера в updates/
         upd_dir = self.exam_server.get_updates_dir()
-        server_binary = get_server_update_file(upd_dir)
+        target_version = getattr(self, "target_version", None)
+        server_binary = get_server_update_file(upd_dir, version_tag=target_version)
         if server_binary and os.path.exists(server_binary):
             try:
                 shutil.copy2(server_binary, update_file)
+                self.exam_server.log_message.emit(
+                    f"Подготовлен файл обновления сервера: {server_binary} -> {update_file}"
+                )
             except Exception as e:
                 self.exam_server.log_message.emit(
                     f"Ошибка при копировании файла обновления сервера: {e}"
@@ -1117,6 +1123,16 @@ class UpdateProgressDialog(QDialog):
                     f"Не удалось подготовить файл обновления:\n{e}",
                 )
                 return
+        else:
+            self.exam_server.log_message.emit(
+                f"Файл обновления сервера не найден в {upd_dir} (целевая версия: {target_version})"
+            )
+            QMessageBox.warning(
+                self,
+                "Файл не найден",
+                f"Файл обновления сервера не найден в папке {upd_dir}.",
+            )
+            return
 
         if os.path.exists(update_file):
             success = run_updater_script(current_exe, update_file)
@@ -1132,7 +1148,7 @@ class UpdateProgressDialog(QDialog):
             QMessageBox.warning(
                 self,
                 "Файл не найден",
-                "Файл обновления сервера не найден в директории updates/.",
+                "Файл обновления сервера не найден.",
             )
 
 

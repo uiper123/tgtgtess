@@ -582,7 +582,8 @@ class SettingsMixin:
         except ImportError:
             from ui_dialogs import UpdateProgressDialog
 
-        self._upd_dialog = UpdateProgressDialog(self.exam_server, self)
+        version_tag = self._latest_update_data.get("tag_name", "").lstrip("v")
+        self._upd_dialog = UpdateProgressDialog(self.exam_server, self, target_version=version_tag)
         self._upd_dialog.show()
 
         self.upd_status_label.setText("Запущено обновление...")
@@ -592,6 +593,18 @@ class SettingsMixin:
             self.exam_server.log_message.emit("Начато скачивание обновлений сервера и клиентов...")
             upd_dir = self.exam_server.get_updates_dir()
             success_count = 0
+
+            # Очищаем старые файлы обновлений в папке перед загрузкой новых
+            if os.path.exists(upd_dir):
+                for old_f in os.listdir(upd_dir):
+                    old_path = os.path.join(upd_dir, old_f)
+                    if os.path.isfile(old_path) and not old_f.startswith("."):
+                        try:
+                            os.remove(old_path)
+                        except OSError:
+                            pass
+            else:
+                os.makedirs(upd_dir, exist_ok=True)
 
             # Автоматически фильтруем нужные файлы на основе ОС сервера и подключенных клиентов
             import platform
@@ -646,10 +659,10 @@ class SettingsMixin:
             if students:
                 from main import _version_tuple
 
-                # Находим проверенные файлы клиентских обновлений для каждой ОС
-                update_files = get_update_files_map(upd_dir)
-
                 version_tag = self._latest_update_data.get("tag_name", "").lstrip("v")
+
+                # Находим проверенные файлы клиентских обновлений для каждой ОС
+                update_files = get_update_files_map(upd_dir, version_tag=version_tag)
 
                 for sock, student in students:
                     client_os = getattr(student, 'os', 'windows')
