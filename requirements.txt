@@ -11,3 +11,6 @@ cryptography>=41,<46
 # Used by shared/security.py and update_check() to make verified HTTPS
 # requests to GitHub without falling back to an unverified SSL context.
 certifi>=2023.7.22
+
+# Used by server/export_excel.py for exporting test results to Excel (.xlsx)
+openpyxl>=3.1.0

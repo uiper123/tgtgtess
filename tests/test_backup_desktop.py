@@ -17,6 +17,14 @@ if str(ROOT) not in sys.path:
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+pytest.importorskip("PySide6")
+
+try:
+    import PySide6.QtWidgets
+    _ = PySide6.QtWidgets
+except ImportError:
+    pytest.skip("libEGL missing — skipping QtWidgets-dependent tests", allow_module_level=True)
+
 from client.main import get_student_backup_dir, save_student_final_backup, xor_decrypt
 
 

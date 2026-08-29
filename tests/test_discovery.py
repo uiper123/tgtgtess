@@ -18,6 +18,12 @@ if str(ROOT) not in sys.path:
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 PySide6 = pytest.importorskip("PySide6")
+try:
+    import PySide6.QtWidgets
+    _ = PySide6.QtWidgets
+except ImportError:
+    pytest.skip("libEGL missing — skipping QtWidgets-dependent tests", allow_module_level=True)
+
 from PySide6.QtCore import QByteArray, QCoreApplication, QTimer
 from PySide6.QtNetwork import QHostAddress, QUdpSocket
 from PySide6.QtWidgets import QApplication
