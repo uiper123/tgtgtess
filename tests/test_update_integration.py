@@ -491,6 +491,7 @@ def test_server_check_for_updates(monkeypatch):
     """
     Проверяет, что check_for_updates правильно парсит ответ от GitHub API.
     """
+    _require_qtwidgets()
     import urllib.request
 
     from server.main import ExamServer
