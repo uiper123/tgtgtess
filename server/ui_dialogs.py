@@ -1425,12 +1425,13 @@ class StyledFileDialog(QDialog):
         )
 
         try:
-            from .storage import default_tests_dir
+            from .storage import default_tests_dir, tests_dir
         except ImportError:
-            from storage import default_tests_dir
+            from storage import default_tests_dir, tests_dir
 
+        active_repo = str(tests_dir()) if os.path.exists(str(tests_dir())) else str(default_tests_dir())
         self.places = [
-            ("📁 Репозиторий тестов", str(default_tests_dir())),
+            ("📁 Репозиторий тестов", active_repo),
             ("🏠 Домашняя папка", os.path.expanduser("~")),
             ("🖥️ Рабочий стол", os.path.expanduser("~/Desktop")),
             ("📄 Документы", os.path.expanduser("~/Documents")),
