@@ -587,3 +587,38 @@ def save_test_to_txt(filepath: str | Path, title: str = "", section: str = "", q
     with open(p, "w", encoding="utf-8") as f:
         f.write(content)
     return p
+
+
+def enrich_student_questions_from_repo(student_q_list: list, repo_q_list: list) -> list:
+    """
+    Обогащает список вопросов студента (например, 10 случайных вопросов из 50)
+    эталонными флагами правильности и правильными ответами из файла репозитория.
+    Сохраняет точный порядок, количество и номера вопросов студента.
+    """
+    if not student_q_list:
+        return repo_q_list or []
+    if not repo_q_list:
+        return student_q_list
+
+    repo_by_text = {}
+    for rq in repo_q_list:
+        if isinstance(rq, dict) and rq.get('text'):
+            key = rq['text'].strip().lower()
+            repo_by_text[key] = rq
+
+    enriched = []
+    for sq in student_q_list:
+        if not isinstance(sq, dict):
+            continue
+        text_key = sq.get('text', '').strip().lower()
+        if text_key in repo_by_text:
+            rq = repo_by_text[text_key]
+            merged = dict(rq)
+            # Сохраняем номер вопроса, который был у студента в его сессии
+            if 'number' in sq:
+                merged['number'] = sq['number']
+            enriched.append(merged)
+        else:
+            enriched.append(dict(sq))
+
+    return enriched

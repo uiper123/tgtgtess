@@ -8,6 +8,11 @@
 
 _Нет несвязанных с релизами изменений._
 
+## [1.6.1] — 2026-08-30
+
+### 🎯 CI & Question Subset Enrichment Finalization
+- **Перенос `enrich_student_questions_from_repo` в `shared.parser`:** Чистая логика обогащения вопросов вынесена в `shared.parser` без GUI-зависимостей, обеспечивая 100% прохождение тестов в headless окружениях CI.
+
 ## [1.6.0] — 2026-08-30
 
 ### 🎯 Smart Question Enrichment & Logging Overhaul

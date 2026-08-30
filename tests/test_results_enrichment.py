@@ -1,5 +1,4 @@
-from server.ui_results import _enrich_student_questions_from_repo
-from shared.parser import calculate_score
+from shared.parser import calculate_score, enrich_student_questions_from_repo
 
 
 def test_enrich_student_questions_subset():
@@ -34,7 +33,7 @@ def test_enrich_student_questions_subset():
         q_orig_num = idx + 4
         student_answers[idx] = [f"Неверно {q_orig_num}"]
 
-    enriched = _enrich_student_questions_from_repo(student_snapshot, repo_questions)
+    enriched = enrich_student_questions_from_repo(student_snapshot, repo_questions)
     assert len(enriched) == 10
     for idx, q in enumerate(enriched):
         assert q["number"] == idx + 1
