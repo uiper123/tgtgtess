@@ -2,6 +2,12 @@ import os
 import subprocess
 import sys
 
+# На Windows консоль часто использует cp1252/cp866 — настраиваем безопасный вывод
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Конфигурация
 PROJECT_NAME = "TTGTiSO-Test"
 APPS = {
@@ -121,8 +127,8 @@ def build_app(app_name, config, builder="auto"):
         try:
             build_app_nuitka(app_name, config, raise_on_error=True)
         except Exception as e:
-            print(f"\n⚠️ Сборка через Nuitka завершилась с ошибкой ({e}).")
-            print(f"🔄 Переключаемся на PyInstaller для сборки {app_name}...\n")
+            print(f"\n[WARN] Nuitka build failed ({e}).")
+            print(f"[INFO] Switching to PyInstaller for {app_name}...\n")
             build_app_pyinstaller(app_name, config)
 
 def ensure_build_dependencies():
@@ -143,10 +149,10 @@ def ensure_build_dependencies():
                 missing.append("patchelf")
 
     if missing:
-        print(f"📦 Установка недостающих зависимостей для сборщика: {', '.join(missing)}...")
-        res = subprocess.run([sys.executable, "-m", "pip", "install"] + missing)
+        print(f"[INFO] Installing missing build dependencies: {', '.join(missing)}...")
+        res = subprocess.run([sys.executable, "-m", "pip", "install", *missing])
         if res.returncode != 0:
-            print(f"⚠️ Предупреждение: не удалось автоматически установить {missing}")
+            print(f"[WARN] Failed to install dependencies: {missing}")
 
 def main():
     import argparse
