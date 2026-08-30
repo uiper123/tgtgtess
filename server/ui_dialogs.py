@@ -1554,10 +1554,18 @@ class StyledFileDialog(QDialog):
         )
 
         if self.mode == self.Mode.CHOOSE_DIR:
-            self.tree.setHeaderHidden(True)
+            self.tree.setHeaderHidden(False)
             self.tree.setColumnHidden(1, True)
             self.tree.setColumnHidden(2, True)
-            self.tree.setColumnHidden(3, True)
+            self.tree.setColumnHidden(3, False)
+            header = self.tree.header()
+            header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            header.setFixedHeight(36)
+            header.setStretchLastSection(False)
+            header.setSectionResizeMode(0, QHeaderView.Stretch)
+            header.setSectionResizeMode(3, QHeaderView.Interactive)
+            self.tree.setColumnWidth(0, 380)
+            self.tree.setColumnWidth(3, 160)
         else:
             self.tree.setHeaderHidden(False)
             header = self.tree.header()
@@ -1704,28 +1712,17 @@ class StyledFileDialog(QDialog):
         if os.path.isdir(abs_path):
             self.current_dir = abs_path
             self.selected_path = abs_path
+            self.selected_file = ""
         else:
             self.current_dir = os.path.dirname(abs_path)
-            self.selected_path = abs_path
+            self.selected_path = self.current_dir
+            self.selected_file = abs_path
             if hasattr(self, 'file_name_edit'):
                 self.file_name_edit.setText(os.path.basename(abs_path))
 
         self.path_edit.setText(self.current_dir)
-
-        if self.mode == self.Mode.CHOOSE_DIR:
-            idx = self.model.index(self.current_dir)
-            if idx.isValid():
-                parent = idx.parent()
-                while parent.isValid():
-                    self.tree.expand(parent)
-                    parent = parent.parent()
-                self.tree.expand(idx)
-                self.tree.setCurrentIndex(idx)
-                self.tree.scrollTo(idx, QAbstractItemView.PositionAtCenter)
-        else:
-            # В файловом режиме устанавливаем корень модели и дерева на текущую папку
-            dir_idx = self.model.setRootPath(self.current_dir)
-            self.tree.setRootIndex(dir_idx)
+        dir_idx = self.model.setRootPath(self.current_dir)
+        self.tree.setRootIndex(dir_idx)
 
     def _on_path_entered(self):
         entered = self.path_edit.text().strip()
@@ -1746,10 +1743,9 @@ class StyledFileDialog(QDialog):
             return
         if os.path.isdir(path):
             self.selected_path = os.path.abspath(path)
-            self.current_dir = self.selected_path
-            self.path_edit.setText(self.current_dir)
         elif os.path.isfile(path):
             self.selected_file = os.path.abspath(path)
+            self.selected_path = os.path.dirname(self.selected_file)
             self.current_dir = os.path.dirname(self.selected_file)
             self.path_edit.setText(self.current_dir)
             if hasattr(self, 'file_name_edit'):
@@ -1763,6 +1759,7 @@ class StyledFileDialog(QDialog):
             self._select_and_expand_path(path)
         elif os.path.isfile(path):
             self.selected_file = os.path.abspath(path)
+            self.selected_path = os.path.dirname(self.selected_file)
             self.current_dir = os.path.dirname(self.selected_file)
             self.path_edit.setText(self.current_dir)
             if hasattr(self, 'file_name_edit'):
@@ -1786,7 +1783,9 @@ class StyledFileDialog(QDialog):
 
     def _accept_selection(self):
         if self.mode == self.Mode.CHOOSE_DIR:
-            if self.selected_path and os.path.isdir(self.selected_path):
+            target = self.selected_path or self.current_dir
+            if target and os.path.isdir(target):
+                self.selected_path = os.path.abspath(target)
                 self.accept()
             else:
                 QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите существующую папку.")
