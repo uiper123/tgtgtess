@@ -126,21 +126,41 @@ class StudentAnswersDialog(QDialog):
             for idx, q in enumerate(questions):
                 q_num = q.get('number', idx + 1)
                 student_ans = student.answers.get(q_num, [])
-                correct_answers = [ans['text'] for ans in q.get('answers', []) if ans.get('correct')]
+                if not isinstance(student_ans, list):
+                    student_ans = [student_ans] if student_ans is not None else []
 
+                raw_answers = q.get('answers', [])
+                correct_answers = []
+                all_options = []
+                matching_pairs = []
+                has_correct_flags = False
+
+                for ans in raw_answers:
+                    if isinstance(ans, dict):
+                        text = ans.get('text') or ans.get('value') or ''
+                        all_options.append(text)
+                        if ans.get('correct'):
+                            has_correct_flags = True
+                            correct_answers.append(text)
+                        if ans.get('key') and ans.get('value'):
+                            matching_pairs.append(f"• {ans.get('key')} = {ans.get('value')}")
+                    else:
+                        all_options.append(str(ans))
+
+                q_score_val = None
                 if q.get('written'):
-                    student_text = student_ans[0] if student_ans else ""
-                    from shared.parser import compare_written_answer
-                    is_correct = any(compare_written_answer(student_text, ans_text) for ans_text in correct_answers)
-                    q_score_val = 1.0 if is_correct else 0.0
-                else:
+                    student_text = str(student_ans[0]) if student_ans else ""
+                    if has_correct_flags and correct_answers:
+                        from shared.parser import compare_written_answer
+                        is_correct = any(compare_written_answer(student_text, ans_text) for ans_text in correct_answers)
+                        q_score_val = 1.0 if is_correct else 0.0
+                elif has_correct_flags or matching_pairs:
                     from shared.parser import calculate_score
-                    single_q_score_str = calculate_score([q], {q_num: student_ans}, partial_multiple=True)
                     try:
+                        single_q_score_str = calculate_score([q], {q_num: student_ans}, partial_multiple=True)
                         q_score_val = float(single_q_score_str.split('/')[0])
-                    except:
-                        q_score_val = 0.0
-                    is_correct = (q_score_val >= 1.0)
+                    except Exception:
+                        q_score_val = None
 
                 q_card = QFrame()
                 q_card.setStyleSheet(
@@ -164,20 +184,26 @@ class StudentAnswersDialog(QDialog):
                     "font-size: 11px; font-weight: 600; padding: 3px 10px;"
                     " border-radius: 999px; border: none;"
                 )
-                if q_score_val >= 1.0:
-                    badge.setText(f"Верно · {q_score_val}")
-                    badge.setStyleSheet(
-                        badge_base + " background-color: #dcfce7; color: #14532d;"
-                    )
-                elif q_score_val > 0:
-                    badge.setText(f"Частично · {q_score_val}")
-                    badge.setStyleSheet(
-                        badge_base + " background-color: #fef3c7; color: #92400e;"
-                    )
+                if q_score_val is not None:
+                    if q_score_val >= 1.0:
+                        badge.setText(f"Верно · {q_score_val}")
+                        badge.setStyleSheet(
+                            badge_base + " background-color: #dcfce7; color: #14532d;"
+                        )
+                    elif q_score_val > 0:
+                        badge.setText(f"Частично · {q_score_val}")
+                        badge.setStyleSheet(
+                            badge_base + " background-color: #fef3c7; color: #92400e;"
+                        )
+                    else:
+                        badge.setText(f"Неверно · {q_score_val}")
+                        badge.setStyleSheet(
+                            badge_base + " background-color: #fee2e2; color: #991b1b;"
+                        )
                 else:
-                    badge.setText(f"Неверно · {q_score_val}")
+                    badge.setText("Ответ зафиксирован")
                     badge.setStyleSheet(
-                        badge_base + " background-color: #fee2e2; color: #991b1b;"
+                        badge_base + " background-color: #e0f2fe; color: #0369a1;"
                     )
                 header.addWidget(badge)
                 card_lay.addLayout(header)
@@ -187,26 +213,34 @@ class StudentAnswersDialog(QDialog):
                 elif q.get('matching'):
                     sel_lbl = QLabel("Сопоставлено:\n" + "\n".join(f"• {pa}" for pa in student_ans) if student_ans else "Сопоставлено: [нет ответа]")
                 else:
-                    sel_lbl = QLabel(f"Выбрано: {', '.join(student_ans) if student_ans else '[нет ответа]'}")
+                    sel_lbl = QLabel(f"Выбрано: {', '.join(str(s) for s in student_ans) if student_ans else '[нет ответа]'}")
                 sel_lbl.setWordWrap(True)
                 sel_lbl.setStyleSheet(
                     "font-size: 12px; color: #57534e; border: none; background: transparent;"
                 )
                 card_lay.addWidget(sel_lbl)
 
-                if q.get('written'):
-                    cor_lbl = QLabel(f"Правильные варианты: {', '.join(correct_answers)}")
-                elif q.get('matching'):
-                    correct_pairs_list = [f"• {a.get('key')} = {a.get('value')}" for a in q.get('answers', [])]
-                    cor_lbl = QLabel("Правильные пары соответствия:\n" + "\n".join(correct_pairs_list))
-                else:
-                    cor_lbl = QLabel(f"Правильный ответ: {', '.join(correct_answers)}")
-                cor_lbl.setWordWrap(True)
-                cor_lbl.setStyleSheet(
-                    "font-size: 12px; color: #15803d; font-weight: 500;"
-                    " border: none; background: transparent;"
-                )
-                card_lay.addWidget(cor_lbl)
+                if has_correct_flags or matching_pairs:
+                    if q.get('written'):
+                        cor_lbl = QLabel(f"Правильные варианты: {', '.join(correct_answers)}")
+                    elif q.get('matching'):
+                        cor_lbl = QLabel("Правильные пары соответствия:\n" + "\n".join(matching_pairs))
+                    else:
+                        cor_lbl = QLabel(f"Правильный ответ: {', '.join(correct_answers)}")
+                    cor_lbl.setWordWrap(True)
+                    cor_lbl.setStyleSheet(
+                        "font-size: 12px; color: #15803d; font-weight: 500;"
+                        " border: none; background: transparent;"
+                    )
+                    card_lay.addWidget(cor_lbl)
+                elif all_options:
+                    opt_lbl = QLabel(f"Варианты ответа в тесте: {', '.join(all_options)}")
+                    opt_lbl.setWordWrap(True)
+                    opt_lbl.setStyleSheet(
+                        "font-size: 12px; color: #64748b; font-weight: 400;"
+                        " border: none; background: transparent;"
+                    )
+                    card_lay.addWidget(opt_lbl)
 
                 scroll_layout.addWidget(q_card)
 
