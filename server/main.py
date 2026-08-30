@@ -247,6 +247,7 @@ class ExamServer(QObject):
         # Текущие настройки экзамена
         self._allowed_group: str = ''
         self._duration_minutes: int = 60
+        self._current_test_name: str = ''
         self._questions: List[Dict[str, Any]] = []     # полные вопросы (с correct)
         self._network_payload: List[Dict[str, Any]] = []  # вопросы для отправки студентам
         self._exam_active: bool = False
@@ -362,6 +363,7 @@ class ExamServer(QObject):
 
         self._allowed_group = group.strip()
         self._duration_minutes = duration
+        self._current_test_name = test_name or title or ""
 
         if port is None:
             port = self.DEFAULT_PORT

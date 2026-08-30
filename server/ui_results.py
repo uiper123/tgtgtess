@@ -126,6 +126,41 @@ def _find_test_file_in_repository(
     return [], None
 
 
+def _enrich_student_questions_from_repo(student_q_list: list, repo_q_list: list) -> list:
+    """
+    Обогащает список вопросов студента (например, 10 случайных вопросов из 50)
+    эталонными флагами правильности и правильными ответами из файла репозитория.
+    Сохраняет точный порядок, количество и номера вопросов студента.
+    """
+    if not student_q_list:
+        return repo_q_list or []
+    if not repo_q_list:
+        return student_q_list
+
+    repo_by_text = {}
+    for rq in repo_q_list:
+        if isinstance(rq, dict) and rq.get('text'):
+            key = rq['text'].strip().lower()
+            repo_by_text[key] = rq
+
+    enriched = []
+    for sq in student_q_list:
+        if not isinstance(sq, dict):
+            continue
+        text_key = sq.get('text', '').strip().lower()
+        if text_key in repo_by_text:
+            rq = repo_by_text[text_key]
+            merged = dict(rq)
+            # Сохраняем номер вопроса, который был у студента в его сессии
+            if 'number' in sq:
+                merged['number'] = sq['number']
+            enriched.append(merged)
+        else:
+            enriched.append(dict(sq))
+
+    return enriched
+
+
 class ResultsMixin:
     def _build_results_page(self):
         self.results_page = QWidget()
@@ -448,7 +483,7 @@ class ResultsMixin:
             )
 
             if repo_questions:
-                questions = repo_questions
+                questions = _enrich_student_questions_from_repo(questions, repo_questions)
                 from shared.parser import calculate_score
                 try:
                     final_score = calculate_score(questions, int_answers, partial_multiple=True)
@@ -510,7 +545,7 @@ class ResultsMixin:
                                 QMessageBox.warning(self, "Ошибка", f"Не удалось прочитать файл теста: {e}")
 
                     if manual_questions:
-                        questions = manual_questions
+                        questions = _enrich_student_questions_from_repo(questions, manual_questions)
                         from shared.parser import calculate_score
                         try:
                             final_score = calculate_score(questions, int_answers, partial_multiple=True)
@@ -580,7 +615,8 @@ class ResultsMixin:
             if not has_correct and group:
                 active_exam = self.exam_server._active_exams.get(group.lower())
                 if active_exam and active_exam.get('questions'):
-                    questions = active_exam.get('questions')
+                    questions = _enrich_student_questions_from_repo(questions, active_exam.get('questions'))
+                    result_entry['questions'] = questions
                     has_correct = True
 
             # Если в записи нет правильных ответов — ищем эталонный тест в репозитории
@@ -591,8 +627,8 @@ class ResultsMixin:
                     sample_questions=questions
                 )
                 if repo_questions:
-                    questions = repo_questions
-                    result_entry['questions'] = repo_questions
+                    questions = _enrich_student_questions_from_repo(questions, repo_questions)
+                    result_entry['questions'] = questions
                     has_correct = True
 
             # Если все еще нет вопросов, используем StyledFileDialog для выбора файла теста
