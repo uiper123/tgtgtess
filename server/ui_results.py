@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -37,6 +38,93 @@ except ImportError:
     from ui_dialogs import (
         StudentAnswersDialog,
     )
+
+def _find_test_file_in_repository(
+    test_name: str = "",
+    test_title: str = "",
+    test_section: str = "",
+    group: str = "",
+    sample_questions: list = None
+):
+    """
+    Интеллектуальный поиск оригинального файла теста в репозитории.
+    Ищет по точному совпадению, вхождению подстроки и по тексту вопросов (fingerprint).
+    Возвращает (questions, file_path_or_name).
+    """
+    try:
+        from .storage import default_tests_dir, tests_dir
+    except ImportError:
+        from storage import default_tests_dir, tests_dir
+    from shared.parser import parse_test_file
+
+    dirs_to_search = []
+    d1 = tests_dir()
+    if d1.exists():
+        dirs_to_search.append(d1)
+    d2 = default_tests_dir()
+    if d2.exists() and d2 != d1:
+        dirs_to_search.append(d2)
+
+    candidates = []
+    for d in dirs_to_search:
+        for p in d.rglob("*.txt"):
+            candidates.append(p)
+        for p in d.rglob("*.json"):
+            candidates.append(p)
+
+    search_keys = [k.strip().lower() for k in (test_name, group, test_title, test_section) if k and k.strip()]
+
+    # 1. Точное совпадение имени файла (stem)
+    for p in candidates:
+        stem_lower = p.stem.lower()
+        if any(k == stem_lower for k in search_keys):
+            try:
+                if str(p).lower().endswith('.json'):
+                    with open(p, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        return data.get("questions", []), str(p)
+                else:
+                    return parse_test_file(str(p)), str(p)
+            except Exception:
+                pass
+
+    # 2. Вхождение подстроки (например, группа 'ПВР-25' внутри 'Химия ПВР-25.txt')
+    for p in candidates:
+        stem_lower = p.stem.lower()
+        for k in search_keys:
+            if k and len(k) >= 3 and (k in stem_lower or stem_lower in k):
+                try:
+                    if str(p).lower().endswith('.json'):
+                        with open(p, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            return data.get("questions", []), str(p)
+                    else:
+                        return parse_test_file(str(p)), str(p)
+                except Exception:
+                    pass
+
+    # 3. Совпадение по тексту вопросов (fingerprinting)
+    if sample_questions:
+        sample_texts = [q.get("text", "").strip() for q in sample_questions if isinstance(q, dict) and q.get("text", "").strip()]
+        if sample_texts:
+            for p in candidates:
+                try:
+                    if str(p).lower().endswith('.json'):
+                        with open(p, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            loaded = data.get("questions", [])
+                    else:
+                        loaded = parse_test_file(str(p))
+
+                    loaded_texts = set(q.get("text", "").strip() for q in loaded if isinstance(q, dict) and q.get("text", "").strip())
+                    matches = sum(1 for st in sample_texts if st in loaded_texts)
+                    if matches >= 1 and matches >= min(2, len(sample_texts)):
+                        return loaded, str(p)
+                except Exception:
+                    pass
+
+    return [], None
+
 
 class ResultsMixin:
     def _build_results_page(self):
@@ -350,66 +438,91 @@ class ResultsMixin:
 
             final_score = None
 
-            # 2. Если в логе есть вопросы — рассчитываем точную оценку (или используем сохраненную)
-            if questions and isinstance(questions, list) and len(questions) > 0:
+            # 2. Ищем оригинальный файл теста с правильными ответами в репозитории
+            repo_questions, _found_test_path = _find_test_file_in_repository(
+                test_name=test_name,
+                test_title=log_json.get('test_title', ''),
+                test_section=log_json.get('test_section', ''),
+                group=student_group,
+                sample_questions=questions
+            )
+
+            if repo_questions:
+                questions = repo_questions
+                from shared.parser import calculate_score
                 try:
-                    from shared.parser import calculate_score
                     final_score = calculate_score(questions, int_answers, partial_multiple=True)
                 except Exception:
                     final_score = None
 
-            # Если оценка не рассчиталась, но была сохранена в логе
-            if not final_score and recorded_score and "/" in str(recorded_score):
-                final_score = str(recorded_score)
-
-            # 3. Если вопросов в логе нет (старый формат v1), ищем тест в репозитории автоматически
-            if not questions or not final_score:
-                try:
-                    from .storage import test_path, tests_dir
-                except ImportError:
-                    from storage import test_path, tests_dir
-
-                found_path = None
-                if test_name:
-                    potential_path = test_path(test_name)
-                    if os.path.exists(potential_path):
-                        found_path = potential_path
-
-                # Рекурсивный поиск по всем подпапкам репозитория
-                if not found_path:
-                    d = tests_dir()
-                    if d.exists():
-                        for match in d.rglob("*.txt"):
-                            if match.stem == test_name or match.stem.strip() == test_name:
-                                found_path = match
-                                break
-                        if not found_path:
-                            for match in d.rglob("*.json"):
-                                if match.stem == test_name or match.stem.strip() == test_name:
-                                    found_path = match
-                                    break
-
-                if found_path:
+            # 3. Если тест не найден автоматически в репозитории
+            if not final_score or not repo_questions:
+                # Если в самом снимке вопросов были правильные ответы
+                if questions and any(isinstance(q, dict) and any(isinstance(a, dict) and a.get('correct') for a in q.get('answers', [])) for q in questions):
+                    from shared.parser import calculate_score
                     try:
-                        if str(found_path).lower().endswith('.json'):
-                            with open(found_path, 'r', encoding='utf-8') as f:
-                                data = json.load(f)
-                                questions = data.get("questions", [])
-                        else:
-                            questions = parse_test_file(str(found_path))
-
-                        if questions:
-                            from shared.parser import calculate_score
-                            final_score = calculate_score(questions, int_answers, partial_multiple=True)
+                        final_score = calculate_score(questions, int_answers, partial_multiple=True)
                     except Exception:
-                        pass
+                        final_score = None
 
-            # Если всё ещё нет оценки, используем количество ответов
+                # Если в логе была сохранена валидная строка оценки вида 'X/Y'
+                if not final_score and recorded_score and "/" in str(recorded_score):
+                    final_score = str(recorded_score)
+
+                # Если оценки все еще нет, предлагаем преподавателю выбрать тест из репозитория
+                if not final_score or not questions:
+                    try:
+                        from .storage import default_tests_dir, get_all_tests, tests_dir
+                        from .ui_dialogs import SelectTestFromRepoDialog, StyledFileDialog
+                    except ImportError:
+                        from storage import default_tests_dir, get_all_tests, tests_dir
+                        from ui_dialogs import SelectTestFromRepoDialog, StyledFileDialog
+
+                    all_tests = get_all_tests()
+                    manual_questions = None
+
+                    if all_tests:
+                        dlg = SelectTestFromRepoDialog(all_tests, self)
+                        dlg.setWindowTitle(f"Выберите тест для проверки ответов студента {student_name}")
+                        if dlg.exec() == QDialog.Accepted and dlg.selected_group:
+                            try:
+                                from .storage import load_test
+                            except ImportError:
+                                from storage import load_test
+                            manual_questions = load_test(dlg.selected_group)
+
+                    if not manual_questions:
+                        manual_file, _ = StyledFileDialog.get_open_file_name(
+                            self,
+                            f"Выберите файл теста для проверки ответов студента '{student_name}'",
+                            str(tests_dir() if tests_dir().exists() else default_tests_dir()),
+                            "Файлы тестов (*.txt *.json);;Все файлы (*.*)"
+                        )
+                        if manual_file and os.path.exists(manual_file):
+                            try:
+                                if manual_file.lower().endswith('.json'):
+                                    with open(manual_file, 'r', encoding='utf-8') as f:
+                                        data = json.load(f)
+                                        manual_questions = data.get("questions", [])
+                                else:
+                                    manual_questions = parse_test_file(manual_file)
+                            except Exception as e:
+                                QMessageBox.warning(self, "Ошибка", f"Не удалось прочитать файл теста: {e}")
+
+                    if manual_questions:
+                        questions = manual_questions
+                        from shared.parser import calculate_score
+                        try:
+                            final_score = calculate_score(questions, int_answers, partial_multiple=True)
+                        except Exception:
+                            final_score = None
+
+            # Если всё ещё нет оценки, выставляем безопасное значение без фейковых 100%
             if not final_score:
                 if recorded_score:
                     final_score = str(recorded_score)
                 else:
-                    final_score = f"{len(int_answers)}/{len(questions) if questions else len(int_answers)}"
+                    final_score = f"0/{len(questions) if questions else len(int_answers)}"
 
             # 4. Сохраняем результат
             result_entry = {
@@ -428,7 +541,7 @@ class ResultsMixin:
             self.exam_server._save_all_results_to_file()
             self._update_results_table()
 
-            # Красивое уведомление о успешном импорте
+            # Красивое уведомление об успешном импорте
             percent_str, _ = get_grade_details(final_score)
             QMessageBox.information(
                 self,
@@ -437,7 +550,7 @@ class ResultsMixin:
                 f"👤 Студент: {student_name}\n"
                 f"👥 Группа: {student_group}\n"
                 f"📝 Тест: {test_name}\n"
-                f"📊 Оценка: {final_score} ({percent_str})"
+                f"📊 Итоговый результат: {final_score} ({percent_str})"
             )
 
         except Exception as e:
@@ -453,78 +566,48 @@ class ResultsMixin:
             # 1. Пытаемся получить вопросы для этого студента
             questions = result_entry.get('questions')
             group = result_entry.get('group', '')
+            test_name = result_entry.get('test_name', '')
 
-            # Если в самой записи вопросов нет, ищем в активных сессиях для этой группы
-            if not questions and group:
+            # Проверяем, содержат ли questions правильные ответы (флаги correct)
+            has_correct = False
+            if questions:
+                for q in questions:
+                    if isinstance(q, dict) and any(isinstance(a, dict) and a.get('correct') for a in q.get('answers', [])):
+                        has_correct = True
+                        break
+
+            # Если активная сессия содержит тест с правильными ответами
+            if not has_correct and group:
                 active_exam = self.exam_server._active_exams.get(group.lower())
-                if active_exam:
+                if active_exam and active_exam.get('questions'):
                     questions = active_exam.get('questions')
+                    has_correct = True
 
-            # Если активной сессии нет, пробуем найти тест по test_name или group в репозитории
-            if not questions:
-                try:
-                    from .storage import test_path, tests_dir
-                except ImportError:
-                    from storage import test_path, tests_dir
-
-                test_names_to_try = []
-                if result_entry.get('test_name'):
-                    test_names_to_try.append(result_entry['test_name'])
-                if group:
-                    test_names_to_try.append(group)
-
-                for t_name in test_names_to_try:
-                    json_path = test_path(t_name)
-                    txt_path = json_path.with_suffix('.txt')
-
-                    found_path = None
-                    if os.path.exists(json_path):
-                        found_path = json_path
-                    elif os.path.exists(txt_path):
-                        found_path = txt_path
-
-                    # Рекурсивный поиск в папке тестов
-                    if not found_path:
-                        d = tests_dir()
-                        if d.exists():
-                            for match in d.rglob("*.txt"):
-                                if match.stem == t_name or match.stem.strip() == t_name:
-                                    found_path = match
-                                    break
-                            if not found_path:
-                                for match in d.rglob("*.json"):
-                                    if match.stem == t_name or match.stem.strip() == t_name:
-                                        found_path = match
-                                        break
-
-                    if found_path:
-                        try:
-                            if str(found_path).lower().endswith('.json'):
-                                with open(found_path, 'r', encoding='utf-8') as f:
-                                    data = json.load(f)
-                                    questions = data.get("questions", [])
-                            else:
-                                questions = parse_test_file(str(found_path))
-
-                            if questions:
-                                break
-                        except Exception as e:
-                            print(f"Failed to load test: {e}")
-                            pass
+            # Если в записи нет правильных ответов — ищем эталонный тест в репозитории
+            if not has_correct:
+                repo_questions, _ = _find_test_file_in_repository(
+                    test_name=test_name,
+                    group=group,
+                    sample_questions=questions
+                )
+                if repo_questions:
+                    questions = repo_questions
+                    result_entry['questions'] = repo_questions
+                    has_correct = True
 
             # Если все еще нет вопросов, используем StyledFileDialog для выбора файла теста
             if not questions:
                 try:
-                    from .storage import tests_dir
+                    from .storage import default_tests_dir, tests_dir
                     from .ui_dialogs import StyledFileDialog
                 except ImportError:
-                    from storage import tests_dir
+                    from storage import default_tests_dir, tests_dir
                     from ui_dialogs import StyledFileDialog
 
                 manual_test_path, _ = StyledFileDialog.get_open_file_name(
                     self,
                     f"Выберите файл теста для студента '{result_entry.get('name')}'",
-                    str(tests_dir()),
+                    str(tests_dir() if tests_dir().exists() else default_tests_dir()),
                     "Файлы тестов (*.txt *.json);;Все файлы (*.*)"
                 )
                 if not manual_test_path or not os.path.exists(manual_test_path):
