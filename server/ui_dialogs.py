@@ -783,7 +783,7 @@ class SelectTestFromRepoDialog(QDialog):
         super().__init__(parent)
         self.tests = tests
         self.setWindowTitle("Выбрать тест из репозитория")
-        apply_dialog_scaling(self, parent, 580, 440)
+        apply_dialog_scaling(self, parent, 720, 480)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -794,7 +794,7 @@ class SelectTestFromRepoDialog(QDialog):
 
         # Поле поиска
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Поиск по названию или каталогу…")
+        self.search_input.setPlaceholderText("Поиск по файлу, каталогу или заголовку…")
         self.search_input.setStyleSheet(
             "QLineEdit { padding: 9px 12px; font-size: 13px; border-radius: 8px;"
             " border: 1px solid #e7e5e4; background-color: #ffffff; color: #1c1917; }"
@@ -803,12 +803,13 @@ class SelectTestFromRepoDialog(QDialog):
         self.search_input.textChanged.connect(self._filter_table)
         layout.addWidget(self.search_input)
 
-        self.table = QTableWidget(0, 3)
-        self.table.setHorizontalHeaderLabels(["Каталог", "Название теста", "Вопросов"])
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["Каталог", "Файл теста", "Заголовок теста", "Вопросов"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
-        self.table.setColumnWidth(0, 160)
-        self.table.setColumnWidth(1, 260)
-        self.table.setColumnWidth(2, 100)
+        self.table.setColumnWidth(0, 150)
+        self.table.setColumnWidth(1, 180)
+        self.table.setColumnWidth(2, 230)
+        self.table.setColumnWidth(3, 90)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -850,20 +851,31 @@ class SelectTestFromRepoDialog(QDialog):
                 folder = "—"
                 test_name = group_full
 
-            display_name = t.get("title") or test_name
+            title_val = t.get("title", "")
+            # Если заголовок совпадает с именем файла или пуст, отображаем прочерк для компактности
+            display_title = title_val if (title_val and title_val != test_name) else "—"
 
-            if not query or query in group_full.lower() or query in display_name.lower():
+            if (
+                not query
+                or query in group_full.lower()
+                or query in folder.lower()
+                or query in test_name.lower()
+                or query in title_val.lower()
+            ):
                 row = self.table.rowCount()
                 self.table.insertRow(row)
 
                 folder_item = QTableWidgetItem(folder)
-                test_item = QTableWidgetItem(display_name)
-                test_item.setData(Qt.UserRole, group_full)
+                file_item = QTableWidgetItem(test_name)
+                file_item.setData(Qt.UserRole, group_full)
+                title_item = QTableWidgetItem(display_title)
                 q_count_item = QTableWidgetItem(str(len(t.get("questions", []))))
+                q_count_item.setTextAlignment(Qt.AlignCenter)
 
                 self.table.setItem(row, 0, folder_item)
-                self.table.setItem(row, 1, test_item)
-                self.table.setItem(row, 2, q_count_item)
+                self.table.setItem(row, 1, file_item)
+                self.table.setItem(row, 2, title_item)
+                self.table.setItem(row, 3, q_count_item)
 
     def accept(self):
         selected = self.table.currentRow()
