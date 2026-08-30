@@ -384,16 +384,14 @@ QTableWidget QWidget {
     background-color: transparent;
 }
 QHeaderView::section {
-    background-color: #ffffff;
-    color: #78716c;
+    background-color: #f8fafc;
+    color: #475569;
     font-weight: 600;
-    font-size: 11.5px;
-    padding: 12px 12px;
+    font-size: 12px;
+    padding: 8px 10px;
     border: none;
-    border-bottom: 1px solid #e7e5e4;
+    border-bottom: 1px solid #e2e8f0;
     text-align: left;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
 }
 
 /* --- Scroll content --- */

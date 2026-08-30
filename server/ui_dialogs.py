@@ -1287,6 +1287,20 @@ class ConnectedClientsDialog(QDialog):
                 peer_item.setText("Неизвестно")
 
 
+class CustomFileSystemModel(QFileSystemModel):
+    """Файловая модель с русской локализацией заголовков колонок."""
+    def headerData(self, section, orientation, role=Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            headers = {
+                0: "Имя файла / папки",
+                1: "Размер",
+                2: "Тип",
+                3: "Дата изменения",
+            }
+            return headers.get(section, super().headerData(section, orientation, role))
+        return super().headerData(section, orientation, role)
+
+
 class StyledFileDialog(QDialog):
     """
     Единый двухпанельный файловый менеджер и диалог выбора файлов/папок
@@ -1328,8 +1342,8 @@ class StyledFileDialog(QDialog):
         else:
             self.setWindowTitle("Открыть файл")
 
-        self.resize(840, 540)
-        self.setMinimumSize(700, 440)
+        self.resize(860, 560)
+        self.setMinimumSize(720, 460)
         self.setStyleSheet(GLOBAL_QSS)
 
         # Определение начальной директории и имени файла
@@ -1448,7 +1462,8 @@ class StyledFileDialog(QDialog):
             ("🖥️ Рабочий стол", os.path.expanduser("~/Desktop")),
             ("📄 Документы", os.path.expanduser("~/Documents")),
             ("📥 Загрузки", os.path.expanduser("~/Downloads")),
-            ("💾 Диск / Корень (/)", "/"),
+            ("🖼️ Изображения", os.path.expanduser("~/Pictures")),
+            ("💾 Корень системы (/)", "/"),
         ]
 
         if os.name == 'nt':
@@ -1457,6 +1472,10 @@ class StyledFileDialog(QDialog):
                 drive = f"{letter}:\\"
                 if os.path.exists(drive):
                     self.places.append((f"💾 Диск ({letter}:)", drive))
+        else:
+            for extra in ["/media", "/mnt", "/run/media"]:
+                if os.path.exists(extra):
+                    self.places.append((f"💽 Диски ({extra})", extra))
 
         for label, p in self.places:
             if os.path.exists(p):
@@ -1478,14 +1497,14 @@ class StyledFileDialog(QDialog):
         lbl_tree.setStyleSheet("font-size: 11px; font-weight: 700; color: #78716c; text-transform: uppercase;")
         right_lay.addWidget(lbl_tree)
 
-        self.model = QFileSystemModel()
-        self.model.setRootPath(QDir.rootPath())
+        self.model = CustomFileSystemModel()
         self.model.setNameFilterDisables(False)
+        self.model.setReadOnly(True)
 
         if self.mode == self.Mode.CHOOSE_DIR:
-            self.model.setFilter(QDir.Dirs | QDir.NoDotAndDotDot | QDir.Drives)
+            self.model.setFilter(QDir.AllDirs | QDir.NoDotAndDotDot | QDir.Drives)
         else:
-            self.model.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot | QDir.Drives)
+            self.model.setFilter(QDir.AllDirs | QDir.Files | QDir.NoDotAndDotDot | QDir.Drives)
 
         self.tree = QTreeView()
         self.tree.setModel(self.model)
@@ -1513,14 +1532,16 @@ class StyledFileDialog(QDialog):
             "  color: #0369a1;"
             "  font-weight: 600;"
             "}"
-            "QHeaderView::section {"
-            "  background-color: #f5f5f4;"
-            "  color: #57534e;"
+            "QTreeView QHeaderView::section {"
+            "  background-color: #f8fafc;"
+            "  color: #475569;"
             "  font-weight: 600;"
-            "  font-size: 11px;"
-            "  padding: 5px 8px;"
+            "  font-size: 12px;"
+            "  padding: 7px 10px;"
             "  border: none;"
-            "  border-bottom: 1px solid #e7e5e4;"
+            "  border-bottom: 1px solid #e2e8f0;"
+            "  text-transform: none;"
+            "  letter-spacing: normal;"
             "}"
         )
 
@@ -1531,11 +1552,23 @@ class StyledFileDialog(QDialog):
             self.tree.setColumnHidden(3, True)
         else:
             self.tree.setHeaderHidden(False)
-            self.tree.header().setStretchLastSection(True)
-            self.tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
-            self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-            self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-            self.tree.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            header = self.tree.header()
+            header.setStretchLastSection(False)
+            header.setSectionResizeMode(0, QHeaderView.Stretch)
+            header.setSectionResizeMode(1, QHeaderView.Interactive)
+            header.setSectionResizeMode(2, QHeaderView.Interactive)
+            header.setSectionResizeMode(3, QHeaderView.Interactive)
+            self.tree.setColumnWidth(0, 260)
+            self.tree.setColumnWidth(1, 95)
+            self.tree.setColumnWidth(2, 105)
+            self.tree.setColumnWidth(3, 145)
+
+        self.tree.clicked.connect(self._on_tree_clicked)
+        self.tree.doubleClicked.connect(self._on_tree_double_clicked)
+        right_lay.addWidget(self.tree)
+        splitter.addWidget(right_container)
+
+        splitter.setSizes([220, 640])
 
         self.tree.clicked.connect(self._on_tree_clicked)
         self.tree.doubleClicked.connect(self._on_tree_double_clicked)
@@ -1651,6 +1684,7 @@ class StyledFileDialog(QDialog):
             patterns = self.filter_combo.itemData(idx)
             if patterns:
                 self.model.setNameFilters(patterns)
+                self.model.setFilter(QDir.AllDirs | QDir.Files | QDir.NoDotAndDotDot | QDir.Drives)
                 self.selected_filter = self.filter_combo.currentText()
 
     def _select_and_expand_path(self, target_path: str):

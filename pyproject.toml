@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "edutest-pro"
-version = "1.5.4"
+version = "1.5.5"
 description = "Offline LAN exam-testing system with proctoring, dynamic UI scaling, and signed auto-updates"
 readme = "README.md"
 license = { text = "MIT" }
