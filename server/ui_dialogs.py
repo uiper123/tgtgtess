@@ -1532,12 +1532,20 @@ class StyledFileDialog(QDialog):
             "  color: #0369a1;"
             "  font-weight: 600;"
             "}"
+            "QTreeView QHeaderView {"
+            "  background-color: #f8fafc;"
+            "  border: none;"
+            "  min-height: 36px;"
+            "  height: 36px;"
+            "}"
             "QTreeView QHeaderView::section {"
             "  background-color: #f8fafc;"
             "  color: #475569;"
             "  font-weight: 600;"
             "  font-size: 12px;"
-            "  padding: 7px 10px;"
+            "  padding: 0px 8px;"
+            "  height: 36px;"
+            "  min-height: 36px;"
             "  border: none;"
             "  border-bottom: 1px solid #e2e8f0;"
             "  text-transform: none;"
@@ -1553,6 +1561,8 @@ class StyledFileDialog(QDialog):
         else:
             self.tree.setHeaderHidden(False)
             header = self.tree.header()
+            header.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            header.setFixedHeight(36)
             header.setStretchLastSection(False)
             header.setSectionResizeMode(0, QHeaderView.Stretch)
             header.setSectionResizeMode(1, QHeaderView.Interactive)
@@ -1736,10 +1746,12 @@ class StyledFileDialog(QDialog):
             return
         if os.path.isdir(path):
             self.selected_path = os.path.abspath(path)
-            if self.mode == self.Mode.CHOOSE_DIR:
-                self.path_edit.setText(self.selected_path)
+            self.current_dir = self.selected_path
+            self.path_edit.setText(self.current_dir)
         elif os.path.isfile(path):
             self.selected_file = os.path.abspath(path)
+            self.current_dir = os.path.dirname(self.selected_file)
+            self.path_edit.setText(self.current_dir)
             if hasattr(self, 'file_name_edit'):
                 self.file_name_edit.setText(os.path.basename(path))
 
@@ -1751,6 +1763,8 @@ class StyledFileDialog(QDialog):
             self._select_and_expand_path(path)
         elif os.path.isfile(path):
             self.selected_file = os.path.abspath(path)
+            self.current_dir = os.path.dirname(self.selected_file)
+            self.path_edit.setText(self.current_dir)
             if hasattr(self, 'file_name_edit'):
                 self.file_name_edit.setText(os.path.basename(path))
             self._accept_selection()
@@ -1783,7 +1797,10 @@ class StyledFileDialog(QDialog):
             QMessageBox.warning(self, "Предупреждение", "Пожалуйста, укажите имя файла.")
             return
 
-        if os.path.isabs(file_name):
+        # Если файл был выбран в дереве и его имя совпадает с введенным
+        if self.selected_file and os.path.basename(self.selected_file) == file_name and os.path.exists(self.selected_file):
+            full_path = self.selected_file
+        elif os.path.isabs(file_name):
             full_path = file_name
         else:
             full_path = os.path.join(self.current_dir, file_name)

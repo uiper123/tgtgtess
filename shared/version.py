@@ -1,2 +1,2 @@
-VERSION = "1.5.5"
+VERSION = "1.5.6"
 GITHUB_REPO = "uiper123/tgtgtess"

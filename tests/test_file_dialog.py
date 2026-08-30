@@ -59,3 +59,28 @@ def test_styled_file_dialog_directory_mode(tmp_path):
     assert dlg.mode == StyledFileDialog.Mode.CHOOSE_DIR
     assert dlg.current_dir == str(tmp_path)
     assert not hasattr(dlg, "file_name_edit")
+
+
+def test_styled_file_dialog_nested_file_selection(tmp_path):
+    sub = tmp_path / "Рабочий стол" / "Резервная копия"
+    sub.mkdir(parents=True, exist_ok=True)
+    sample_log = sub / "Бэкап_123123_43434.log"
+    sample_log.write_text("test log", encoding="utf-8")
+
+    dlg = StyledFileDialog(
+        title="Открыть лог",
+        initial_path=str(tmp_path),
+        filter_str="Лог-файлы (*.log)",
+        mode=StyledFileDialog.Mode.OPEN_FILE,
+    )
+
+    idx = dlg.model.index(str(sample_log))
+    dlg._on_tree_clicked(idx)
+
+    assert dlg.current_dir == str(sub)
+    assert dlg.selected_file == str(sample_log)
+    assert dlg.file_name_edit.text() == "Бэкап_123123_43434.log"
+
+    dlg._accept_selection()
+    assert dlg.selected_file == str(sample_log)
+

@@ -383,12 +383,19 @@ QTableWidget::item:selected {
 QTableWidget QWidget {
     background-color: transparent;
 }
+QHeaderView {
+    background-color: #f8fafc;
+    border: none;
+    min-height: 36px;
+}
 QHeaderView::section {
     background-color: #f8fafc;
     color: #475569;
     font-weight: 600;
     font-size: 12px;
-    padding: 8px 10px;
+    padding: 0px 8px;
+    height: 36px;
+    min-height: 36px;
     border: none;
     border-bottom: 1px solid #e2e8f0;
     text-align: left;
