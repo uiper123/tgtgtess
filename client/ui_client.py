@@ -1098,6 +1098,22 @@ class StudentWindow(QMainWindow):
         if hasattr(self, "_retry_send_btn"):
             self._retry_send_btn.hide()
 
+        # Обновляем резервную копию с точной подтвержденной оценкой сервера
+        try:
+            from client.main import save_student_final_backup
+        except ImportError:
+            from main import save_student_final_backup
+        name = self._name_input.text()
+        group = self._group_input.currentText()
+        test_name = getattr(self, "_test_name", "")
+        title = self._test_title.text() if hasattr(self, "_test_title") else ""
+        subtitle = self._test_subtitle.text() if hasattr(self, "_test_subtitle") else ""
+        duration = getattr(self, "_duration", 0)
+        save_student_final_backup(
+            name, group, score, self._answers, test_name,
+            questions=self._questions, test_title=title, test_section=subtitle, duration=duration
+        )
+
     @Slot()
     def _on_force_stopped(self):
         if self._test_finished:
@@ -1528,7 +1544,13 @@ class StudentWindow(QMainWindow):
         group = self._group_input.currentText()
         score_placeholder = f"{len(self._answers)}/{len(self._questions)}"
         test_name = getattr(self, "_test_name", "")
-        backup_path = save_student_final_backup(name, group, score_placeholder, self._answers, test_name)
+        title = self._test_title.text() if hasattr(self, "_test_title") else ""
+        subtitle = self._test_subtitle.text() if hasattr(self, "_test_subtitle") else ""
+        duration = getattr(self, "_duration", 0)
+        backup_path = save_student_final_backup(
+            name, group, score_placeholder, self._answers, test_name,
+            questions=self._questions, test_title=title, test_section=subtitle, duration=duration
+        )
         if backup_path:
             filename = os.path.basename(backup_path)
             parent_dir = os.path.basename(os.path.dirname(backup_path))

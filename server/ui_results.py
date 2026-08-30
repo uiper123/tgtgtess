@@ -270,8 +270,9 @@ class ResultsMixin:
         default_name = f"Результаты_{date_str}.xlsx"
         path, _ = self._get_save_file_name(
             "Экспортировать результаты в Excel",
-            default_name,
-            "Файлы Excel (*.xlsx);;CSV-файлы (*.csv)"
+            "",
+            "Файлы Excel (*.xlsx);;CSV-файлы (*.csv);;Все файлы (*.*)",
+            default_filename=default_name,
         )
         if path:
             if not path.lower().endswith('.xlsx') and not path.lower().endswith('.csv'):
@@ -311,8 +312,12 @@ class ResultsMixin:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать результаты: {exc}")
 
     def _import_student_log(self):
-        log_path, _ = self._get_open_file_name("Выберите файл лога студента", "", "Лог-файлы (*.log)")
-        if not log_path:
+        log_path, _ = self._get_open_file_name(
+            "Выберите файл лога студента",
+            "",
+            "Лог-файлы (*.log);;Все файлы (*.*)"
+        )
+        if not log_path or not os.path.exists(log_path):
             return
 
         try:
@@ -330,62 +335,113 @@ class ResultsMixin:
             student_name = log_json.get('name', 'Неизвестный')
             student_group = log_json.get('group', 'Неизвестная')
             student_answers = log_json.get('answers', {})
-            test_name_in_log = log_json.get('test_name', '')
+            test_name = log_json.get('test_name', '') or log_json.get('test_title', '') or 'Тест'
+            questions = log_json.get('questions', None)
+            recorded_score = log_json.get('score', '')
+            timestamp = log_json.get('completed_at') or log_json.get('timestamp') or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             # В логе лежат номера вопросов как строки (JSON keys), приводим к int
             int_answers = {}
             for k, v in student_answers.items():
                 try:
-                    int_answers[int(k)] = v
-                except:
+                    int_answers[int(k)] = v if isinstance(v, list) else [str(v)]
+                except (TypeError, ValueError):
                     pass
 
-            # 2. Пытаемся автоматически найти тест в репозитории
-            questions = None
-            if test_name_in_log:
+            final_score = None
+
+            # 2. Если в логе есть вопросы — рассчитываем точную оценку (или используем сохраненную)
+            if questions and isinstance(questions, list) and len(questions) > 0:
                 try:
-                    from .storage import test_path
+                    from shared.parser import calculate_score
+                    final_score = calculate_score(questions, int_answers, partial_multiple=True)
+                except Exception:
+                    final_score = None
+
+            # Если оценка не рассчиталась, но была сохранена в логе
+            if not final_score and recorded_score and "/" in str(recorded_score):
+                final_score = str(recorded_score)
+
+            # 3. Если вопросов в логе нет (старый формат v1), ищем тест в репозитории автоматически
+            if not questions or not final_score:
+                try:
+                    from .storage import test_path, tests_dir
                 except ImportError:
-                    from storage import test_path
-                potential_path = test_path(test_name_in_log)
-                if os.path.exists(potential_path):
+                    from storage import test_path, tests_dir
+
+                found_path = None
+                if test_name:
+                    potential_path = test_path(test_name)
+                    if os.path.exists(potential_path):
+                        found_path = potential_path
+
+                # Рекурсивный поиск по всем подпапкам репозитория
+                if not found_path:
+                    d = tests_dir()
+                    if d.exists():
+                        for match in d.rglob("*.txt"):
+                            if match.stem == test_name or match.stem.strip() == test_name:
+                                found_path = match
+                                break
+                        if not found_path:
+                            for match in d.rglob("*.json"):
+                                if match.stem == test_name or match.stem.strip() == test_name:
+                                    found_path = match
+                                    break
+
+                if found_path:
                     try:
-                        questions = parse_test_file(potential_path)
-                    except:
+                        if str(found_path).lower().endswith('.json'):
+                            with open(found_path, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                questions = data.get("questions", [])
+                        else:
+                            questions = parse_test_file(str(found_path))
+
+                        if questions:
+                            from shared.parser import calculate_score
+                            final_score = calculate_score(questions, int_answers, partial_multiple=True)
+                    except Exception:
                         pass
 
-            if not questions:
-                QMessageBox.information(self, "Выбор теста",
-                    f"Лог студента {student_name} загружен.\nАвтоматически найти тест '{test_name_in_log}' не удалось.\nВыберите файл теста (.txt) вручную.")
+            # Если всё ещё нет оценки, используем количество ответов
+            if not final_score:
+                if recorded_score:
+                    final_score = str(recorded_score)
+                else:
+                    final_score = f"{len(int_answers)}/{len(questions) if questions else len(int_answers)}"
 
-                manual_test_path, _ = self._get_open_file_name("Выберите файл теста для оценки", "", "Текстовые файлы (*.txt)")
-                if not manual_test_path:
-                    return
-                questions = parse_test_file(manual_test_path)
-
-            if not questions:
-                raise ValueError("Файл теста пуст или неверного формата.")
-
-            # 3. Рассчитываем и сохраняем
-            from shared.parser import calculate_score
-            score = calculate_score(questions, int_answers, partial_multiple=True)
-
+            # 4. Сохраняем результат
             result_entry = {
                 'name': student_name,
                 'group': student_group,
-                'score': score,
+                'score': final_score,
                 'answers': int_answers,
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " (Импорт)",
+                'test_name': test_name,
+                'timestamp': str(timestamp) + ("" if "Импорт" in str(timestamp) else " (Импорт)"),
             }
+            if questions:
+                result_entry['questions'] = questions
 
             self.exam_server._all_results.append(result_entry)
+            self.exam_server._results.append(result_entry)
             self.exam_server._save_all_results_to_file()
             self._update_results_table()
 
-            QMessageBox.information(self, "Успешно", f"Результат студента {student_name} успешно импортирован!\nОценка: {score}")
+            # Красивое уведомление о успешном импорте
+            percent_str, _ = get_grade_details(final_score)
+            QMessageBox.information(
+                self,
+                "Импорт завершён",
+                f"Результат студента успешно импортирован!\n\n"
+                f"👤 Студент: {student_name}\n"
+                f"👥 Группа: {student_group}\n"
+                f"📝 Тест: {test_name}\n"
+                f"📊 Оценка: {final_score} ({percent_str})"
+            )
 
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка импорта", f"Не удалось импортировать лог: {e}")
+            QMessageBox.critical(self, "Ошибка импорта", f"Не удалось импортировать лог:\n{e}")
 
     def _on_result_row_double_clicked(self, row, col):
         try:
@@ -395,21 +451,21 @@ class ResultsMixin:
             result_entry = self.filtered_results[row]
 
             # 1. Пытаемся получить вопросы для этого студента
-            questions = None
+            questions = result_entry.get('questions')
             group = result_entry.get('group', '')
 
-            # Сначала ищем в активных сессиях для этой группы
-            if group:
+            # Если в самой записи вопросов нет, ищем в активных сессиях для этой группы
+            if not questions and group:
                 active_exam = self.exam_server._active_exams.get(group.lower())
                 if active_exam:
                     questions = active_exam.get('questions')
 
-            # Если активной сессии нет, пробуем найти тест по test_name или group
+            # Если активной сессии нет, пробуем найти тест по test_name или group в репозитории
             if not questions:
                 try:
-                    from .storage import test_path
+                    from .storage import test_path, tests_dir
                 except ImportError:
-                    from storage import test_path
+                    from storage import test_path, tests_dir
 
                 test_names_to_try = []
                 if result_entry.get('test_name'):
@@ -427,10 +483,23 @@ class ResultsMixin:
                     elif os.path.exists(txt_path):
                         found_path = txt_path
 
+                    # Рекурсивный поиск в папке тестов
+                    if not found_path:
+                        d = tests_dir()
+                        if d.exists():
+                            for match in d.rglob("*.txt"):
+                                if match.stem == t_name or match.stem.strip() == t_name:
+                                    found_path = match
+                                    break
+                            if not found_path:
+                                for match in d.rglob("*.json"):
+                                    if match.stem == t_name or match.stem.strip() == t_name:
+                                        found_path = match
+                                        break
+
                     if found_path:
                         try:
                             if str(found_path).lower().endswith('.json'):
-                                import json
                                 with open(found_path, 'r', encoding='utf-8') as f:
                                     data = json.load(f)
                                     questions = data.get("questions", [])
@@ -443,29 +512,25 @@ class ResultsMixin:
                             print(f"Failed to load test: {e}")
                             pass
 
-            # Если все еще нет вопросов, просим выбрать файл теста вручную
+            # Если все еще нет вопросов, используем StyledFileDialog для выбора файла теста
             if not questions:
-                QMessageBox.information(
-                    self,
-                    "Просмотр ответов",
-                    f"Тест для студента '{result_entry.get('name')}' не найден в локальной базе.\nПожалуйста, выберите файл теста (.txt или .json)."
-                )
                 try:
                     from .storage import tests_dir
+                    from .ui_dialogs import StyledFileDialog
                 except ImportError:
                     from storage import tests_dir
+                    from ui_dialogs import StyledFileDialog
 
-                manual_test_path, _ = QFileDialog.getOpenFileName(
+                manual_test_path, _ = StyledFileDialog.get_open_file_name(
                     self,
-                    "Выберите файл теста",
+                    f"Выберите файл теста для студента '{result_entry.get('name')}'",
                     str(tests_dir()),
-                    "Файлы тестов (*.txt *.json)"
+                    "Файлы тестов (*.txt *.json);;Все файлы (*.*)"
                 )
                 if not manual_test_path or not os.path.exists(manual_test_path):
                     return
                 try:
                     if manual_test_path.lower().endswith('.json'):
-                        import json
                         with open(manual_test_path, 'r', encoding='utf-8') as f:
                             data = json.load(f)
                             questions = data.get("questions", [])

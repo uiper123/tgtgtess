@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QDialog,
-    QFileDialog,
     QFileSystemModel,
     QFrame,
     QHBoxLayout,
@@ -465,7 +464,12 @@ class EditQuestionDialog(QDialog):
         self._create_answer_row()
 
     def _select_image(self):
-        path, _ = QFileDialog.getOpenFileName(None, "Выберите изображение", "", "Изображения (*.png *.jpg *.jpeg *.gif)")
+        path, _ = StyledFileDialog.get_open_file_name(
+            self,
+            "Выберите изображение",
+            "",
+            "Изображения (*.png *.jpg *.jpeg *.gif *.bmp);;Все файлы (*.*)",
+        )
         if path:
             import base64
             try:
@@ -748,7 +752,12 @@ class DropZoneWidget(QFrame):
         layout.addWidget(self._status_label)
 
     def _browse(self):
-        path, _ = QFileDialog.getOpenFileName(None, "Выберите файл теста", "", "Текстовые файлы (*.txt)")
+        path, _ = StyledFileDialog.get_open_file_name(
+            self,
+            "Выберите файл теста",
+            "",
+            "Текстовые файлы (*.txt);;JSON файлы (*.json);;Все файлы (*.*)",
+        )
         if path:
             self.set_file(path)
 
@@ -1266,58 +1275,120 @@ class ConnectedClientsDialog(QDialog):
                 peer_item.setText("Неизвестно")
 
 
-class DirectoryChooserDialog(QDialog):
+class StyledFileDialog(QDialog):
     """
-    Встроенный двухпанельный навигационный диалог выбора папки с быстрым доступом
-    и полноценным деревом каталогов.
+    Единый двухпанельный файловый менеджер и диалог выбора файлов/папок
+    в фирменном дизайне TTGTiSO-Test.
+    Поддерживает режимы:
+      - OPEN_FILE: выбор существующего файла
+      - SAVE_FILE: сохранение/создание файла с автодополнением расширения
+      - CHOOSE_DIR: выбор папки
     """
-    def __init__(self, initial_path: str = "", parent=None):
+    class Mode:
+        OPEN_FILE = "open_file"
+        SAVE_FILE = "save_file"
+        CHOOSE_DIR = "choose_dir"
+
+    def __init__(
+        self,
+        parent=None,
+        title: str = "",
+        initial_path: str = "",
+        filter_str: str = "",
+        mode: str = Mode.OPEN_FILE,
+        default_filename: str = "",
+    ):
         super().__init__(parent)
-        self.setWindowTitle("Выбор папки для хранения тестов")
-        self.resize(780, 520)
-        self.setMinimumSize(680, 440)
+        self.mode = mode
+        self.filter_str = filter_str
+        self.selected_file = ""
+        self.selected_path = ""
+        self.selected_filter = ""
+        self.parsed_filters = []
+
+        # Установка заголовка окна
+        if title:
+            self.setWindowTitle(title)
+        elif mode == self.Mode.SAVE_FILE:
+            self.setWindowTitle("Сохранить файл")
+        elif mode == self.Mode.CHOOSE_DIR:
+            self.setWindowTitle("Выбор папки")
+        else:
+            self.setWindowTitle("Открыть файл")
+
+        self.resize(840, 540)
+        self.setMinimumSize(700, 440)
         self.setStyleSheet(GLOBAL_QSS)
 
-        init_dir = initial_path if initial_path and os.path.exists(initial_path) else os.path.expanduser("~")
-        self.selected_path = os.path.abspath(init_dir)
+        # Определение начальной директории и имени файла
+        init_file = default_filename or ""
+        if initial_path:
+            if os.path.isfile(initial_path):
+                init_dir = os.path.dirname(initial_path)
+                if not init_file:
+                    init_file = os.path.basename(initial_path)
+            elif os.path.isdir(initial_path):
+                init_dir = initial_path
+            else:
+                parent_dir = os.path.dirname(initial_path)
+                if os.path.isdir(parent_dir):
+                    init_dir = parent_dir
+                    if not init_file:
+                        init_file = os.path.basename(initial_path)
+                else:
+                    init_dir = os.path.expanduser("~")
+                    if not init_file:
+                        init_file = os.path.basename(initial_path)
+        else:
+            # По умолчанию открываем Загрузки или Репозиторий тестов или Домашнюю папку
+            downloads = os.path.expanduser("~/Downloads")
+            if os.path.exists(downloads):
+                init_dir = downloads
+            else:
+                init_dir = os.path.expanduser("~")
+
+        self.current_dir = os.path.abspath(init_dir if os.path.exists(init_dir) else os.path.expanduser("~"))
+        self.selected_path = self.current_dir
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(12)
 
-        # Заголовок
-        title = QLabel("Выберите папку для хранения тестов (.txt)")
-        title.setStyleSheet("font-size: 16px; font-weight: 700; color: #1c1917;")
-        layout.addWidget(title)
+        # Заголовок диалога
+        header_title = title or self.windowTitle()
+        title_lbl = QLabel(header_title)
+        title_lbl.setStyleSheet("font-size: 16px; font-weight: 700; color: #1c1917;")
+        layout.addWidget(title_lbl)
 
-        # Строка текущего пути + кнопка «Вверх»
-        path_box = QHBoxLayout()
-        path_box.setSpacing(8)
+        # Верхняя панель навигации (Папка, Путь, Кнопка Вверх)
+        nav_box = QHBoxLayout()
+        nav_box.setSpacing(8)
 
         lbl_cur = QLabel("Папка:")
         lbl_cur.setStyleSheet("font-weight: 600; color: #57534e;")
-        path_box.addWidget(lbl_cur)
+        nav_box.addWidget(lbl_cur)
 
-        self.path_edit = QLineEdit(self.selected_path)
-        self.path_edit.setReadOnly(True)
+        self.path_edit = QLineEdit(self.current_dir)
         self.path_edit.setStyleSheet(
-            "QLineEdit { padding: 8px 12px; font-size: 13px;"
+            "QLineEdit { padding: 7px 12px; font-size: 13px;"
             " background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 8px; }"
         )
-        path_box.addWidget(self.path_edit, 1)
+        self.path_edit.returnPressed.connect(self._on_path_entered)
+        nav_box.addWidget(self.path_edit, 1)
 
         up_btn = QPushButton("Вверх ⬆")
         up_btn.setProperty("class", "secondaryBtn")
         up_btn.setCursor(Qt.PointingHandCursor)
         up_btn.clicked.connect(self._go_up)
-        path_box.addWidget(up_btn)
-        layout.addLayout(path_box)
+        nav_box.addWidget(up_btn)
 
-        # Сплиттер с навигационной панелью мест слева и деревом папок справа
+        layout.addLayout(nav_box)
+
+        # Сплиттер (Левая панель — Быстрый доступ, Правая — Проводник файлов/папок)
         splitter = QSplitter(Qt.Horizontal)
         splitter.setStyleSheet("QSplitter::handle { background-color: #e7e5e4; width: 1px; }")
 
-        # 1. Левая панель: Быстрый доступ
+        # 1. Быстрый доступ
         left_container = QWidget()
         left_lay = QVBoxLayout(left_container)
         left_lay.setContentsMargins(0, 0, 8, 0)
@@ -1367,35 +1438,44 @@ class DirectoryChooserDialog(QDialog):
             ("💾 Диск / Корень (/)", "/"),
         ]
 
+        if os.name == 'nt':
+            import string
+            for letter in string.ascii_uppercase:
+                drive = f"{letter}:\\"
+                if os.path.exists(drive):
+                    self.places.append((f"💾 Диск ({letter}:)", drive))
+
         for label, p in self.places:
-            item = QListWidgetItem(label)
-            item.setData(Qt.UserRole, p)
-            self.places_list.addItem(item)
+            if os.path.exists(p):
+                item = QListWidgetItem(label)
+                item.setData(Qt.UserRole, p)
+                self.places_list.addItem(item)
 
         self.places_list.itemClicked.connect(self._on_place_clicked)
         left_lay.addWidget(self.places_list)
         splitter.addWidget(left_container)
 
-        # 2. Правая панель: Навигационное дерево папок
+        # 2. Правая панель: Файловая структура
         right_container = QWidget()
         right_lay = QVBoxLayout(right_container)
         right_lay.setContentsMargins(8, 0, 0, 0)
         right_lay.setSpacing(6)
 
-        lbl_tree = QLabel("Дерево каталогов")
+        lbl_tree = QLabel("Файлы и папки" if self.mode != self.Mode.CHOOSE_DIR else "Дерево каталогов")
         lbl_tree.setStyleSheet("font-size: 11px; font-weight: 700; color: #78716c; text-transform: uppercase;")
         right_lay.addWidget(lbl_tree)
 
         self.model = QFileSystemModel()
         self.model.setRootPath(QDir.rootPath())
-        self.model.setFilter(QDir.Dirs | QDir.NoDotAndDotDot | QDir.Drives)
+        self.model.setNameFilterDisables(False)
+
+        if self.mode == self.Mode.CHOOSE_DIR:
+            self.model.setFilter(QDir.Dirs | QDir.NoDotAndDotDot | QDir.Drives)
+        else:
+            self.model.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot | QDir.Drives)
 
         self.tree = QTreeView()
         self.tree.setModel(self.model)
-        self.tree.setHeaderHidden(True)
-        self.tree.setColumnHidden(1, True)
-        self.tree.setColumnHidden(2, True)
-        self.tree.setColumnHidden(3, True)
         self.tree.setAnimated(True)
         self.tree.setSortingEnabled(True)
         self.tree.sortByColumn(0, Qt.AscendingOrder)
@@ -1404,7 +1484,7 @@ class DirectoryChooserDialog(QDialog):
             "  background-color: #ffffff;"
             "  border: 1px solid #e7e5e4;"
             "  border-radius: 8px;"
-            "  padding: 6px;"
+            "  padding: 4px;"
             "  font-size: 13px;"
             "  outline: 0;"
             "}"
@@ -1420,16 +1500,81 @@ class DirectoryChooserDialog(QDialog):
             "  color: #0369a1;"
             "  font-weight: 600;"
             "}"
+            "QHeaderView::section {"
+            "  background-color: #f5f5f4;"
+            "  color: #57534e;"
+            "  font-weight: 600;"
+            "  font-size: 11px;"
+            "  padding: 5px 8px;"
+            "  border: none;"
+            "  border-bottom: 1px solid #e7e5e4;"
+            "}"
         )
+
+        if self.mode == self.Mode.CHOOSE_DIR:
+            self.tree.setHeaderHidden(True)
+            self.tree.setColumnHidden(1, True)
+            self.tree.setColumnHidden(2, True)
+            self.tree.setColumnHidden(3, True)
+        else:
+            self.tree.setHeaderHidden(False)
+            self.tree.header().setStretchLastSection(True)
+            self.tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            self.tree.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            self.tree.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+
         self.tree.clicked.connect(self._on_tree_clicked)
         self.tree.doubleClicked.connect(self._on_tree_double_clicked)
         right_lay.addWidget(self.tree)
         splitter.addWidget(right_container)
 
-        splitter.setSizes([220, 520])
+        splitter.setSizes([220, 600])
         layout.addWidget(splitter, 1)
 
-        # Нижняя панель действий
+        # Нижняя панель с фильтрами и именем файла (для файловых режимов)
+        if self.mode != self.Mode.CHOOSE_DIR:
+            file_info_layout = QVBoxLayout()
+            file_info_layout.setSpacing(8)
+
+            # Строка "Имя файла"
+            fn_row = QHBoxLayout()
+            fn_row.setSpacing(8)
+            lbl_fn = QLabel("Имя файла:")
+            lbl_fn.setMinimumWidth(80)
+            lbl_fn.setStyleSheet("font-weight: 600; color: #57534e;")
+            fn_row.addWidget(lbl_fn)
+
+            self.file_name_edit = QLineEdit(init_file)
+            self.file_name_edit.setStyleSheet(
+                "QLineEdit { padding: 7px 12px; font-size: 13px;"
+                " background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 8px; }"
+            )
+            self.file_name_edit.returnPressed.connect(self._accept_selection)
+            fn_row.addWidget(self.file_name_edit, 1)
+            file_info_layout.addLayout(fn_row)
+
+            # Строка "Тип файлов" (фильтр)
+            ft_row = QHBoxLayout()
+            ft_row.setSpacing(8)
+            lbl_ft = QLabel("Тип файлов:")
+            lbl_ft.setMinimumWidth(80)
+            lbl_ft.setStyleSheet("font-weight: 600; color: #57534e;")
+            ft_row.addWidget(lbl_ft)
+
+            self.filter_combo = StyledComboBox()
+            self.filter_combo.setStyleSheet(
+                "QComboBox { padding: 6px 12px; font-size: 13px;"
+                " background-color: #ffffff; border: 1px solid #e7e5e4; border-radius: 8px; }"
+            )
+            self._setup_filters(filter_str)
+            self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
+            ft_row.addWidget(self.filter_combo, 1)
+            file_info_layout.addLayout(ft_row)
+
+            layout.addLayout(file_info_layout)
+
+        # Нижняя панель действий (Создать папку, Отмена, Выбрать/Открыть/Сохранить)
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(10)
 
@@ -1447,47 +1592,91 @@ class DirectoryChooserDialog(QDialog):
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(cancel_btn)
 
-        select_btn = QPushButton("Выбрать эту папку")
-        select_btn.setProperty("class", "primaryBtn")
-        select_btn.setCursor(Qt.PointingHandCursor)
-        select_btn.clicked.connect(self._accept_folder)
-        btn_layout.addWidget(select_btn)
+        if self.mode == self.Mode.SAVE_FILE:
+            action_text = "Сохранить"
+        elif self.mode == self.Mode.CHOOSE_DIR:
+            action_text = "Выбрать эту папку"
+        else:
+            action_text = "Открыть"
+
+        self.action_btn = QPushButton(action_text)
+        self.action_btn.setProperty("class", "primaryBtn")
+        self.action_btn.setCursor(Qt.PointingHandCursor)
+        self.action_btn.clicked.connect(self._accept_selection)
+        btn_layout.addWidget(self.action_btn)
 
         layout.addLayout(btn_layout)
 
-        # Выбираем и раскрываем начальный путь
-        QTimer.singleShot(100, lambda: self._select_and_expand_path(self.selected_path))
+        # Применяем фильтр и раскрываем начальный каталог
+        self._apply_active_filter()
+        QTimer.singleShot(100, lambda: self._select_and_expand_path(self.current_dir))
+
+    def _setup_filters(self, filter_str: str):
+        self.parsed_filters = []
+        if not filter_str:
+            filter_str = "Все файлы (*.*)"
+
+        import re
+        parts = [p.strip() for p in filter_str.split(";;") if p.strip()]
+        for part in parts:
+            m = re.search(r'\((.*?)\)', part)
+            if m:
+                exts = m.group(1).split()
+            else:
+                exts = ["*.*"]
+            self.parsed_filters.append((part, exts))
+            self.filter_combo.addItem(part, exts)
+
+    def _on_filter_changed(self, index: int):
+        self._apply_active_filter()
+
+    def _apply_active_filter(self):
+        if self.mode == self.Mode.CHOOSE_DIR or not hasattr(self, 'filter_combo'):
+            return
+        idx = self.filter_combo.currentIndex()
+        if idx >= 0:
+            patterns = self.filter_combo.itemData(idx)
+            if patterns:
+                self.model.setNameFilters(patterns)
+                self.selected_filter = self.filter_combo.currentText()
 
     def _select_and_expand_path(self, target_path: str):
         if not target_path or not os.path.exists(target_path):
             return
         abs_path = os.path.abspath(target_path)
-        self.selected_path = abs_path
-        self.path_edit.setText(abs_path)
-
-        idx = self.model.index(abs_path)
-        if idx.isValid():
-            parent = idx.parent()
-            while parent.isValid():
-                self.tree.expand(parent)
-                parent = parent.parent()
-            self.tree.expand(idx)
-            self.tree.setCurrentIndex(idx)
-            self.tree.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+        if os.path.isdir(abs_path):
+            self.current_dir = abs_path
+            self.selected_path = abs_path
         else:
-            # Если модель еще догружает каталоги асинхронно
-            def on_dir_loaded(loaded_path):
-                if abs_path.startswith(loaded_path):
-                    target_idx = self.model.index(abs_path)
-                    if target_idx.isValid():
-                        p = target_idx.parent()
-                        while p.isValid():
-                            self.tree.expand(p)
-                            p = p.parent()
-                        self.tree.expand(target_idx)
-                        self.tree.setCurrentIndex(target_idx)
-                        self.tree.scrollTo(target_idx, QAbstractItemView.PositionAtCenter)
-            self.model.directoryLoaded.connect(on_dir_loaded)
+            self.current_dir = os.path.dirname(abs_path)
+            self.selected_path = abs_path
+            if hasattr(self, 'file_name_edit'):
+                self.file_name_edit.setText(os.path.basename(abs_path))
+
+        self.path_edit.setText(self.current_dir)
+
+        if self.mode == self.Mode.CHOOSE_DIR:
+            idx = self.model.index(self.current_dir)
+            if idx.isValid():
+                parent = idx.parent()
+                while parent.isValid():
+                    self.tree.expand(parent)
+                    parent = parent.parent()
+                self.tree.expand(idx)
+                self.tree.setCurrentIndex(idx)
+                self.tree.scrollTo(idx, QAbstractItemView.PositionAtCenter)
+        else:
+            # В файловом режиме устанавливаем корень модели и дерева на текущую папку
+            dir_idx = self.model.setRootPath(self.current_dir)
+            self.tree.setRootIndex(dir_idx)
+
+    def _on_path_entered(self):
+        entered = self.path_edit.text().strip()
+        if entered and os.path.exists(entered):
+            self._select_and_expand_path(entered)
+        else:
+            QMessageBox.warning(self, "Предупреждение", f"Указанный путь не существует:\n{entered}")
+            self.path_edit.setText(self.current_dir)
 
     def _on_place_clicked(self, item: QListWidgetItem):
         path = item.data(Qt.UserRole)
@@ -1496,36 +1685,125 @@ class DirectoryChooserDialog(QDialog):
 
     def _on_tree_clicked(self, index: QModelIndex):
         path = self.model.filePath(index)
-        if path and os.path.isdir(path):
+        if not path:
+            return
+        if os.path.isdir(path):
             self.selected_path = os.path.abspath(path)
-            self.path_edit.setText(self.selected_path)
+            if self.mode == self.Mode.CHOOSE_DIR:
+                self.path_edit.setText(self.selected_path)
+        elif os.path.isfile(path):
+            self.selected_file = os.path.abspath(path)
+            if hasattr(self, 'file_name_edit'):
+                self.file_name_edit.setText(os.path.basename(path))
 
     def _on_tree_double_clicked(self, index: QModelIndex):
         path = self.model.filePath(index)
-        if path and os.path.isdir(path):
-            self.selected_path = os.path.abspath(path)
-            self.path_edit.setText(self.selected_path)
-            self.tree.expand(index)
+        if not path:
+            return
+        if os.path.isdir(path):
+            self._select_and_expand_path(path)
+        elif os.path.isfile(path):
+            self.selected_file = os.path.abspath(path)
+            if hasattr(self, 'file_name_edit'):
+                self.file_name_edit.setText(os.path.basename(path))
+            self._accept_selection()
 
     def _go_up(self):
-        parent_dir = os.path.dirname(self.selected_path)
-        if parent_dir and os.path.isdir(parent_dir) and parent_dir != self.selected_path:
+        parent_dir = os.path.dirname(self.current_dir)
+        if parent_dir and os.path.isdir(parent_dir) and parent_dir != self.current_dir:
             self._select_and_expand_path(parent_dir)
 
     def _create_folder(self):
         folder_name, ok = QInputDialog.getText(self, "Новая папка", "Введите название новой папки:")
         if ok and folder_name.strip():
-            new_path = os.path.join(self.selected_path, folder_name.strip())
+            new_path = os.path.join(self.current_dir, folder_name.strip())
             try:
                 os.makedirs(new_path, exist_ok=True)
                 self._select_and_expand_path(new_path)
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось создать папку: {e}")
 
-    def _accept_folder(self):
-        if self.selected_path and os.path.isdir(self.selected_path):
-            self.accept()
+    def _accept_selection(self):
+        if self.mode == self.Mode.CHOOSE_DIR:
+            if self.selected_path and os.path.isdir(self.selected_path):
+                self.accept()
+            else:
+                QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите существующую папку.")
+            return
+
+        file_name = self.file_name_edit.text().strip()
+        if not file_name:
+            QMessageBox.warning(self, "Предупреждение", "Пожалуйста, укажите имя файла.")
+            return
+
+        if os.path.isabs(file_name):
+            full_path = file_name
         else:
-            QMessageBox.warning(self, "Предупреждение", "Пожалуйста, выберите существующую папку.")
+            full_path = os.path.join(self.current_dir, file_name)
+
+        if self.mode == self.Mode.OPEN_FILE:
+            if os.path.isdir(full_path):
+                self._select_and_expand_path(full_path)
+                return
+            if not os.path.exists(full_path):
+                QMessageBox.warning(self, "Предупреждение", f"Файл не найден:\n{full_path}")
+                return
+            self.selected_file = full_path
+            self.accept()
+
+        elif self.mode == self.Mode.SAVE_FILE:
+            if os.path.isdir(full_path):
+                self._select_and_expand_path(full_path)
+                return
+
+            # Автодополнение расширения при необходимости
+            if "." not in os.path.basename(full_path):
+                patterns = self.filter_combo.currentData() if hasattr(self, 'filter_combo') else []
+                if patterns:
+                    first_pat = patterns[0]
+                    if first_pat.startswith("*.") and first_pat != "*.*":
+                        full_path += first_pat[1:]
+
+            self.selected_file = full_path
+            self.accept()
+
+    @classmethod
+    def get_open_file_name(cls, parent=None, title="Открыть файл", directory="", filter_str="") -> tuple:
+        dlg = cls(parent=parent, title=title, initial_path=directory, filter_str=filter_str, mode=cls.Mode.OPEN_FILE)
+        if dlg.exec():
+            return dlg.selected_file, dlg.selected_filter
+        return "", ""
+
+    @classmethod
+    def get_save_file_name(cls, parent=None, title="Сохранить файл", directory="", filter_str="", default_filename="") -> tuple:
+        dlg = cls(
+            parent=parent,
+            title=title,
+            initial_path=directory,
+            filter_str=filter_str,
+            mode=cls.Mode.SAVE_FILE,
+            default_filename=default_filename,
+        )
+        if dlg.exec():
+            return dlg.selected_file, dlg.selected_filter
+        return "", ""
+
+    @classmethod
+    def get_existing_directory(cls, parent=None, title="Выбор папки", directory="") -> str:
+        dlg = cls(parent=parent, title=title, initial_path=directory, mode=cls.Mode.CHOOSE_DIR)
+        if dlg.exec():
+            return dlg.selected_path
+        return ""
+
+
+class DirectoryChooserDialog(StyledFileDialog):
+    """Совместимый двухпанельный диалог выбора папки."""
+    def __init__(self, initial_path: str = "", parent=None):
+        super().__init__(
+            parent=parent,
+            title="Выбор папки для хранения тестов",
+            initial_path=initial_path,
+            mode=StyledFileDialog.Mode.CHOOSE_DIR,
+        )
 
 

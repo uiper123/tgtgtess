@@ -58,15 +58,31 @@ def get_backup_dir() -> str:
     return backup_dir
 
 
-def save_encrypted_backup(name: str, group: str, score: str, answers: dict, test_name: str = ""):
+def save_encrypted_backup(
+    name: str,
+    group: str,
+    score: str,
+    answers: dict,
+    test_name: str = "",
+    questions: list = None,
+    test_title: str = "",
+    test_section: str = "",
+    duration: int = 0,
+):
     """Сохраняет результат в зашифрованном .log файле."""
     data = {
+        'version': 2,
         'name': name,
         'group': group,
         'score': score,
         'answers': answers,
         'test_name': test_name,
+        'test_title': test_title,
+        'test_section': test_section,
+        'duration': duration,
+        'questions': questions or [],
         'timestamp': datetime.now().isoformat(),
+        'completed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     }
     raw = json.dumps(data, ensure_ascii=False).encode('utf-8')
     encrypted = xor_encrypt(raw)
@@ -167,10 +183,21 @@ def get_student_backup_dir() -> str:
     return fallback
 
 
-def save_student_final_backup(name: str, group: str, score: str, answers: dict, test_name: str = "") -> Optional[str]:
+def save_student_final_backup(
+    name: str,
+    group: str,
+    score: str,
+    answers: dict,
+    test_name: str = "",
+    questions: list = None,
+    test_title: str = "",
+    test_section: str = "",
+    duration: int = 0,
+) -> Optional[str]:
     """
     Создает видимую папку 'Резервная копия' на Рабочем столе студента
     и экспортирует туда зашифрованный лог с ФИО студента и группой в названии.
+    Содержит полную структуру теста, вопросы, ответы студента и метаданные.
     Гарантированно работает в гостевом режиме и при ограниченных правах.
     """
     try:
@@ -183,12 +210,18 @@ def save_student_final_backup(name: str, group: str, score: str, answers: dict, 
         backup_dir = get_student_backup_dir()
 
         data = {
+            'version': 2,
             'name': name,
             'group': group,
             'score': score,
             'answers': answers,
             'test_name': test_name,
+            'test_title': test_title,
+            'test_section': test_section,
+            'duration': duration,
+            'questions': questions or [],
             'timestamp': datetime.now().isoformat(),
+            'completed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }
         raw = json.dumps(data, ensure_ascii=False).encode('utf-8')
         encrypted = xor_encrypt(raw)
@@ -198,6 +231,12 @@ def save_student_final_backup(name: str, group: str, score: str, answers: dict, 
 
         with open(filepath, 'wb') as f:
             f.write(encrypted)
+
+        # Также дублируем в системный скрытый бэкап
+        save_encrypted_backup(
+            name, group, score, answers, test_name,
+            questions=questions, test_title=test_title, test_section=test_section, duration=duration
+        )
 
         return filepath
     except Exception as e:
@@ -245,6 +284,10 @@ class StudentClient(QObject):
         self._name = ''
         self._group = ''
         self._test_name = ''
+        self._test_title = ''
+        self._test_section = ''
+        self._duration = 0
+        self._questions = []
         self._pending_connect = False
         self._intentional_disconnect = False
         self._in_test = False
@@ -500,6 +543,10 @@ class StudentClient(QObject):
             section = packet.get('section', 'Раздел: Основная часть')
             test_name = packet.get('test_name', '')
             self._test_name = test_name
+            self._questions = questions
+            self._duration = duration
+            self._test_title = title
+            self._test_section = section
             # remaining_seconds приходит от сервера, если он умеет (v1.3.7+).
             # Для совместимости со старым сервером — fallback на duration*60.
             remaining = packet.get('remaining_seconds')
@@ -648,8 +695,18 @@ class StudentClient(QObject):
         self._in_test = False
         self._pending_results = answers
 
-        score_placeholder = f"{len(answers)}"
-        save_encrypted_backup(self._name, self._group, score_placeholder, answers, self._test_name)
+        score_placeholder = f"{len(answers)}/{len(self._questions) if self._questions else len(answers)}"
+        save_encrypted_backup(
+            self._name,
+            self._group,
+            score_placeholder,
+            answers,
+            self._test_name,
+            questions=self._questions,
+            test_title=self._test_title,
+            test_section=self._test_section,
+            duration=self._duration,
+        )
 
         if self._socket.state() == QAbstractSocket.ConnectedState:
             return self._send_result_packet(answers)
@@ -690,7 +747,17 @@ class StudentClient(QObject):
 
     def save_backup(self, answers: dict, score: str = "N/A"):
         """Позволяет принудительно сохранить локальную резервную копию ответов."""
-        save_encrypted_backup(self._name, self._group, score, answers, self._test_name)
+        save_encrypted_backup(
+            self._name,
+            self._group,
+            score,
+            answers,
+            self._test_name,
+            questions=self._questions,
+            test_title=self._test_title,
+            test_section=self._test_section,
+            duration=self._duration,
+        )
 
     def disconnect(self):
         self._intentional_disconnect = True

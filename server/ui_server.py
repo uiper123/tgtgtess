@@ -169,10 +169,12 @@ class ServerWindow(DashboardMixin, QuestionsMixin, ExamsMixin, ResultsMixin, Log
             toast.show_animation()
 
     def _get_open_file_name(self, title: str, directory: str, filter_str: str) -> tuple:
-        return QFileDialog.getOpenFileName(None, title, directory, filter_str)
+        from .ui_dialogs import StyledFileDialog
+        return StyledFileDialog.get_open_file_name(self, title, directory, filter_str)
 
-    def _get_save_file_name(self, title: str, directory: str, filter_str: str) -> tuple:
-        return QFileDialog.getSaveFileName(None, title, directory, filter_str)
+    def _get_save_file_name(self, title: str, directory: str, filter_str: str, default_filename: str = "") -> tuple:
+        from .ui_dialogs import StyledFileDialog
+        return StyledFileDialog.get_save_file_name(self, title, directory, filter_str, default_filename=default_filename)
 
     def _build_ui(self):
         central = QWidget()

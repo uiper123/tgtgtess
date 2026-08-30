@@ -368,7 +368,12 @@ class QuestionsMixin:
             QMessageBox.warning(self, "Предупреждение", "Список вопросов пуст!")
             return
 
-        path, _ = self._get_save_file_name("Экспортировать тест", "test_edited.txt", "Текстовые файлы (*.txt)")
+        path, _ = self._get_save_file_name(
+            "Экспортировать тест",
+            "",
+            "Текстовые файлы (*.txt);;Все файлы (*.*)",
+            default_filename="test_edited.txt",
+        )
         if path:
             if not path.lower().endswith('.txt'):
                 path += '.txt'
@@ -406,7 +411,11 @@ class QuestionsMixin:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить тест: {e}")
 
     def import_questions(self):
-        path, _ = self._get_open_file_name("Импортировать вопросы", "", "Текстовые файлы (*.txt)")
+        path, _ = self._get_open_file_name(
+            "Импортировать вопросы",
+            "",
+            "Текстовые файлы (*.txt);;JSON файлы (*.json);;Все файлы (*.*)",
+        )
         if path:
             try:
                 new_questions = parse_test_file(path)

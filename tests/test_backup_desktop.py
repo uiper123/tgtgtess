@@ -72,3 +72,53 @@ def test_save_student_final_backup():
         os.remove(filepath)
     except OSError:
         pass
+
+
+def test_save_and_load_rich_student_backup_with_questions():
+    name = "Иванов Иван"
+    group = "ИС-21"
+    score = "2/2"
+    answers = {0: ["Ответ А"], 1: ["Ответ Б"]}
+    test_name = "Итоговый экзамен"
+    title = "Тестирование по программированию"
+    section = "Модуль 1"
+    duration = 45
+    sample_questions = [
+        {"number": 1, "text": "Вопрос 1", "type": "single", "answers": [{"text": "Ответ А", "correct": True}, {"text": "Ответ Б", "correct": False}]},
+        {"number": 2, "text": "Вопрос 2", "type": "single", "answers": [{"text": "Ответ А", "correct": False}, {"text": "Ответ Б", "correct": True}]},
+    ]
+
+    filepath = save_student_final_backup(
+        name,
+        group,
+        score,
+        answers,
+        test_name=test_name,
+        questions=sample_questions,
+        test_title=title,
+        test_section=section,
+        duration=duration,
+    )
+    assert filepath is not None
+    assert os.path.exists(filepath)
+
+    # Расшифровываем
+    with open(filepath, "rb") as f:
+        raw_enc = f.read()
+
+    data = json.loads(xor_decrypt(raw_enc).decode("utf-8"))
+    assert data["version"] == 2
+    assert data["name"] == name
+    assert data["group"] == group
+    assert data["score"] == "2/2"
+    assert data["test_title"] == title
+    assert data["test_section"] == section
+    assert data["duration"] == duration
+    assert len(data["questions"]) == 2
+    assert data["questions"][0]["text"] == "Вопрос 1"
+
+    # Очистка
+    try:
+        os.remove(filepath)
+    except OSError:
+        pass
