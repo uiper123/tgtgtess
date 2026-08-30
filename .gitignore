@@ -20,9 +20,13 @@ env/
 .env
 
 # ========================
-# Nuitka & Build artifacts
+# Nuitka & PyInstaller Build artifacts
 # ========================
 dist/
+build/TTGTiSO-Test-*/
+build/pyi_*/
+build/spec_*/
+*.spec
 *.build/
 *.dist/
 *.onefile-build/
